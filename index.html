@@ -1810,9 +1810,11 @@ zipIn.addEventListener("change",async()=>{
       const {id,...rest}=p;
       await db.collection("trabajos").doc(id).set({...rest,items,fotosPunto:await mapG(p.fotosPunto),importado:Date.now()});nP++;
     }
+    // lo que llega de otro equipo no cuenta como "sin enviar" en este
+    if(LOCAL)store.set("ultimoEnvio",String(Math.max(+store.get("ultimoEnvio")||0,Date.now())));updPaquete();
     toast(`Importados ${nP} puntos y ${nF} fotos nuevas.`);
   }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":"No se pudo leer el paquete. ¿Es el .zip que armó la app del celular?")}
-  finally{b.disabled=false;b.textContent="📥 Importar del celular"}
+  finally{b.disabled=false;b.textContent=LOCAL?"📥 Importar paquete":"📥 Importar del celular"}
 });
 $("btnExport").addEventListener("click",async()=>{
   if(!downloads)return;
@@ -1835,7 +1837,7 @@ setInterval(()=>{if(rows.length)render()},60000);
   $("today").textContent=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if(!window.claude?.use){$("list").innerHTML=`<div class="empty"><h3>Abre esta página en Claude</h3><p class="note">Los trabajos se guardan en la nube de la página y solo cargan dentro de Claude.</p></div>`;return}
   claude.use("downloads").then(d=>{downloads=d;$("btnExport").hidden=!d;$("btnPaquete").hidden=!d||!LOCAL});
-  claude.use("assets").then(a=>{assets=a;$("btnImport").hidden=!a||LOCAL;formItems.forEach((_,i)=>refreshFotos(i));if(!$("scrim").hidden)refreshFotos("P")}).catch(()=>{});
+  claude.use("assets").then(a=>{assets=a;$("btnImport").hidden=!a;if(LOCAL)$("btnImport").textContent="📥 Importar paquete";formItems.forEach((_,i)=>refreshFotos(i));if(!$("scrim").hidden)refreshFotos("P")}).catch(()=>{});
   db=await claude.use("db");
   if(!db){readOnly=true;$("btnNew").hidden=true;$("list").innerHTML=`<div class="empty"><h3>No se pudo abrir la tabla</h3><p class="note">Inicia sesión en Claude para ver y registrar trabajos.</p></div>`;return}
   const user=await claude.use("user");
