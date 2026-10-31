@@ -1,0 +1,1860 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16324a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>[hidden]{display:none!important}html,body{margin:0}</style>
+<script>// App instalable: datos y fotos en el teléfono (IndexedDB); funciona sin señal.
+(function(){
+window.__LOCAL=true; window.__BLOB_BASE="./_blob/";
+const DBN="inspecciones", V=1;
+const open=()=>new Promise((ok,no)=>{const r=indexedDB.open(DBN,V);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains("docs"))d.createObjectStore("docs");if(!d.objectStoreNames.contains("blobs"))d.createObjectStore("blobs")};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+let dbp=null;const idb=()=>dbp??=open();
+const tx=async(store,mode,fn)=>{const d=await idb();return new Promise((ok,no)=>{const t=d.transaction(store,mode);const s=t.objectStore(store);let out;Promise.resolve(fn(s)).then(v=>out=v);t.oncomplete=()=>ok(out);t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)})};
+const req=r=>new Promise((ok,no)=>{r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const rid=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return[...a].map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,n)};
+const listeners={};
+async function all(col){return tx("docs","readonly",async s=>{const keys=await req(s.getAllKeys()),vals=await req(s.getAll());return keys.map((k,i)=>[k,vals[i]]).filter(([k])=>k.startsWith(col+"/")).map(([k,v])=>({id:k.slice(col.length+1),data:()=>v}))})}
+async function emit(col){const docs=await all(col);(listeners[col]||[]).forEach(f=>{try{f({metadata:{fromCache:false},docs})}catch(e){console.error(e)}})}
+function collection(col){return{
+  onSnapshot(next,err){(listeners[col]??=[]).push(next);all(col).then(docs=>next({metadata:{fromCache:false},docs})).catch(e=>err&&err(e));return()=>{listeners[col]=listeners[col].filter(f=>f!==next)}},
+  async add(data){const id=rid(20);await tx("docs","readwrite",s=>s.put(data,col+"/"+id));emit(col);return{id}},
+  doc(id){const k=col+"/"+id;return{
+    async get(){const v=await tx("docs","readonly",s=>req(s.get(k)));return{exists:v!==undefined,id,data:()=>v}},
+    async set(data){await tx("docs","readwrite",s=>s.put(data,k));emit(col)},
+    async update(patch){await tx("docs","readwrite",async s=>{const v=await req(s.get(k));s.put({...(v||{}),...patch},k)});emit(col)},
+    async delete(){await tx("docs","readwrite",s=>s.delete(k));emit(col)}}}}}
+const db={collection};
+const assets={
+  async upload(blob){const id=rid(32);await tx("blobs","readwrite",s=>s.put(blob,id));return{id,url:window.__BLOB_BASE+id,sizeBytes:blob.size,contentType:blob.type}},
+  async delete(ref){const id=String(ref).split("/").pop();await tx("blobs","readwrite",s=>s.delete(id));return{deleted:true}},
+  async list(){return{assets:[],usage:{}}}};
+const downloads={async save({filename,data}){
+  const blob=data instanceof Blob?data:new Blob([data]);
+  const file=new File([blob],filename,{type:blob.type||"application/octet-stream"});
+  // en el celular se ofrece compartir (WhatsApp, Drive, correo…); si no, se descarga
+  if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:filename});return{status:"saved"}}catch(e){if(e.name==="AbortError")throw{code:"declined"}}}
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000);return{status:"saved"}}};
+const user={can:async()=>true,isOwner:()=>true,canEdit:()=>true};
+window.claude={use:async n=>n==="db"?db:n==="assets"?assets:n==="downloads"?downloads:n==="user"?user:null};
+// que el teléfono no borre los datos por falta de espacio
+try{navigator.storage?.persist?.()}catch(e){}
+if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});
+  // la primera vez, recarga cuando el service worker toma el control (para que se vean las fotos)
+  if(!navigator.serviceWorker.controller)navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!sessionStorage.getItem("swr")){sessionStorage.setItem("swr","1");location.reload()}})}
+})();
+</script>
+</head><body>
+<title>Control de Inspecciones</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: bitácora de campo — encabezado con resumen y alertas, filtros, lista agrupada por día; ficha en panel lateral con esquema de reparación */
+:root{
+  --bg:#f3f4f2; --surface:#ffffff; --sunk:#e8eae6; --line:#d4d8d1; --fg:#1d2621; --muted:#5d685f;
+  --ink:#16324a; --accent:#e0a100; --accent-fg:#1d2621; --accent-soft:#fbefc8;
+  --ok:#2f7d4f; --ok-soft:#dcefe2; --warn:#b26b00; --warn-soft:#fbe9cc; --bad:#b4372b; --bad-soft:#f7dcd8;
+  --a-zs:#2f7d4f; --a-il:#7a4bb0; --a-bi:#b4372b; --a-0h:#1f7a8c; --a-12h:#1d4f91;
+  --pipe:#dfe3e6; --pipe-edge:#7b868c; --sleeve:#f3d27a; --sleeve2:#e9a948; --weld:#3b4248; --zs:#3b6fd4; --zs-edge:#1f4aa0; --zs-line:#0d2a63;
+  --shell:#6f777c; --shell-hi:#8e979c; --shell-edge:#3f464a; --l1:#e02020; --l2:#4caf3a;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111613; --surface:#1a201c; --sunk:#232a25; --line:#323b35; --fg:#e6ebe6; --muted:#9aa69d;
+  --ink:#9fc3e6; --accent:#f2b928; --accent-fg:#111613; --accent-soft:#3a3115;
+  --ok:#6cc48f; --ok-soft:#1c3324; --warn:#f0ad4a; --warn-soft:#3a2b14; --bad:#f08376; --bad-soft:#3d1d1a;
+  --a-zs:#6cc48f; --a-il:#b99be0; --a-bi:#f08376; --a-0h:#5fc0d1; --a-12h:#86aee8;
+  --pipe:#4a545a; --pipe-edge:#8d989e; --sleeve:#b8932f; --sleeve2:#c07a2a; --weld:#e6ebe6; --zs:#4b7fe0; --zs-edge:#9db8f2; --zs-line:#0d1f45;
+  --shell:#5d666b; --shell-hi:#7a8489; --shell-edge:#a7b0b5; --l1:#ff5a5a; --l2:#6fd35a;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111613; --surface:#1a201c; --sunk:#232a25; --line:#323b35; --fg:#e6ebe6; --muted:#9aa69d;
+  --ink:#9fc3e6; --accent:#f2b928; --accent-fg:#111613; --accent-soft:#3a3115;
+  --ok:#6cc48f; --ok-soft:#1c3324; --warn:#f0ad4a; --warn-soft:#3a2b14; --bad:#f08376; --bad-soft:#3d1d1a;
+  --a-zs:#6cc48f; --a-il:#b99be0; --a-bi:#f08376; --a-0h:#5fc0d1; --a-12h:#86aee8;
+  --pipe:#4a545a; --pipe-edge:#8d989e; --sleeve:#b8932f; --sleeve2:#c07a2a; --weld:#e6ebe6; --zs:#4b7fe0; --zs-edge:#9db8f2; --zs-line:#0d1f45;
+  --shell:#5d666b; --shell-hi:#7a8489; --shell-edge:#a7b0b5; --l1:#ff5a5a; --l2:#6fd35a;
+  color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px;display:grid;gap:18px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:.01em}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:.86em;font-variant-numeric:tabular-nums}
+.label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.top h1{font-size:2rem;font-weight:700;color:var(--ink);line-height:1}
+.top .sub{color:var(--muted);margin-top:4px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:9px 14px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad);border-color:var(--bad-soft)}
+.btn.small{padding:5px 10px;font-size:.85rem}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;text-align:left;display:grid;gap:2px;border-left-width:4px}
+.stat .n{font-family:var(--f-display);font-size:2rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.stat.warn{border-left-color:var(--warn)} .stat.warn .n{color:var(--warn)}
+.stat.bad{border-left-color:var(--bad)} .stat.bad .n{color:var(--bad)}
+.stat.ok{border-left-color:var(--ok)} .stat.ok .n{color:var(--ok)}
+.stat.neutral{border-left-color:var(--ink)} .stat.neutral .n{color:var(--ink)}
+.stat .hint{font-size:.8rem;color:var(--muted)}
+button.stat[aria-pressed="true"]{background:var(--sunk)}
+@media (max-width:720px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.alert{background:var(--bad-soft);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 35%,transparent);border-radius:var(--r);padding:10px 14px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.alert strong{font-family:var(--f-display);font-size:1.15rem}
+.draftbar{background:var(--accent-soft);border:1px solid var(--accent);border-radius:var(--r);padding:10px 14px;display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.draftbar strong{font-family:var(--f-display);font-size:1.1rem}
+.draftbar .actions{margin-left:auto}
+.savedot{font-size:.8rem;color:var(--muted)}
+.alert .items{display:flex;flex-wrap:wrap;gap:6px}
+.alert .items button{border:1px solid currentColor;background:transparent;color:inherit;border-radius:999px;padding:2px 10px;font-size:.85rem;font-weight:600}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters input[type=search]{flex:1 1 220px;min-width:0}
+.field{border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:8px 10px;min-width:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface);flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:8px 12px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.count{color:var(--muted);font-size:.9rem;margin-left:auto}
+
+.list{display:grid;gap:14px}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.dayhead{display:flex;align-items:baseline;gap:10px;padding:8px 14px;background:var(--sunk);border-bottom:1px solid var(--line)}
+.dayhead h2{font-size:1.1rem;font-weight:600;text-transform:capitalize}
+.dayhead .label{margin-left:auto}
+.cols,.row{display:grid;grid-template-columns:86px 90px 84px 48px minmax(0,1fr) minmax(0,1.1fr) 200px 190px;gap:10px}
+.acts{grid-column:1/-1;display:grid;border-top:1px dashed var(--line);margin-top:2px}
+.act{display:grid;grid-template-columns:170px minmax(0,1fr) 170px 210px auto;gap:10px;align-items:center;padding:7px 0;border-bottom:1px dashed var(--line)}
+.act:last-child{border-bottom:0}
+.act .obs{grid-column:1/-1;margin-top:-2px}
+.act.late .consec{color:var(--bad)}
+.items{display:grid;gap:10px}
+.itcard{border:1px solid var(--line);border-radius:var(--r);padding:10px;display:grid;gap:10px;background:var(--bg)}
+.ithead{display:flex;gap:8px;align-items:center}
+.ithead select{flex:1;font-weight:600}
+.chip.ic{color:var(--ink)} .chip.ot{color:var(--muted)}
+.itcard.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.itrep{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.itrep .thumb{max-width:140px}
+.repbox{display:grid;gap:10px;border-top:1px dashed var(--line);padding-top:10px;min-width:0}
+.fotobox{display:grid;gap:12px}
+.ubigrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ubigrid .fgrp{gap:4px}
+.fgrp{display:grid;gap:8px}
+.fhead{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.fhead .cnt{font-size:.8rem;font-weight:600;color:var(--muted)}
+.fhead .cnt.low{color:var(--bad)}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.fslot{display:grid;gap:4px;min-width:0}
+.fimg{position:relative;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:6px;background:var(--surface);color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;font-size:.8rem;cursor:pointer;overflow:hidden;padding:0}
+.fslot.has .fimg{border-style:solid}
+.fimg img{width:100%;height:100%;object-fit:cover;display:block}
+.fimg .cam{font-size:1.4rem;line-height:1}
+.fimg .num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:.7rem;font-weight:700;border-radius:4px;padding:1px 5px}
+.fimg .busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.8);color:#1d2621;font-weight:600}
+.fimg[disabled]{cursor:default}
+.fcap{font-size:.8rem;padding:6px 8px;min-height:32px}
+.fview{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
+.fview[hidden]{display:none}
+.fvwrap{position:relative;display:inline-block;max-width:100%;line-height:0}
+.fview img{max-width:100%;max-height:calc(100vh - 140px);object-fit:contain;border-radius:4px;display:block}
+.fst{position:absolute;left:0;bottom:0;background:rgba(0,0,0,.55);color:#fff;font-weight:600;font-family:Arial,Helvetica,sans-serif;line-height:1.3;padding:.4em .6em .5em;text-align:left;white-space:nowrap;pointer-events:none}
+.fimg{container-type:inline-size;width:100%}
+.fimg .fst{font-size:3.4cqw}
+.fview .fst{border-bottom-left-radius:4px}
+.fview .cap{color:#fff;font-weight:600;text-align:center}
+.fview .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.calc{display:grid;gap:6px;background:color-mix(in srgb,var(--ink) 6%,transparent);border-radius:6px;padding:10px 12px;min-width:0}
+.calc table{border-collapse:collapse;width:100%;font-size:.85rem;font-variant-numeric:tabular-nums}
+.calc td{padding:3px 6px;border-bottom:1px dashed var(--line);vertical-align:top}
+.calc td:last-child{text-align:right;font-family:var(--f-mono);white-space:nowrap}
+.calc .tot{display:flex;flex-wrap:wrap;gap:4px 14px;font-weight:600}
+.calc .tot b{font-family:var(--f-display);font-size:1.15rem;color:var(--ink)}
+.calcwrap{overflow-x:auto}
+.ltwarn{background:var(--bad-soft);color:var(--bad);border:1px solid color-mix(in srgb,var(--bad) 35%,transparent);border-radius:6px;padding:8px 10px;display:flex;gap:8px 12px;flex-wrap:wrap;align-items:center;font-size:.88rem;font-weight:500}
+.ltwarn .btn{margin-left:auto}
+.sub2.lowf{color:var(--bad);font-weight:600}
+.warnline{display:block;font-size:.78rem;color:var(--bad);font-weight:600;margin-top:2px}
+.actrep{display:grid;gap:3px;justify-items:start;min-width:0}
+.actrep .thumb{max-width:130px}
+@media (max-width:980px){.act{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}}
+.cols{padding:0 15px 4px}
+.row{align-items:center;padding:10px 14px;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row.late{background:color-mix(in srgb,var(--bad-soft) 55%,transparent)}
+.cell{min-width:0}
+.cell .k{display:none}
+.consec{font-weight:600;color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}
+.inspchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
+.inspchips:empty{display:none}
+.ichip{font:inherit;font-size:.85rem;font-weight:500;padding:4px 6px 4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--fg);display:inline-flex;align-items:center;gap:6px;cursor:pointer;min-height:32px}
+.ichip .x{font-size:1rem;line-height:1;color:var(--muted)}
+.ichip:hover .x{color:var(--bad)}
+.ichip[disabled]{cursor:default;padding-right:10px}
+.chip{font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;letter-spacing:.02em}
+.chip.zs{color:var(--a-zs)} .chip.il{color:var(--a-il)} .chip.bi{color:var(--a-bi)} .chip.h0{color:var(--a-0h)} .chip.h12{color:var(--a-12h)}
+.sub2{display:block;font-size:.78rem;color:var(--muted);margin-top:3px}
+.thumb{display:block;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:2px;width:100%;max-width:150px}
+.thumb svg{display:block;width:100%;height:auto}
+.thumb:hover{border-color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.state{display:grid;gap:3px;justify-items:start}
+.state small{color:var(--muted);font-size:.78rem}
+.state small.late{color:var(--bad);font-weight:600}
+.state small.soon{color:var(--warn);font-weight:600}
+.obs{grid-column:1/-1;font-size:.86rem;color:var(--muted);margin-top:-4px}
+.obs.bad{color:var(--bad)}
+.rowacts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.muted{color:var(--muted)}
+@media (max-width:980px){
+  .cols{display:none}
+  .row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;align-items:start}
+  .cell .k{display:block}
+  .cell.wide{grid-column:1/-1}
+  .rowacts{grid-column:1/-1;justify-content:flex-start}
+}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r);padding:28px 20px;text-align:center;display:grid;gap:10px;justify-items:center}
+.empty h3{font-size:1.3rem}
+.note{font-size:.85rem;color:var(--muted);margin:0}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:var(--r);padding:8px 12px;font-size:.9rem}
+
+.scrim{position:fixed;inset:0;background:rgb(0 0 0 / .35);z-index:20;display:flex;justify-content:flex-end}
+.panel{background:var(--bg);width:min(620px,100%);height:100%;overflow:auto;padding-block:calc(18px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));padding-left:20px;padding-right:max(20px,env(safe-area-inset-right,0px));display:grid;gap:14px;align-content:start;border-left:1px solid var(--line)}
+.panel h2{font-size:1.5rem;color:var(--ink)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+@media (max-width:460px){.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.f{display:grid;gap:4px;min-width:0;align-content:start}
+.f .field{width:100%}
+textarea.field{min-height:64px;resize:vertical}
+fieldset{border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin:0;display:grid;gap:10px;background:var(--surface);min-width:0}
+legend{padding:0 4px}
+fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.drawing{min-width:0}
+.itcard select.field,.itcard input.field,.itcard textarea.field{max-width:100%;min-width:0}
+.picks{display:flex;flex-wrap:wrap;gap:6px}
+.pick input{position:absolute;opacity:0;pointer-events:none}
+.pick span{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-weight:600;font-size:.88rem;background:var(--bg)}
+.pick input:checked + span{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.pick input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.check{display:flex;gap:8px;align-items:center;font-weight:500}
+.drawing{border:1px solid var(--line);border-radius:var(--r);background:var(--bg);overflow-x:auto}
+.drawing svg{display:block;width:100%;min-width:480px;height:auto}
+.drawbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+.hint-box{font-size:.85rem;color:var(--ink);background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:6px;padding:6px 10px}
+.panelacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;padding-top:6px}
+.err{color:var(--bad);font-size:.85rem;margin:0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--surface);padding:10px 16px;border-radius:var(--r);font-weight:600;z-index:30;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.panel{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Control de Inspecciones</h1>
+      <div class="sub" id="today"></div>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="btnExport" type="button" hidden>Descargar Excel (CSV)</button>
+      <button class="btn" id="btnPaquete" type="button" hidden>📤 Enviar a Claude</button>
+      <button class="btn" id="btnImport" type="button" hidden>📥 Importar del celular</button>
+      <button class="btn primary" id="btnNew" type="button">+ Nuevo punto</button>
+    </div>
+  </header>
+
+  <div class="alert" id="alertBox" role="alert" hidden></div>
+  <div class="draftbar" id="draftBar" hidden></div>
+
+  <section class="summary" aria-label="Resumen">
+    <button class="stat warn" type="button" data-f="pendiente" aria-pressed="false"><span class="label">Falta informe</span><span class="n" id="sPend">–</span><span class="hint" id="sPendHint">sin entregar</span></button>
+    <button class="stat bad" type="button" data-f="novedad" aria-pressed="false"><span class="label">Con novedad</span><span class="n" id="sNov">–</span><span class="hint" id="sNovHint">requieren atención</span></button>
+    <button class="stat ok" type="button" data-f="entregado" aria-pressed="false"><span class="label">Informes entregados</span><span class="n" id="sEnt">–</span><span class="hint">este mes</span></button>
+    <div class="stat neutral"><span class="label">Puntos del mes</span><span class="n" id="sMes">–</span><span class="hint" id="sMesHint"></span></div>
+  </section>
+
+  <section class="filters" aria-label="Filtros">
+    <input class="field" type="search" id="q" placeholder="Buscar PK, consecutivo, línea, inspector, reparación…">
+    <div class="seg" role="group" aria-label="Estado del informe" id="segEstado">
+      <button type="button" data-v="todos" aria-pressed="true">Todos</button>
+      <button type="button" data-v="pendiente" aria-pressed="false">Falta informe</button>
+      <button type="button" data-v="novedad" aria-pressed="false">Novedad</button>
+      <button type="button" data-v="entregado" aria-pressed="false">Entregado</button>
+    </div>
+    <select class="field" id="fPunto" aria-label="Estado del punto"><option value="">Todo estado del punto</option></select>
+    <select class="field" id="fAct" aria-label="Actividad"><option value="">Toda actividad</option></select>
+    <select class="field" id="fMes" aria-label="Mes"><option value="">Todos los meses</option></select>
+    <span class="count" id="count"></span>
+  </section>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="cols label" id="cols" hidden>
+    <span>Consec.</span><span>PK</span><span>Línea</span><span>Ø</span><span>Lugar · Ciudad</span><span>Base · Reparación</span><span>Estado del punto</span><span></span>
+  </div>
+  <section class="list" id="list" aria-live="polite">
+    <div class="empty"><h3>Cargando trabajos…</h3><p class="note">Aquí aparecerán tus inspecciones agrupadas por día, con el estado del punto y del informe.</p></div>
+  </section>
+</div>
+
+<div class="scrim" id="scrim" hidden>
+  <form class="panel" id="form" role="dialog" aria-modal="true" aria-labelledby="formTitle" novalidate>
+    <h2 id="formTitle">Nuevo punto de trabajo</h2>
+    <fieldset>
+      <legend class="label">Identificación del punto</legend>
+      <div class="grid2">
+        <label class="f"><span class="label">Consecutivo</span><input class="field mono" id="iCons" placeholder="M-1076" autocomplete="off"></label>
+        <label class="f"><span class="label">Fecha</span><input class="field" type="date" id="iFecha" required></label>
+        <label class="f"><span class="label">PK</span><input class="field mono" id="iPk" placeholder="125+709" autocomplete="off"></label>
+        <label class="f"><span class="label">Sistema</span><select class="field" id="iSistema"></select></label>
+        <label class="f"><span class="label">Línea</span><select class="field" id="iLinea"></select></label>
+        <label class="f" id="wLineaOtra" hidden><span class="label">Escribe la línea</span><input class="field" id="iLineaOtra" placeholder="Ej: PSS L16" autocomplete="off"></label>
+        <label class="f"><span class="label">Diámetro (pulg)</span><select class="field mono" id="iDiam"></select></label>
+        <label class="f"><span class="label">Lugar</span>
+          <select class="field" id="iLugar"><option>Campo</option><option>Patio</option><option>Campo y Patio</option></select></label>
+        <label class="f"><span class="label">Base asignada</span><select class="field" id="iBase"></select></label>
+        <label class="f"><span class="label">Ciudad</span><select class="field" id="iCiudadSel"></select><input type="hidden" id="iCiudad"></label>
+        <label class="f" id="wCiudadOtra" hidden><span class="label">Escribe la ciudad</span><input class="field" id="iCiudadOtra" placeholder="Ej: Sogamoso" autocomplete="off"></label>
+        <label class="f"><span class="label">Tipo de reparación</span><select class="field" id="iTipoRep"></select></label>
+        <label class="f"><span class="label">Espesor de camisa (pulg)</span><select class="field mono" id="iEsp"></select></label>
+        <label class="f"><span class="label">Material de camisa</span><select class="field" id="iMat"></select></label>
+        <label class="f"><span class="label">Espesor nominal de la línea (pulg)</span><select class="field mono" id="iNom"></select></label>
+        <label class="f"><span class="label">Material tubería existente</span><select class="field" id="iMatTub"></select></label>
+        <div class="f" style="grid-column:1/-1"><span class="label">Fotos de ubicación (de aquí salen las coordenadas del estampado)</span>
+          <div class="ubigrid" data-fo="P" id="ubiBox"></div></div>
+        <div class="f"><label class="f"><span class="label">Coordenadas en campo (sitio)</span><input class="field mono" id="iCoord" inputmode="text" placeholder="Se llena con la foto de campo" autocomplete="off"></label><button class="btn small" type="button" id="btnLeerC" hidden>📍 Leer de la foto</button><button class="btn small" type="button" id="btnGpsC" hidden>📍 Tomar coordenada aquí</button></div>
+        <div class="f"><label class="f"><span class="label">Coordenadas en patio</span><input class="field mono" id="iCoordPatio" inputmode="text" placeholder="Se llena con la foto de patio" autocomplete="off"></label><button class="btn small" type="button" id="btnLeerP" hidden>📍 Leer de la foto</button><button class="btn small" type="button" id="btnGpsP" hidden>📍 Tomar coordenada aquí</button></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend class="label">Actividades en este punto</legend>
+      <p class="note">Todas las actividades del punto llevan el mismo consecutivo. Cada una tiene su informe y su esquema.</p>
+      <div id="itemsBox" class="items"></div>
+      <div><button class="btn small" type="button" id="btnAddItem">+ Agregar actividad</button></div>
+    </fieldset>
+
+    <fieldset>
+      <legend class="label">Anexo fotográfico</legend>
+      <p class="note">Última página del informe. Mínimo 4 fotos, estampadas con las coordenadas de campo.</p>
+      <div data-fo="P" id="anexoBox"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend class="label">Estado del punto de trabajo</legend>
+      <div class="grid2">
+        <label class="f"><span class="label">Estado</span><select class="field" id="iPunto"></select></label>
+        <label class="f" id="wTerm" hidden><span class="label">Terminado el</span><input class="field" type="datetime-local" id="iTerm"></label>
+      </div>
+      <p class="hint-box" id="termHint" hidden></p>
+    </fieldset>
+
+    <div id="repHold" hidden>
+    <div class="repbox" id="repBox">
+      <span class="label">Esquema de esta actividad</span>
+      <div class="grid2">
+        <label class="f"><span class="label">Esquema</span><select class="field" id="iRep"></select></label>
+      </div>
+      <div class="grid2" id="wLT">
+        <label class="f"><span class="label">Longitud total de reparación</span><input class="field mono" id="iLT" inputmode="decimal" placeholder="3.5" autocomplete="off"></label>
+        <label class="f"><span class="label">Unidad</span><select class="field" id="iLTU"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
+      </div>
+      <div class="grid3" id="repParams"></div>
+      <div class="ltwarn" id="ltCheck" role="alert" hidden></div>
+      <label class="f" id="wRepNota"><span class="label">Detalle de la reparación</span><input class="field" id="iRepNota" placeholder="Ej: cascotas de 12 pulg, soldadura de filete" autocomplete="off"></label>
+      <div id="drawWrap" hidden>
+        <div class="drawing" id="drawing"></div>
+        <div class="drawbar" style="margin-top:8px">
+          <span class="note">El esquema se actualiza solo con los datos de la ficha.</span>
+          <button class="btn small" type="button" id="btnImg" hidden>Descargar imagen</button>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <p class="err" id="formErr" hidden></p>
+    <div class="panelacts">
+      <button class="btn danger" type="button" id="btnDel" hidden>Eliminar</button>
+      <div class="actions" style="margin-left:auto">
+        <button class="btn" type="button" id="btnCancel">Cancelar</button>
+        <button class="btn primary" type="submit" id="btnSave">Guardar</button>
+      </div>
+    </div>
+  </form>
+</div>
+<datalist id="dlLinea"></datalist>
+<datalist id="dlInsp"></datalist>
+<datalist id="dlCiudad"></datalist>
+<datalist id="dlBase"></datalist>
+<div class="toast" id="toast" hidden></div>
+<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvChange">Cambiar foto</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
+
+<script>
+(function(){
+const ACTS=[["Zona sana","zs"],["Ilícitas","il"],["Biseles","bi"],["Inspección de camisa","ic"],["0H","h0"],["12H","h12"],["Otra","ot"]];
+const PUNTO=["Programado","En ejecución","Terminado","Suspendido"];
+const PLAZO_H=24;
+const BASES=["Puerto Boyacá","Mansilla","Villavicencio","Cúcuta","Yopal","Tocancipá","Barrancabermeja"];
+const TIPOS_REP=["Ilícita","C&E","Camisa Tipo A","Camisa Tipo Sobre Anillos","Camisa Tipo B directa","Camisa Puenteada","Camisa seccionada o armadillo"];
+const LENS=["Camisa directa","Camisa armadillo","Camisa sobre anillos","Camisa sobre anillos sobre venteo","Camisa puenteada","Ilícita"];
+const ESPESORES=["0,250","0,277","0,312","0,322","0,330","0,340","0,344","0,365","0,375","0,400","0,406","0,438","0,500","0,562","0,594","0,625","0,656","0,688","0,719","0,750","0,812","0,844","0,864","0,875"];
+const MATERIALES=["Grado A","Grado B","X46","X52","X56","X60","X65","X70"];
+const SISTEMAS=["Oleoducto","Poliducto","Propanoducto","Jetducto","Gasoducto","Combustoleoducto"];
+const LINEAS=["Caño Limón - Coveñas","Caño Limón - Ayacucho","Albán - Mansilla","Villeta - Albán","Sebastopol - Santa Rosa","Santa Rosa - Tocancipá","Sutamarchán - Monterrey","Sutamarchán - Tocancipá","Galán - Chimitá","Galán - Sebastopol","Galán - Salgar","Monterrey - Apiay","Monterrey - Porvenir","Sebastopol - Salgar","Sebastopol - Sutamarchán","Salgar - Mansilla","Salgar - Guaduero","Mansilla - Puente Aranda","Puente Aranda - El Dorado","Vasconia - CIB"];
+const DIAMETROS=["4","6","8","10","12","14","16","18","20","24","30","36","42"];
+const NOMINALES=[...new Set(["0,219","0,250","0,277","0,280",...ESPESORES])].sort((a,b)=>parseFloat(a.replace(",","."))-parseFloat(b.replace(",",".")));
+const INSPECTORES=["Julián Duarte Alferez","Oscar Mauricio Rueda","Jorge Humberto Guzmán","Pablo Díaz","Raul Duarte","Gustavo Navarrete","John Otalvarez","Eder Alexon Jacome Torrado","Fabian Chaparro","William Riveros","Bernardo Merchán Salazar","Yair A. Jácome Torrado","Ferney Caceres"];
+const inspList=s=>String(s||"").split(/[,/]/).map(x=>x.trim()).filter(Boolean);
+// Tipos de reparación y sus parámetros
+const REPS={
+  "Ilícita":{params:[["cascotas","Número de cascotas",3,1,12]],act:"Ilícitas"},
+  "Camisa armadillo":{params:[["directas","Secciones directas",3,1,12]]},
+  "Camisa sobre anillos":{params:[]},
+  "Camisa sobre anillos sobre venteo":{params:[["tapa","¿Qué tapa la camisa?","Venteo",0,0,"sel",["Venteo","Cascotas"]],["tapaNum","Número de venteo",1,1,20]]},
+  "Camisa directa":{params:[]},
+  "Camisa puenteada":{params:[["cascota","¿Hay cascota en el espacio?",true,0,0,"yesno"]]},
+  "Zona sana":{params:[["zonas","Áreas sanas",2,1,8]],act:"Zona sana"},
+  "Biseles":{params:[],act:"Biseles"},
+  "Corte y empalme":{params:[["venteos","Venteos",2,0,8],["drenajes","Drenajes",1,0,6],["camisas","¿Zona para camisas sobre venteos?",true,0,0,"yesno"]]},
+  "Otra":{params:[]}
+};
+const actClass=n=>(ACTS.find(a=>a[0]===n)||[0,""])[1];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const isoDT=d=>iso(d)+"T"+pad(d.getHours())+":"+pad(d.getMinutes());
+const parse=s=>{if(!s)return null;const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};
+const parseDT=s=>{if(!s)return null;const[a,b="00:00"]=s.split("T");const[y,m,d]=a.split("-").map(Number);const[h,mi]=b.split(":").map(Number);return new Date(y,m-1,d,h||0,mi||0)};
+let now=new Date();
+const todayISO=()=>iso(now);
+const dmy=s=>{const d=parse(s);return d?pad(d.getDate())+"/"+pad(d.getMonth()+1)+"/"+d.getFullYear():""};
+const dmyhm=s=>{const d=parseDT(s);return d?pad(d.getDate())+"/"+pad(d.getMonth()+1)+" "+pad(d.getHours())+":"+pad(d.getMinutes()):""};
+const dayName=s=>parse(s).toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long"});
+const monthName=k=>{const[y,m]=k.split("-").map(Number);return new Date(y,m-1,1).toLocaleDateString("es-CO",{month:"long",year:"numeric"})};
+const daysSince=s=>{const t=new Date(now);t.setHours(0,0,0,0);return Math.round((t-parse(s))/864e5)};
+const hoursSince=s=>(now-parseDT(s))/36e5;
+const fmtH=h=>{h=Math.max(0,h);if(h<1)return Math.round(h*60)+" min";if(h<48)return Math.floor(h)+" h";return Math.floor(h/24)+" días"};
+
+$("fAct").insertAdjacentHTML("beforeend",ACTS.map(([n])=>`<option>${n}</option>`).join(""));
+$("iPunto").innerHTML=`<option value="">Sin estado</option>`+PUNTO.map(p=>`<option>${p}</option>`).join("");
+$("fPunto").insertAdjacentHTML("beforeend",PUNTO.map(p=>`<option>${p}</option>`).join("")+`<option value="__none">Sin estado</option>`);
+$("iRep").innerHTML=`<option value="">Sin esquema</option>`+Object.keys(REPS).map(k=>`<option>${k}</option>`).join("");
+$("iBase").innerHTML=`<option value="">Escoge la base</option>`+BASES.map(b=>`<option>${b}</option>`).join("");
+// ciudades por base (las bases sin lista muestran todas las conocidas)
+const CIUDADES_BASE={
+  "Mansilla":["Bogotá","Madrid","Mosquera","Albán","Puerto Salgar","Villeta","Guaduas","Caparrapí","Facatativá","Funza"],
+  "Puerto Boyacá":["Puerto Salgar","Cimitarra","Puerto Boyacá"]
+};
+const ciudadesDe=b=>CIUDADES_BASE[b]||[...new Set([...Object.values(CIUDADES_BASE).flat(),...(typeof rows!=="undefined"?rows.map(r=>r.ciudad).filter(Boolean):[])])].sort((a,b)=>a.localeCompare(b,"es"));
+function fillCiudades(){
+  const b=$("iBase").value, list=ciudadesDe(b);
+  $("iCiudadSel").innerHTML=`<option value="">${b?"Escoge la ciudad":"Escoge la ciudad (o primero la base)"}</option>`+list.map(c=>`<option>${esc(c)}</option>`).join("")+`<option value="__otra">Otra (escribir)…</option>`;
+}
+function setCiudad(v){
+  fillCiudades();v=(v||"").trim();
+  const list=ciudadesDe($("iBase").value);
+  if(!v){$("iCiudadSel").value="";$("iCiudadOtra").value=""}
+  else if(list.includes(v)){$("iCiudadSel").value=v;$("iCiudadOtra").value=""}
+  else{$("iCiudadSel").value="__otra";$("iCiudadOtra").value=v}
+  ciudadSync();
+}
+function ciudadSync(){const sel=$("iCiudadSel").value;$("wCiudadOtra").hidden=sel!=="__otra";$("iCiudad").value=sel==="__otra"?$("iCiudadOtra").value.trim():sel}
+$("iCiudadSel").addEventListener("change",()=>{ciudadSync();if($("iCiudadSel").value==="__otra")$("iCiudadOtra").focus()});
+$("iCiudadOtra").addEventListener("input",ciudadSync);
+$("iBase").addEventListener("change",()=>setCiudad($("iCiudad").value));
+$("iTipoRep").innerHTML=`<option value="">Sin definir</option>`+TIPOS_REP.map(t=>`<option>${esc(t)}</option>`).join("");
+$("iEsp").innerHTML=`<option value="">Sin definir</option>`+ESPESORES.map(t=>`<option>${t}</option>`).join("");
+$("iSistema").innerHTML=`<option value="">Sin definir</option>`+SISTEMAS.map(t=>`<option>${t}</option>`).join("");
+$("iLinea").innerHTML=`<option value="">Sin definir</option>`+LINEAS.map(t=>`<option>${esc(t)}</option>`).join("")+`<option value="__otra">Otra (escribirla)…</option>`;
+$("iDiam").innerHTML=`<option value="">Sin definir</option>`+DIAMETROS.map(t=>`<option value="${t}">${t}"</option>`).join("");
+// línea: de la lista o escrita a mano con "Otra"
+const lineaVal=()=>$("iLinea").value==="__otra"?$("iLineaOtra").value.trim():$("iLinea").value;
+function setLinea(v){if(!v||LINEAS.includes(v)){$("iLinea").value=v||"";$("iLineaOtra").value=""}else{$("iLinea").value="__otra";$("iLineaOtra").value=v}$("wLineaOtra").hidden=$("iLinea").value!=="__otra"}
+$("iLinea").addEventListener("change",()=>{$("wLineaOtra").hidden=$("iLinea").value!=="__otra";if($("iLinea").value==="__otra")$("iLineaOtra").focus()});
+$("iMat").innerHTML=`<option value="">Sin definir</option>`+MATERIALES.map(t=>`<option>${t}</option>`).join("");
+$("iNom").innerHTML=`<option value="">Sin definir</option>`+NOMINALES.map(t=>`<option>${t}</option>`).join("");
+$("iMatTub").innerHTML=`<option value="">Sin definir</option>`+MATERIALES.map(t=>`<option>${t}</option>`).join("");
+
+let rows=[]; let db=null; let downloads=null; let filtroEstado="todos"; let editing=null; let readOnly=false;
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+// ---------- estado ----------
+// Un punto de trabajo (consecutivo, fecha, PK) tiene varias actividades; cada una con su informe y su esquema.
+// Los registros antiguos (una actividad por registro) se leen convirtiéndolos a este formato.
+function norm(r){
+  let x=r;
+  if(!Array.isArray(x.items)){
+    const acts=(x.actividades&&x.actividades.length)?x.actividades:["Otra"];
+    x={...x,items:acts.map(a=>({act:a,consecutivo:x.consecutivo||"",inspectores:x.inspectores||"",entregaFecha:x.entregaFecha||"",entregaQuien:x.entregaQuien||"",novedad:!!x.novedad,observaciones:x.observaciones||""}))};
+  }
+  // la reparación antes era del punto; ahora va en cada actividad
+  if(x.reparacion&&x.items.length&&!x.items.some(it=>it.reparacion))x={...x,items:x.items.map((it,i)=>i===0?{...it,reparacion:x.reparacion}:it)};
+  if(!x.diametro){const d=x.items.find(it=>it.reparacion?.diametro)?.reparacion.diametro||x.reparacion?.diametro;if(d)x={...x,diametro:d}}
+  // el consecutivo es del punto (todas sus actividades llevan el mismo)
+  if(!x.consecutivo){const c=x.items.find(it=>it.consecutivo)?.consecutivo;if(c)x={...x,consecutivo:c}}
+  // espesor nominal y material de tubería existente pasaron de zona sana al punto
+  if(!x.nominal){const n=x.items.find(it=>it.zsNominal)?.zsNominal;if(n)x={...x,nominal:n}}
+  if(!x.materialTub){const m=x.items.find(it=>it.zsMaterial)?.zsMaterial;if(m)x={...x,materialTub:m}}
+  return x;
+}
+// la reparación de una actividad, con el diámetro del punto
+const repOf=(r,it)=>it.reparacion?.tipo?{...it.reparacion,diametro:r.diametro||it.reparacion.diametro||""}:null;
+function vencimiento(r){
+  if(r.estadoPunto!=="Terminado"||!r.terminadoEn) return null;
+  const h=hoursSince(r.terminadoEn);
+  return {h,vencido:h>=PLAZO_H,resta:PLAZO_H-h};
+}
+function estadoIt(r,it){
+  if(it.entregaFecha) return "entregado";
+  if(it.novedad) return "novedad";
+  const v=vencimiento(r); if(v&&v.vencido) return "vencido";
+  return "pendiente";
+}
+const grupo=st=>st==="vencido"?"novedad":st;
+const ORD={vencido:0,novedad:1,pendiente:2,entregado:3};
+const peorEstado=r=>r.items.map(it=>estadoIt(r,it)).sort((a,b)=>ORD[a]-ORD[b])[0]||"entregado";
+const allItems=()=>rows.flatMap(r=>r.items.map((it,i)=>({r,it,i,st:estadoIt(r,it)})));
+const itName=(r,it)=>`${it.act} ${r.consecutivo||r.pk||""}`.trim();
+
+function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+
+// ---------- esquema de reparación (SVG) ----------
+const PAL_VAR={bg:"var(--bg)",fg:"var(--fg)",muted:"var(--muted)",pipe:"var(--pipe)",edge:"var(--pipe-edge)",sleeve:"var(--sleeve)",sleeve2:"var(--sleeve2)",weld:"var(--weld)",zs:"var(--zs)",zsEdge:"var(--zs-edge)",zsLine:"var(--zs-line)",zsText:"#ffffff",shell:"var(--shell)",shellHi:"var(--shell-hi)",shellEdge:"var(--shell-edge)",l1:"var(--l1)",l2:"var(--l2)",flow:"var(--ok)",bad:"var(--bad)",ink:"var(--ink)",font:"Barlow, system-ui, sans-serif"};
+const PAL_PNG={bg:"#ffffff",fg:"#1d2621",muted:"#454d48",pipe:"#c9cfd3",edge:"#7b868c",sleeve:"#f3d27a",sleeve2:"#e9a948",weld:"#3b4248",zs:"#3b6fd4",zsEdge:"#1f4aa0",zsLine:"#0d2a63",zsText:"#ffffff",shell:"#6f777c",shellHi:"#8e979c",shellEdge:"#3f464a",l1:"#e02020",l2:"#4caf3a",flow:"#2f7d4f",bad:"#b4372b",ink:"#16324a",font:"Arial, Helvetica, sans-serif"};
+// los esquemas se dibujan siempre como plano técnico claro (igual en pantalla y en la imagen descargada)
+Object.assign(PAL_VAR,PAL_PNG,{font:"Barlow, system-ui, sans-serif"});
+function nInt(v,def,min,max){v=parseInt(v,10);if(isNaN(v))v=def;return Math.max(min,Math.min(max,v))}
+// Corte y empalme: secuencia de áreas sanas a lo largo del tubo (en sentido del flujo)
+function layoutCE(rep){
+  const v=nInt(rep.venteos,2,0,8), d=nInt(rep.drenajes,1,0,6), cams=rep.camisas!==false;
+  const BW=28,SG=12,BG=36,AR=170;
+  const it=[];let fit=0,cam=0;
+  const band=l=>it.push({k:"b",l,w:BW}), gap=w=>it.push({k:"g",w});
+  const vent=()=>{fit++;if(cams){cam++;band(`AS C1 - CAM #${cam}`);gap(SG);band(`AS VENTEO #${fit}`);gap(SG);band(`AS C2 - CAM #${cam}`)}else band(`AS VENTEO #${fit}`);gap(BG)};
+  // ubicación de cada venteo y drenaje; la numeración sigue el orden a lo largo del tubo
+  const posV=[...Array(v)].map((_,i)=>rep.posV?.[i]||(i<Math.ceil(v/2)?"antes":"despues"));
+  const posD=[...Array(d)].map((_,i)=>rep.posD?.[i]||"entre");
+  const drain=()=>{fit++;band(`AS DRENAJE VENTEO #${fit}`);gap(BG)};
+  const grp=g=>{posV.forEach(p=>{if(p===g)vent()});posD.forEach(p=>{if(p===g)drain()})};
+  grp("antes");
+  band("AS TIE IN #1");gap(BG);
+  grp("entre");
+  it.push({k:"a",w:AR});
+  band("AS TIE IN #2");gap(BG);
+  grp("despues");
+  while(it.length&&it[it.length-1].k==="g")it.pop();
+  return{it,total:it.reduce((s,o)=>s+o.w,0),v,d,cams,cam,BW};
+}
+
+function drawRepair(rep,meta,P,compact){
+  // Camisa Tipo A: no lleva soldaduras de compromiso (las que van directas a la tubería)
+  const sinComp=meta?.tipoReparacion==="Camisa Tipo A";
+  const esZS=rep?.tipo==="Zona sana", esCE=rep?.tipo==="Corte y empalme", esBI=rep?.tipo==="Biseles", esCA=rep?.tipo==="Camisa armadillo", esAN=rep?.tipo==="Camisa sobre anillos", esPU=rep?.tipo==="Camisa puenteada", esIL=rep?.tipo==="Ilícita", esAV=rep?.tipo==="Camisa sobre anillos sobre venteo", esCD=rep?.tipo==="Camisa directa";
+  const ce=esCE?layoutCE(rep):null;
+  const W=esCE?Math.max(720,Math.ceil(ce.total+120)):esBI?760:esCA?Math.max(720,60+125*nInt(rep.directas,3,1,12)):720;
+  const LTv=(()=>{const n=parseFloat(String(rep?.longTotal??"").replace(",","."));return isFinite(n)&&n>0?n:null})();
+  const H=(esCE?(compact?190:310):esBI?(compact?170:310):(compact?150:280))+(!compact&&LTv?36:0);
+  const cy=esCE?(compact?95:170):(compact?75:150);
+  const ph=esCE?(compact?120:170):esZS?64:esIL?(compact?100:136):(esCA||esAN||esAV||esPU||esCD)?60:40;
+  // escala de diámetros: camisa = tubería + 1", sobre camisa = tubería + 2" (ej. 16" → 17" → 18")
+  const DI=parseFloat(String(rep?.diametro??"").replace(",","."))||16, INC=Math.max(6,ph/DI);
+  const py=cy-ph/2, x0=36, x1=W-36;
+  const st=(o)=>Object.entries(o).map(([k,v])=>k+":"+v).join(";");
+  const S=[];
+  const T=(x,y,txt,o={})=>{if(compact)return;S.push(`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" style="${st({fill:o.c||P.fg,"font-family":P.font,"font-size":(o.s||12)+"px","font-weight":o.w||500})}">${esc(txt)}</text>`)};
+  const R=(x,y,w,h,o)=>S.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(0,w).toFixed(1)}" height="${h.toFixed(1)}" rx="${o.rx||0}" style="${st({fill:o.f||"none",stroke:o.s||"none","stroke-width":o.sw||1,"stroke-dasharray":o.d||"none"})}"/>`);
+  const L=(xa,ya,xb,yb,o)=>S.push(`<line x1="${xa.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yb.toFixed(1)}" style="${st({stroke:o.s,"stroke-width":o.sw||1,"stroke-dasharray":o.d||"none"})}"/>`);
+  S.push(`<rect x="0" y="0" width="${W}" height="${H}" style="fill:${P.bg}"/>`);
+  // degradados metálicos: tubería, camisas y cara frontal de las camisas
+  S.push(`<defs><linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f878b"/><stop offset=".2" stop-color="#d3d7d9"/><stop offset=".55" stop-color="#8f979b"/><stop offset="1" stop-color="#4f565a"/></linearGradient><linearGradient id="gS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#959ca0"/><stop offset=".18" stop-color="#e9ecee"/><stop offset=".55" stop-color="#a7aeb2"/><stop offset="1" stop-color="#646c70"/></linearGradient><linearGradient id="gF" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5d6569"/><stop offset=".6" stop-color="#b8bec1"/><stop offset="1" stop-color="#8b9296"/></linearGradient></defs>`);
+  const f1=v=>Number(v).toFixed(1);
+  // camisa / anillo / sección en 3D: cuerpo con extremos curvos y cara visible en el extremo izquierdo
+  // camisa / anillo / sección: cuerpo metálico con extremos apenas redondeados y un borde fino de brillo (sin cara visible)
+  const sleeve=(x,y,w,h,o={})=>{const rx=Math.max(2,Math.min(4,w/10)), ry=h/2, op=o.op?`;fill-opacity:${o.op}`:"";
+    S.push(`<path d="M${f1(x)},${f1(y)} H${f1(x+w)} A${f1(rx)},${f1(ry)} 0 0 1 ${f1(x+w)},${f1(y+h)} H${f1(x)} A${f1(rx)},${f1(ry)} 0 0 1 ${f1(x)},${f1(y)} Z" style="fill:url(#gS);stroke:#3f464a;stroke-width:1.4${op}"/>`);
+    [[x+2,0],[x+w-2,1]].forEach(([xe,sd])=>S.push(`<path d="M${f1(xe)},${f1(y+3)} A${f1(rx)},${f1(ry-3)} 0 0 ${sd} ${f1(xe)},${f1(y+h-3)}" style="fill:none;stroke:#ffffff;stroke-opacity:.6;stroke-width:1.3"/>`));
+  };
+  // tubería
+  // tubería metálica con el símbolo de corte (S) en ambos extremos
+  const pipe=()=>{const a=x0,b=x1,t=py,hh=ph,q=Math.min(14,hh*0.32);
+    S.push(`<path d="M${a},${t} L${b},${t} C${f1(b+q)},${f1(t+hh/3)} ${f1(b-q)},${f1(t+2*hh/3)} ${b},${f1(t+hh)} L${a},${f1(t+hh)} C${f1(a-q)},${f1(t+2*hh/3)} ${f1(a+q)},${f1(t+hh/3)} ${a},${t} Z" style="fill:url(#gP);stroke:#3f464a;stroke-width:1.5"/>`);
+    S.push(`<path d="M${a},${f1(t+hh/2)} Q${f1(a-q*0.75)},${f1(t+hh*0.75)} ${a},${f1(t+hh)} Q${f1(a+q*1.4)},${f1(t+hh*0.75)} ${a},${f1(t+hh/2)} Z" style="fill:#30363a"/>`);
+    S.push(`<path d="M${b},${t} Q${f1(b+q*0.75)},${f1(t+hh*0.25)} ${b},${f1(t+hh/2)} Q${f1(b-q*1.4)},${f1(t+hh*0.25)} ${b},${t} Z" style="fill:#30363a"/>`);
+    if(!compact&&!esZS&&!esCE&&!esCA&&!esAN&&!esPU&&!esIL&&!esAV&&!esCD){L(x0+16,cy,x0+60,cy,{s:P.edge,sw:2});S.push(`<path d="M${x0+60},${cy-5} L${x0+70},${cy} L${x0+60},${cy+5} Z" style="fill:${P.edge}"/>`);T(x0+44,cy-6,"Flujo",{s:10,c:P.muted})}};
+  const weld=(x,h)=>R(x-2.5,cy-h/2,5,h,{f:P.weld});
+  // área sana: franja azul con la línea de referencia punteada al centro
+  const zona=(x,w,label,pos)=>{const h=ph+4;R(x,cy-h/2,w,h,{f:P.zs,s:P.zsEdge,sw:1.2});
+    L(x+w/2,cy-h/2+3,x+w/2,cy+h/2-3,{s:P.zsLine,sw:1.6,d:"5 4"});
+    if(compact||!label)return;
+    if(pos==="left")T(x-10,cy+5,label,{a:"end",s:14,w:700});
+    else if(pos==="right")T(x+w+10,cy+5,label,{a:"start",s:14,w:700});
+    else T(x+w/2,cy-h/2-8,label,{s:12,w:700})};
+  const dim=(xa,xb,y,txt)=>{if(compact)return;L(xa,y,xb,y,{s:P.muted});L(xa,y-5,xa,y+5,{s:P.muted});L(xb,y-5,xb,y+5,{s:P.muted});T((xa+xb)/2,y+15,txt,{s:11,c:P.muted})};
+  const flow=(fx,fy,col)=>{if(compact)return;T(fx-10,fy-7,"Sentido de flujo",{s:12,w:700,c:col});L(fx-62,fy+6,fx+40,fy+6,{s:col,sw:2.5});S.push(`<path d="M${fx+40},${fy} L${fx+54},${fy+6} L${fx+40},${fy+12} Z" style="fill:${col}"/>`)};
+  const seam=(a,b,ySolid,yDash)=>{L(a+4,ySolid,b-4,ySolid,{s:P.fg,sw:1.8});L(a+4,yDash,b-4,yDash,{s:P.muted,sw:1.4,d:"6 4"})};
+  const tipo=rep?.tipo||"";
+  const LN=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
+  const U=rep?.unidad||"cm", lg=rep?.largos||{};
+  let titulo="", resumen="", RA=null, RB=null, DL="";
+  if(!esBI)pipe();
+  if(tipo==="Ilícita"){
+    // cascotas circulares sobre el tubo (vistas en perspectiva), cada una con su zona sana
+    const n=nInt(rep.cascotas,3,1,12), LC=[...Array(n)].map((_,i)=>LN(lg.cas?.[i])), knownC=LC.every(Boolean);
+    const Dc=knownC?LC:LC.map(()=>1), a0=x0+200, a1=x1-70, step=n>1?(a1-a0)/(n-1):0;
+    const k=Math.min(120/Math.max(...Dc),(n>1?step*0.8:200)/Math.max(...Dc)), ty=py+16;
+    for(let i=0;i<n;i++){const cx=n>1?a0+step*i:(a0+a1)/2, rx=Math.max(14,Dc[i]*k/2), ry=Math.max(6,rx*0.28), cb=ty+2*ry;if(RA===null)RA=cx-rx;RB=cx+rx;
+      S.push(`<ellipse cx="${cx.toFixed(1)}" cy="${(ty+ry).toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" style="fill:${P.zs};stroke:${P.zsEdge};stroke-width:1.5"/>`);
+      if(!compact){const ly=cb+40;
+        L(cx,ly-14,cx,cb+9,{s:P.bad,sw:1.6});
+        S.push(`<path d="M${(cx-4.5).toFixed(1)},${(cb+11).toFixed(1)} L${cx.toFixed(1)},${(cb+2).toFixed(1)} L${(cx+4.5).toFixed(1)},${(cb+11).toFixed(1)} Z" style="fill:${P.bad}"/>`);
+        T(cx,ly,"Zona sana",{s:12,w:600});T(cx,ly+15,`Cascota #${i+1}`,{s:12,w:600});
+        const zv=meta?.zs?.[`Zona sana Cascota #${i+1}`];if(zv)T(cx,ly+(knownC?44:30),`e mín ${zv}"`,{s:11,w:700,c:P.ink});
+        if(knownC)T(cx,ly+30,`Ø ${LC[i]} ${U}`,{s:11,c:P.muted})}}
+    if(!compact){T(x0+22,py+ph-24,"Sentido flujo",{a:"start",s:13,w:700,c:"#ffffff"});
+      L(x0+22,py+ph-12,x0+126,py+ph-12,{s:"#5aa2ff",sw:3});
+      S.push(`<path d="M${x0+126},${py+ph-18} L${x0+140},${py+ph-12} L${x0+126},${py+ph-6} Z" style="fill:#5aa2ff"/>`)}
+    titulo="Reparación de ilícita";resumen=`${n} ${n===1?"cascota":"cascotas"} · zona sana por cascota`;
+  } else if(tipo==="Camisa armadillo"){
+    // N directas; N-1 sobrecamisas tapan cada espacio (la N+1 tapa 1-2...). Soldaduras: C1/C2 en los extremos, C3-C4, C5-C6… en cada sobrecamisa
+    const d=nInt(rep.directas,3,1,12), s=d-1;
+    const LD=[...Array(d)].map((_,i)=>LN(lg.dir?.[i])), LS=[...Array(s)].map((_,i)=>LN(lg.sob?.[i]));
+    const known=LD.every(Boolean)&&LS.every(Boolean);
+    const D=known?LD:LD.map(()=>1), Sl=known?LS:LS.map(()=>0.8);
+    // cada sobrecamisa tapa un espacio igual al 45% de su longitud y monta 27,5% sobre cada directa vecina
+    // sobrecamisas con ancho mínimo legible; las directas se ajustan al espacio que queda
+    const avail=x1-x0-90, k0=Math.min(130/Math.max(...D),avail/(D.reduce((a,b)=>a+b,0)+Sl.reduce((a,b)=>a+b,0)*0.45));
+    const wS=Sl.map(v=>Math.max(46,v*k0)), gS=wS.map(w=>w*0.45);
+    const kD=Math.min(130/Math.max(...D),(avail-gS.reduce((a,b)=>a+b,0))/D.reduce((a,b)=>a+b,0)), hD=ph+INC, hS=ph+2*INC;
+    const xs=[];let xx=0;for(let i=0;i<d;i++){xs.push(xx);xx+=D[i]*kD+(i<s?gS[i]:0)}
+    const sx=(W-xx)/2, dx=i=>sx+xs[i], dw=i=>D[i]*kD;RA=sx;RB=sx+xx;
+    for(let i=0;i<d;i++){sleeve(dx(i),cy-hD/2,dw(i),hD);seam(dx(i),dx(i)+dw(i),cy-2,cy+12)}
+    const welds=sinComp?[]:[[dx(0),"C1"],[dx(d-1)+dw(d-1),"C2"]], sob=[], cOff=sinComp?1:3;
+    for(let i=0;i<s;i++){const w=wS[i], gc=dx(i)+dw(i)+gS[i]/2, xa=gc-w/2;sob.push([xa,w]);
+      sleeve(xa,cy-hS/2,w,hS);seam(xa,xa+w,cy-2,cy+12);
+      welds.push([xa,"C"+(cOff+2*i)],[xa+w,"C"+(cOff+1+2*i)])}
+    if(!compact){
+      for(let i=0;i<d;i++){const a=i===0?dx(0):sob[i-1][0]+sob[i-1][1], b=i===d-1?dx(i)+dw(i):sob[i][0], m=(a+b)/2;
+        T(m,cy-7,`S${i+1}L1`,{s:12,w:700});T(m,cy+26,`S${i+1}L2`,{s:11,c:P.muted});T(m,cy-hD/2-8,`Sec. ${i+1}`,{s:13,w:700,c:P.ink});
+        if(known)T(m,cy-hD/2-24,`${LD[i]} ${U}`,{s:11,c:P.muted})}
+      // sobrecamisas rotuladas abajo para no amontonar los rótulos de arriba
+      sob.forEach(([xa,w],i)=>{const n=d+i+1,m=xa+w/2;T(m,cy-7,`S${n}L1`,{s:12,w:700});T(m,cy+26,`S${n}L2`,{s:11,c:P.muted});T(m,cy+hS/2+16,`Sec. ${n}`,{s:13,w:700,c:P.ink});
+        if(known)T(m,cy+hS/2+30,`${LS[i]} ${U}`,{s:11,c:P.muted})});
+      // C impar al lado izquierdo de su soldadura, C par al lado derecho, en la parte de arriba
+      welds.forEach(([x,l])=>{const left=(+l.slice(1))%2===1;T(left?x-4:x+4,cy-hD/2+12,l,{a:left?"end":"start",s:11,w:700,c:P.bad})});
+      flow(W/2,cy+hS/2+58,P.flow);
+    }
+    const nW=sinComp?2*s:2+2*s;
+    titulo="Camisa armadillo (seccionada)";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";resumen=`${d} ${d===1?"directa":"directas"} + ${s} ${s===1?"sobrecamisa":"sobrecamisas"}${nW?` · soldaduras C1–C${nW}`:""}`;
+  } else if(tipo==="Camisa sobre anillos"||tipo==="Camisa sobre anillos sobre venteo"){
+    const AV=tipo!=="Camisa sobre anillos";
+    const la=LN(lg.an?.[0]), ls=LN(lg.sc?.[0]), knownA=!!(la&&ls);
+    const A=knownA?la:1, Sc=knownA?ls:2.6, ovU=0.3*A, totU=Math.max(2*A+Sc-2*ovU,2*A+0.1);
+    const k=Math.min(520/totU,150/A), hA=ph+INC, hS=ph+2*INC, aw=A*k, ov=ovU*k;
+    let swd=Sc*k, gap=swd-2*ov; if(gap<10){gap=10;swd=gap+2*ov}
+    const tot=2*aw+gap, sx=(W-tot)/2, a2=sx+aw+gap, sa=sx+aw-ov;RA=sx;RB=sx+tot;
+    [sx,a2].forEach(x=>{sleeve(x,cy-hA/2,aw,hA);seam(x,x+aw,AV?cy-8:cy+10,AV?cy+10:cy-8)});
+    sleeve(sa,cy-hS/2,swd,hS);seam(sa,sa+swd,cy-8,cy+10);
+    // lo que queda tapado bajo la sobre camisa: un venteo o varias cascotas
+    const isV=rep.tapa!=="Cascotas", nT=isV?1:nInt(rep.tapaNum,1,1,12);
+    if(AV){const z0=sx+aw,z1=a2,st=(z1-z0)/nT;
+      for(let i=0;i<nT;i++){const cxx=z0+st*(i+0.5), rx=Math.min(34,st*0.42);
+        S.push(`<ellipse cx="${cxx.toFixed(1)}" cy="${cy-hS/2+11}" rx="${rx.toFixed(1)}" ry="8" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);
+        T(cxx,cy-hS/2+14.5,isV?`Venteo #${nInt(rep.tapaNum,1,1,20)}`:`Cascota ${i+1}`,{s:rx<26?8:9,w:700})}}
+    if(!compact){
+      const v1=(sx+sa)/2, v2=(sa+swd+a2+aw)/2, m=sa+swd/2;
+      const lab=(x,up,dn)=>{T(x,cy-13,up,{s:12,w:up.endsWith("L1")?700:400,c:up.endsWith("L1")?P.fg:P.muted});T(x,cy+25,dn,{s:12,w:dn.endsWith("L1")?700:400,c:dn.endsWith("L1")?P.fg:P.muted})};
+      lab(v1,AV?"A1L1":"A1L2",AV?"A1L2":"A1L1");lab(v2,AV?"A2L1":"A2L2",AV?"A2L2":"A2L1");
+      const mx=AV?a2-18:m;T(mx,cy-13,"L1",{s:13,w:700,a:AV?"end":"middle"});T(mx,cy+25,"L2",{s:12,c:P.muted,a:AV?"end":"middle"});
+      const cyL=cy-hA/2+15;
+      if(!sinComp){T(sx-5,cyL,"C1",{a:"end",s:13,w:700,c:P.bad});T(a2+aw+5,cyL,"C2",{a:"start",s:13,w:700,c:P.bad})}
+      T(sa-5,cyL,sinComp?"C1":"C3",{a:"end",s:13,w:700,c:P.bad});T(sa+swd+5,cyL,sinComp?"C2":"C4",{a:"start",s:13,w:700,c:P.bad});
+      T(v1,cy+hA/2+18,"Anillo 1"+(knownA?` · ${la} ${U}`:""),{s:11,c:P.muted});T(v2,cy+hA/2+18,"Anillo 2"+(knownA?` · ${la} ${U}`:""),{s:11,c:P.muted});T(m,cy+hS/2+18,"Sobre camisa"+(knownA?` · ${ls} ${U}`:""),{s:11,c:P.muted});
+      flow(W/2,cy+hS/2+46,P.zs);
+    }
+    const sw=sinComp?" · soldaduras C1–C2":" · soldaduras C1–C4";
+    titulo=AV?"Camisa sobre anillos sobre venteo":"Camisa sobre anillos";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";
+    resumen=AV?(isV?`Tapa el venteo #${nInt(rep.tapaNum,1,1,20)}`:`Tapa ${nT} ${nT===1?"cascota":"cascotas"}`)+sw:"2 anillos + sobre camisa"+sw;
+  } else if(tipo==="Zona sana"){
+    const n=nInt(rep.zonas,2,1,8), zw=36, span=x1-x0;
+    const a=x0+span*0.2, b=x0+span*0.76, step=n>1?(b-a)/(n-1):0;
+    for(let i=0;i<n;i++){const x=(n===1?x0+span*0.3:a+step*i)-zw/2;if(RA===null)RA=x;RB=x+zw;
+      zona(x,zw,"AS C"+(i+1),i===0?"left":i===n-1?"right":"top");
+      const zv=meta?.zs?.["AS C"+(i+1)];if(zv&&!compact)T(x+zw/2,cy+ph/2+18,`e mín ${zv}"`,{s:11,w:700,c:P.ink})}
+    if(!compact){
+      const fy=n<=2?cy:py-22, fx=n<=2?(a+b)/2:W/2;
+      T(fx,fy-6,"Sentido de flujo",{s:14,w:700,c:P.ink});
+      L(fx-62,fy+10,fx+52,fy+10,{s:P.ink,sw:2});
+      S.push(`<path d="M${fx+52},${fy+4} L${fx+64},${fy+10} L${fx+52},${fy+16} Z" style="fill:${P.ink}"/>`);
+    }
+    titulo="Zona sana";resumen=`${n} ${n===1?"área sana":"áreas sanas"} (AS C1${n>1?"–C"+n:""})`;
+  } else if(tipo==="Biseles"){
+    // vista despiezada: fila de medias cañas superiores (CPS) y fila de inferiores (CPI), en orden físico
+    const u=rep.unidad||"cm";
+    const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
+    let secs=[];
+    if(rep.tipoCamisa==="anillos"){
+      secs=[{n:1,tag:"A1",cap:"Anillo 1",sobre:false,len:num(rep.largoAnillo)},{n:3,tag:"SC",cap:"Sobre camisa",sobre:true,len:num(rep.largoSobre)},{n:2,tag:"A2",cap:"Anillo 2",sobre:false,len:num(rep.largoAnillo)}];
+    } else if(rep.tipoCamisa==="directa"){
+      secs=[{n:1,tag:"",cap:"Camisa directa",sobre:false,len:num(rep.largoCamisa)}];
+    } else {
+      const nd=nInt(rep.nDir,3,1,12), ns=nInt(rep.nSob,nd-1,0,12);
+      const D=[...Array(nd)].map((_,i)=>({n:i+1,sobre:false,len:num(rep.largosDir?.[i])}));
+      const Sb=[...Array(ns)].map((_,i)=>({n:nd+i+1,sobre:true,len:num(rep.largosSob?.[i])}));
+      D.forEach((d,i)=>{secs.push(d);if(i<nd-1&&Sb[i])secs.push(Sb[i])});
+      Sb.slice(Math.max(0,nd-1)).forEach(s=>secs.push(s));
+    }
+    const allKnown=secs.every(s=>s.len);
+    const wts=secs.map(s=>allKnown?s.len:(s.sobre?0.45:1));
+    const GAP=compact?10:16, avail=W-80-GAP*(secs.length-1), tw=wts.reduce((a,b)=>a+b,0);
+    let ws=wts.map(w=>Math.max(compact?12:46,avail*w/tw));
+    const sw0=ws.reduce((a,b)=>a+b,0); if(sw0>avail)ws=ws.map(w=>w*avail/sw0);
+    if(secs.length===1)ws=[Math.min(ws[0],380)];
+    let x=(W-(ws.reduce((a,b)=>a+b,0)+GAP*(secs.length-1)))/2;
+    // las sobre camisas tienen mayor diámetro que las directas
+    const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
+    const shell=(xx,yy,w,h,label,sup)=>{
+      R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2,rx:6});
+      R(xx+3,sup?yy+3:yy+h-3-h*0.28,w-6,h*0.28,{f:P.shellHi,rx:4});
+      const a=xx+5,b=xx+w-5;
+      if(sup){L(a,yy+h-10,b,yy+h-10,{s:P.l1,sw:3});L(a,yy+h-3.5,b,yy+h-3.5,{s:P.l2,sw:3})}
+      else{L(a,yy+3.5,b,yy+3.5,{s:P.l2,sw:3});L(a,yy+10,b,yy+10,{s:P.l1,sw:3})}
+      T(xx+w/2,yy+h/2+(sup?0:6),label,{s:w<70?11:13,w:700,c:"#ffffff"});
+    };
+    secs.forEach((s,i)=>{const w=ws[i],h=s.sobre?hS:hD;
+      if(RA===null)RA=x;RB=x+w;
+      // una sola sección (camisa directa): sin prefijo de sección, solo CPS / CPI
+      const tag=s.tag??("S"+s.n), pre=tag?tag+" ":"";
+      shell(x,top1+hS-h,w,h,`${pre}CPS`,true);
+      shell(x,top2,w,h,`${pre}CPI`,false);
+      T(x+w/2,top2+hS+22,s.cap||`Sección ${s.n}`,{s:13,w:700});
+      T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":""),{s:11,c:P.muted});
+      x+=w+GAP;});
+    if(!compact){
+      L(20,70,52,70,{s:P.l1,sw:3});T(58,74,"Biseles L1",{a:"start",s:12,w:600});
+      L(150,70,182,70,{s:P.l2,sw:3});T(188,74,"Biseles L2",{a:"start",s:12,w:600});
+    }
+    titulo="Biseles";
+    if(rep.tipoCamisa==="anillos")resumen=`Camisa sobre anillos · anillos ${num(rep.largoAnillo)??"—"} ${u} · sobre camisa ${num(rep.largoSobre)??"—"} ${u}`;
+    else if(rep.tipoCamisa==="directa")resumen=`Camisa directa · ${num(rep.largoCamisa)??"—"} ${u}`;
+    else{const nd=nInt(rep.nDir,3,1,12), ns=nInt(rep.nSob,nd-1,0,12);resumen=`Camisa seccionada · ${nd} directas + ${ns} sobre camisa`}
+  } else if(tipo==="Corte y empalme"){
+    let x=(W-ce.total)/2;
+    ce.it.forEach(o=>{
+      if(o.k==="b"){if(o.l==="AS TIE IN #1")RA=x+o.w/2;if(o.l==="AS TIE IN #2")RB=x+o.w/2;const h=ph+4;R(x,cy-h/2,o.w,h,{f:P.zs,s:P.zsEdge,sw:1.2});
+        const zv=meta?.zs?.[o.l];if(zv&&!compact)T(x+o.w/2,cy+h/2+14,zv,{s:10,w:700,c:P.ink});
+        if(!compact){const tx=(x+o.w/2).toFixed(1);S.push(`<text transform="rotate(-90 ${tx} ${cy})" x="${tx}" y="${cy}" text-anchor="middle" dominant-baseline="central" style="fill:${P.zsText};font-family:${P.font};font-size:11px;font-weight:700">${esc(o.l)}</text>`)}}
+      else if(o.k==="a"&&!compact){const fx=x+o.w/2,fy=py+28;
+        T(fx,fy-8,"Sentido flujo",{s:13,w:700,c:P.ink});
+        L(fx-52,fy+6,fx+40,fy+6,{s:P.ink,sw:2.5});
+        S.push(`<path d="M${fx+40},${fy} L${fx+54},${fy+6} L${fx+40},${fy+12} Z" style="fill:${P.ink}"/>`)}
+      x+=o.w;
+    });
+    titulo="Corte y empalme";DL=" (Tie In 1 a Tie In 2)";
+    resumen=`${ce.v} ${ce.v===1?"venteo":"venteos"} · ${ce.d} ${ce.d===1?"drenaje":"drenajes"} · ${ce.cams&&ce.v?ce.cam+(ce.cam===1?" camisa sobre venteo":" camisas sobre venteos"):"sin camisas sobre venteos"}`;
+  } else if(tipo==="Camisa puenteada"){
+    // dos camisas existentes y una sobre camisa que las une tapando el espacio entre ellas
+    const e1=LN(lg.ex1?.[0]), e2=LN(lg.ex2?.[0]), pu=LN(lg.pu?.[0]), knownP=!!(e1&&e2&&pu);
+    const E1=knownP?e1:1.6, E2=knownP?e2:1.6, PU=knownP?pu:1;
+    const gapU=PU*0.5, k=Math.min((x1-x0-120)/(E1+E2+gapU),300/PU);
+    let w1=E1*k, w2=E2*k, g=gapU*k, wp=PU*k;
+    if(wp<220){wp=220;g=110}
+    const tot=w1+g+w2, sx=(W-tot)/2, xe2=sx+w1+g, xp=sx+w1+g/2-wp/2, hE=ph+INC, hP=ph+2*INC, gc=sx+w1+g/2;RA=xp;RB=xp+wp;
+    sleeve(sx,cy-hE/2,w1,hE);
+    sleeve(xe2,cy-hE/2,w2,hE);
+    if(rep.cascota!==false){S.push(`<ellipse cx="${gc.toFixed(1)}" cy="${cy-ph/2-4}" rx="${Math.min(28,g/2.5).toFixed(1)}" ry="9" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);T(gc,cy-ph/2-1,"Cascota",{s:9,w:600})}
+    sleeve(xp,cy-hP/2,wp,hP,{op:.62});
+    seam(xp,xp+wp,cy-12,cy+4);
+    if(!compact){
+      T(gc+g*0.45,cy-17,"L1",{s:13,w:700});T(gc+g*0.45,cy+18,"L2",{s:12,c:P.muted});
+      T(gc-10,cy+21,"Sentido flujo",{s:11,w:700,c:"#1f4aa0"});L(xp+18,cy+28,xp+wp-30,cy+28,{s:P.zs,sw:2.5});
+      S.push(`<path d="M${xp+wp-30},${cy+23} L${xp+wp-18},${cy+28} L${xp+wp-30},${cy+33} Z" style="fill:${P.zs}"/>`);
+      const v1=(sx+xp)/2, v2=(xp+wp+xe2+w2)/2, n1=xp-sx>120?"Camisa existente 1":"Existente 1", n2=xe2+w2-xp-wp>120?"Camisa existente 2":"Existente 2";
+      T(v1,cy+(knownP?-2:4),n1,{s:12,w:600});T(v2,cy+(knownP?-2:4),n2,{s:12,w:600});
+      if(knownP){T(v1,cy+14,`${e1} ${U}`,{s:11,c:P.muted});T(v2,cy+14,`${e2} ${U}`,{s:11,c:P.muted})}
+      T(xp-5,cy-hE/2+15,"C1",{a:"end",s:13,w:700,c:P.bad});T(xp+wp+5,cy-hE/2+15,"C2",{a:"start",s:13,w:700,c:P.bad});
+      T(gc,cy+hP/2+20,"Camisa puenteada"+(knownP?` · ${pu} ${U}`:""),{s:12,w:600});
+    }
+    titulo="Camisa puenteada";DL=" (C1 a C2)";resumen=`Une 2 camisas existentes${rep.cascota!==false?" · con cascota":""} · soldaduras C1–C2`;
+  } else if(tipo==="Camisa directa"){
+    // una sola camisa sobre el tubo; Tipo B con soldaduras de compromiso C1/C2, Tipo A sin ellas
+    const lc=LN(lg.cd?.[0]), wC=Math.min(380,(x1-x0)*0.52), hC=ph+INC, sx=(W-wC)/2;
+    sleeve(sx,cy-hC/2,wC,hC);seam(sx,sx+wC,cy-4,cy+12);RA=sx;RB=sx+wC;
+    if(!compact){
+      T(sx+wC/2,cy-9,"L1",{s:13,w:700});T(sx+wC/2,cy+26,"L2",{s:12,c:P.muted});
+      if(!sinComp){T(sx-5,cy-hC/2+12,"C1",{a:"end",s:13,w:700,c:P.bad});T(sx+wC+5,cy-hC/2+12,"C2",{a:"start",s:13,w:700,c:P.bad})}
+      T(sx+wC/2,cy+hC/2+18,"Camisa directa"+(lc?` · ${lc} ${U}`:""),{s:12,w:600});
+      flow(W/2,cy+hC/2+52,P.zs);
+    }
+    titulo=sinComp?"Camisa directa Tipo A":"Camisa directa";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";
+    resumen=sinComp?"Sin soldaduras de compromiso":"Soldaduras de compromiso C1–C2";
+  } else if(tipo==="Otra"){
+    R(W/2-80,cy-34,160,68,{f:P.sleeve,s:P.edge,sw:1.5,d:"6 4",rx:4});T(W/2,cy+5,"Reparación",{s:13,w:700});
+    titulo="Reparación";resumen=rep.nota||"Sin detalle";
+  }
+  if(!compact&&LTv){const a=RA??x0+20,b=RB??x1-20;dim(Math.min(a,b-60),Math.max(b,a+60),H-50,`Longitud total de reparación${DL}: ${LTv} ${rep.longUnidad||"m"}`);
+    const lc=checkLen(rep);if(lc&&!lc.ok)T((a+b)/2,H-58,lc.max>=lc.min?`⚠ No cuadra con las piezas: real máx. ${Math.round(lc.max).toLocaleString("es-CO")} mm`:"⚠ Las piezas no cuadran",{s:11,w:700,c:P.bad})}
+  if(!compact){
+    T(20,28,titulo,{a:"start",s:18,w:700,c:P.ink});
+    const m=[meta.pk&&"PK "+meta.pk,meta.linea,meta.consecutivo,rep.diametro&&"Ø "+rep.diametro+"\"",meta.zsNom?"Nominal "+meta.zsNom+"\"":(meta.espesor&&"Esp. "+meta.espesor+"\""),meta.zsMat?"Tubería "+meta.zsMat:meta.material].filter(Boolean).join("  ·  ");
+    T(20,48,m,{a:"start",s:12,c:P.muted});
+    T(W-20,28,resumen,{a:"end",s:12,w:600});
+    if(rep.nota&&tipo!=="Otra")T(W-20,48,rep.nota,{a:"end",s:11,c:P.muted});
+    T(20,H-12,"Esquema ilustrativo, sin escala",{a:"start",s:10,c:P.muted});
+    if(sinComp&&(esCA||esAN||esAV||esBI||esCD))T(W-20,H-12,"Camisa Tipo A: sin soldaduras de compromiso a la tubería",{a:"end",s:11,w:700,c:P.bad});
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titulo+": "+resumen)}">${S.join("")}</svg>`;
+}
+const repLabel=rep=>{if(!rep?.tipo)return"";const t=rep.tipo;
+  if(t==="Ilícita")return`Ilícita · ${nInt(rep.cascotas,3,1,12)} cascotas`;
+  if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,12);return`Armadillo · ${d} directas + ${d-1} sobre`}
+  if(t==="Camisa sobre anillos")return"Camisa sobre anillos";
+  if(t==="Camisa sobre anillos sobre venteo")return rep.tapa==="Cascotas"?`Anillos sobre ${nInt(rep.tapaNum,1,1,12)} cascotas`:`Anillos sobre venteo #${nInt(rep.tapaNum,1,1,20)}`;
+  if(t==="Camisa puenteada")return"Camisa puenteada";
+  if(t==="Camisa directa")return"Camisa directa";
+  if(t==="Zona sana")return`Zona sana · ${nInt(rep.zonas,2,1,8)} áreas`;
+  if(t==="Biseles")return rep.tipoCamisa==="anillos"?"Biseles · sobre anillos":rep.tipoCamisa==="directa"?"Biseles · camisa directa":`Biseles · ${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`;
+  if(t==="Corte y empalme")return`Corte y empalme · ${nInt(rep.venteos,2,0,8)} V · ${nInt(rep.drenajes,1,0,6)} D${rep.camisas===false?"":" · camisas"}`;
+  return rep.nota?`Otra · ${rep.nota}`:"Otra"};
+
+// ---------- lista ----------
+function filtered(){
+  const q=$("q").value.trim().toLowerCase(), a=$("fAct").value, m=$("fMes").value, p=$("fPunto").value;
+  return rows.filter(r=>{
+    if(filtroEstado!=="todos"&&!r.items.some(it=>grupo(estadoIt(r,it))===filtroEstado)) return false;
+    if(a&&!r.items.some(it=>it.act===a)) return false;
+    if(m&&!(r.fecha||"").startsWith(m)) return false;
+    if(p&&(p==="__none"?!!r.estadoPunto:r.estadoPunto!==p)) return false;
+    if(q){const hay=[r.consecutivo,r.pk,r.linea,r.lugar,r.ciudad,r.base,r.tipoReparacion,r.estadoPunto,...r.items.flatMap(it=>[it.act,it.inspectores,it.entregaQuien,it.observaciones,repLabel(it.reparacion)])].join(" ").toLowerCase();if(!hay.includes(q))return false}
+    return true;
+  }).sort((x,y)=>(y.fecha||"").localeCompare(x.fecha||"")||(x.pk||"").localeCompare(y.pk||""));
+}
+
+function renderAlert(){
+  const venc=allItems().filter(x=>x.st==="vencido").sort((a,b)=>hoursSince(b.r.terminadoEn)-hoursSince(a.r.terminadoEn));
+  const box=$("alertBox");
+  if(!venc.length){box.hidden=true;return}
+  box.innerHTML=`<strong>${venc.length} ${venc.length===1?"informe vencido":"informes vencidos"}</strong><span>Punto terminado hace más de ${PLAZO_H} h sin entregar informe:</span><span class="items">${venc.map(x=>`<button type="button" data-edit="${esc(x.r.id)}">${esc(itName(x.r,x.it))} · ${fmtH(hoursSince(x.r.terminadoEn))}</button>`).join("")}</span>`;
+  box.hidden=false;
+}
+
+function renderSummary(){
+  const mes=todayISO().slice(0,7), all=allItems();
+  const pend=all.filter(x=>x.st==="pendiente");
+  const soon=pend.filter(x=>{const v=vencimiento(x.r);return v&&v.resta<=6}).length;
+  $("sPend").textContent=pend.length;
+  $("sPendHint").textContent=soon?`${soon} ${soon===1?"vence":"vencen"} en menos de 6 h`:"informes sin entregar";
+  const venc=all.filter(x=>x.st==="vencido").length;
+  $("sNov").textContent=all.filter(x=>grupo(x.st)==="novedad").length;
+  $("sNovHint").textContent=venc?`${venc} por informe vencido`:"requieren atención";
+  $("sEnt").textContent=all.filter(x=>x.it.entregaFecha&&x.it.entregaFecha.startsWith(mes)).length;
+  const pm=rows.filter(r=>(r.fecha||"").startsWith(mes)), na=pm.reduce((s,r)=>s+r.items.length,0);
+  $("sMes").textContent=pm.length;
+  $("sMesHint").textContent=`${na} ${na===1?"actividad":"actividades"} · ${monthName(mes)}`;
+  document.querySelectorAll("button.stat").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.f===filtroEstado)));
+}
+
+function renderOptions(){
+  const months=[...new Set(rows.map(r=>(r.fecha||"").slice(0,7)).filter(Boolean))].sort().reverse();
+  const cur=$("fMes").value;
+  $("fMes").innerHTML=`<option value="">Todos los meses</option>`+months.map(k=>`<option value="${k}">${esc(monthName(k))}</option>`).join("");
+  $("fMes").value=months.includes(cur)?cur:"";
+  $("dlLinea").innerHTML=[...new Set(rows.map(r=>r.linea).filter(Boolean))].sort().map(l=>`<option value="${esc(l)}">`).join("");
+  $("dlCiudad").innerHTML=[...new Set(rows.map(r=>r.ciudad).filter(Boolean))].sort().map(l=>`<option value="${esc(l)}">`).join("");
+  $("dlBase").innerHTML=[...new Set(rows.map(r=>r.base).filter(Boolean))].sort().map(l=>`<option value="${esc(l)}">`).join("");
+  const insp=new Set();rows.forEach(r=>r.items.forEach(it=>{(it.inspectores||"").split(/[,/]/).forEach(s=>{s=s.trim();if(s)insp.add(s)});if(it.entregaQuien)insp.add(it.entregaQuien)}));
+  INSPECTORES.forEach(n=>insp.add(n));
+  $("dlInsp").innerHTML=[...insp].sort().map(l=>`<option value="${esc(l)}">`).join("");
+}
+
+// estado del punto (común a todas sus actividades)
+function puntoHtml(r){
+  const v=vencimiento(r), pend=r.items.some(it=>!it.entregaFecha&&!it.novedad);
+  const main=r.estadoPunto?(r.estadoPunto==="Terminado"&&r.terminadoEn?`Terminado ${dmyhm(r.terminadoEn)}`:r.estadoPunto):"Sin estado";
+  let extra="";
+  if(v&&pend)extra=v.vencido?`<small class="late">Informes vencidos hace ${fmtH(v.h-PLAZO_H)}</small>`:`<small class="${v.resta<=6?"soon":""}">Informes vencen en ${fmtH(v.resta)}</small>`;
+  return `<span>${esc(main)}</span>${extra}`;
+}
+// estado del informe de una actividad
+function itStateHtml(r,it){
+  const st=estadoIt(r,it), v=vencimiento(r);
+  if(st==="entregado")return`<span class="pill ok">Entregado</span><small>${dmy(it.entregaFecha)}${it.entregaQuien?" · "+esc(it.entregaQuien):""}</small>`;
+  if(st==="vencido")return`<span class="pill bad">Informe vencido</span><small class="late">${fmtH(v.h)} desde que terminó</small>`;
+  if(st==="novedad")return`<span class="pill bad">Novedad</span>`;
+  const d=daysSince(r.fecha);
+  return`<span class="pill warn">Falta informe</span><small class="${v&&v.resta<=6?"soon":""}">${v?`Vence en ${fmtH(v.resta)}`:(d<=0?"de hoy":d===1?"hace 1 día":`hace ${d} días`)}</small>`;
+}
+
+function rowHtml(r){
+  const worst=peorEstado(r);
+  const finish=!readOnly&&r.estadoPunto!=="Terminado"&&r.items.some(it=>!it.entregaFecha)?`<button class="btn small" type="button" data-finish="${esc(r.id)}">Terminar</button>`:"";
+  const acts=r.items.map((it,i)=>{const st=estadoIt(r,it);
+    const deliver=!readOnly&&!it.entregaFecha?`<button class="btn small" type="button" data-deliver="${esc(r.id)}" data-i="${i}">Entregar</button>`:"";
+    const obs=it.observaciones?`<div class="obs ${it.novedad&&st!=="entregado"?"bad":""}">${it.novedad?"⚠ ":""}${esc(it.observaciones)}</div>`:"";
+    const rp=repOf(r,it);
+    const zmin=zsMinOf(it), zsTxt=it.act==="Zona sana"&&zmin!=null?`<span class="sub2">Esp. mín ${String(zmin).replace(".",",")}"${r.nominal?` · nominal ${esc(r.nominal)}"`:""}</span>`:"";
+    const repCell=rp?`<div class="actrep"><button class="thumb" type="button" data-edit="${esc(r.id)}" data-i="${i}" aria-label="Ver esquema: ${esc(repLabel(rp))}">${drawRepair(rp,r,PAL_VAR,true)}</button><span class="sub2">${esc(repLabel(rp))}</span>${zsTxt}${(c=>c&&!c.ok?`<span class="warnline">⚠ Longitud total no cuadra con las piezas</span>`:"")(checkLen(rp))}</div>`:`<span class="muted">Sin esquema</span>${zsTxt}`;
+    return `<div class="act ${st==="vencido"?"late":""}">
+      <div class="cell"><span class="chip ${actClass(it.act)}">${esc(it.act)}</span></div>
+      <div class="cell">${esc(it.inspectores||"—")}${fotoSub(it)}${it.inspFecha&&it.inspFecha!==r.fecha?`<span class="sub2">Inspección: ${dmy(it.inspFecha)}</span>`:""}${h0Sub(it)}</div>
+      <div class="cell">${repCell}</div>
+      <div class="cell state">${itStateHtml(r,it)}</div>
+      <div class="rowacts">${deliver}</div>${obs}</div>`}).join("");
+  return `<div class="row ${worst==="vencido"?"late":""}">
+    <div class="cell"><span class="k label">Consecutivo</span><span class="mono consec">${esc(r.consecutivo||"—")}</span></div>
+    <div class="cell"><span class="k label">PK</span><span class="mono">${esc(r.pk||"—")}</span></div>
+    <div class="cell"><span class="k label">Línea</span>${esc(r.linea||"—")}${r.sistema?`<span class="sub2">${esc(r.sistema)}</span>`:""}</div>
+    <div class="cell"><span class="k label">Diámetro</span>${r.diametro?esc(r.diametro)+'"':"—"}${r.espesor||r.material?`<span class="sub2">${esc([r.espesor&&r.espesor+'"',r.material].filter(Boolean).join(" · "))}</span>`:""}${r.nominal||r.materialTub?`<span class="sub2">Tubería: ${esc([r.nominal&&"nom. "+r.nominal+'"',r.materialTub].filter(Boolean).join(" · "))}</span>`:""}</div>
+    <div class="cell"><span class="k label">Lugar · Ciudad</span>${esc(r.lugar||"—")}${r.ciudad?`<span class="sub2">${esc(r.ciudad)}</span>`:""}</div>
+    <div class="cell"><span class="k label">Base · Reparación</span>${esc(r.base||"—")}${r.tipoReparacion?`<span class="sub2">${esc(r.tipoReparacion)}</span>`:""}</div>
+    <div class="cell state"><span class="k label">Estado del punto</span>${puntoHtml(r)}</div>
+    <div class="rowacts">${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
+    <div class="acts">${acts||`<p class="note" style="padding:8px 0">Sin actividades registradas.</p>`}</div>
+  </div>`;
+}
+
+function render(){
+  now=new Date();
+  renderAlert();renderSummary();
+  const list=filtered();
+  $("count").textContent=rows.length?`${list.length} de ${rows.length} puntos`:"";
+  $("cols").hidden=!list.length;
+  if(!rows.length){
+    $("list").innerHTML=`<div class="empty"><h3>Todavía no hay puntos de trabajo</h3><p class="note">Registra el primer punto con su PK y las actividades que hiciste (zona sana, biseles, inspección de camisa…). El estado de cada informe se calcula solo.</p>${readOnly?"":`<button class="btn primary" type="button" data-new>+ Nuevo punto</button>`}</div>`;
+    return;
+  }
+  if(!list.length){$("list").innerHTML=`<div class="empty"><h3>Nada con estos filtros</h3><button class="btn" type="button" data-clear>Quitar filtros</button></div>`;return}
+  const groups=new Map();list.forEach(r=>{const k=r.fecha||"";if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+  $("list").innerHTML=[...groups].map(([f,rs])=>{const na=rs.reduce((s,r)=>s+r.items.length,0);return `<section class="day"><div class="dayhead"><h2>${f?esc(dayName(f)):"Sin fecha"}</h2><span class="label">${rs.length} ${rs.length===1?"punto":"puntos"} · ${na} ${na===1?"actividad":"actividades"}</span></div>${rs.map(rowHtml).join("")}</section>`}).join("");
+}
+
+// ---------- ficha ----------
+function readRep(){
+  const tipo=$("iRep").value; if(!tipo) return null;
+  const rep={tipo,diametro:$("iDiam").value.trim(),nota:$("iRepNota").value.trim(),longTotal:$("iLT").value.replace(",",".").trim(),longUnidad:$("iLTU").value};
+  if(tipo==="Corte y empalme")Object.assign(rep,readPos());
+  if(tipo==="Biseles")Object.assign(rep,readBiseles());
+  if(LENS.includes(tipo))Object.assign(rep,readLens());
+  (REPS[tipo].params||[]).forEach(([k,,def,min,max,ty])=>{const el=$("rp_"+k);rep[k]=ty==="sel"?(el?.value||def):ty==="yesno"?(el?el.value!=="no":def):nInt(el?.value,def,min,max)});
+  return rep;
+}
+// ---- longitudes de camisas y cascotas (para dibujar a proporción) ----
+function renderLens(unit,lg){
+  const box=$("lenBox"); if(!box)return; lg=lg||{};
+  const tipo=$("iRep").value; let h="";
+  const inp=(k,i,lab,val)=>`<label class="f"><span class="label">${lab}</span><input class="field mono" data-lk="${k}" data-li="${i}" inputmode="decimal" value="${esc(val??"")}"></label>`;
+  if(tipo==="Camisa armadillo"){const d=nInt($("rp_directas")?.value,3,1,12);
+    for(let i=0;i<d;i++)h+=inp("dir",i,`Sec. ${i+1} · directa`,lg.dir?.[i]);
+    for(let i=0;i<d-1;i++)h+=inp("sob",i,`Sec. ${d+i+1} · sobre`,lg.sob?.[i]);}
+  else if(tipo.startsWith("Camisa sobre anillos")){h+=inp("an",0,"Cada anillo",lg.an?.[0]);h+=inp("sc",0,"Sobre camisa",lg.sc?.[0])}
+  else if(tipo==="Camisa directa"){h+=inp("cd",0,"Longitud de la camisa",lg.cd?.[0])}
+  else if(tipo==="Camisa puenteada"){h+=inp("ex1",0,"Camisa existente 1",lg.ex1?.[0]);h+=inp("ex2",0,"Camisa existente 2",lg.ex2?.[0]);h+=inp("pu",0,"Sobre camisa a instalar",lg.pu?.[0])}
+  else if(tipo==="Ilícita"){const n=nInt($("rp_cascotas")?.value,3,1,12);for(let i=0;i<n;i++)h+=inp("cas",i,`Ø cascota ${i+1}`,lg.cas?.[i])}
+  box.innerHTML=`<div class="drawbar" style="margin:2px 0 8px"><span class="label">${tipo==="Ilícita"?"Diámetro de cada cascota":"Longitud de cada pieza"}</span><label class="check" style="font-size:.85rem">Unidad <select class="field" id="lUni" style="padding:4px 8px"><option>cm</option><option>mm</option><option>pulg</option><option>m</option></select></label></div><div class="grid3">${h}</div>`;
+  $("lUni").value=unit||"cm";
+  box.querySelectorAll("input,select").forEach(i=>i.disabled=readOnly);
+}
+function readLens(){
+  const lg={};
+  document.querySelectorAll("#lenBox [data-lk]").forEach(i=>{(lg[i.dataset.lk]=lg[i.dataset.lk]||[])[+i.dataset.li]=String(i.value).replace(",",".").trim()});
+  return{unidad:$("lUni")?.value||"cm",largos:lg};
+}
+function avLabel(){const l=$("rp_tapaNum")?.closest("label")?.querySelector(".label");if(l)l.textContent=$("rp_tapa")?.value==="Cascotas"?"Cantidad de cascotas tapadas":"Número de venteo"}
+// ---- corte y empalme: ubicación de venteos y drenajes ----
+function renderPos(r){
+  const box=$("posBox"); if(!box)return; r=r||{};
+  const v=nInt($("rp_venteos")?.value,2,0,8), d=nInt($("rp_drenajes")?.value,1,0,6);
+  const opt=sel=>[["antes","Antes del Tie In 1"],["entre","Entre Tie In 1 y 2"],["despues","Después del Tie In 2"]].map(([k,l])=>`<option value="${k}"${k===sel?" selected":""}>${l}</option>`).join("");
+  let h="";
+  for(let i=0;i<v;i++)h+=`<label class="f"><span class="label">Venteo ${i+1}</span><select class="field" data-pv="${i}">${opt(r.posV?.[i]||(i<Math.ceil(v/2)?"antes":"despues"))}</select></label>`;
+  for(let i=0;i<d;i++)h+=`<label class="f"><span class="label">Drenaje ${i+1}</span><select class="field" data-pd="${i}">${opt(r.posD?.[i]||"entre")}</select></label>`;
+  box.innerHTML=h?`<p class="note" style="margin:2px 0 8px">¿Dónde va cada venteo y drenaje? El esquema los numera en el orden en que quedan sobre el tubo.</p><div class="grid3">${h}</div>`:"";
+  box.querySelectorAll("select").forEach(s=>s.disabled=readOnly);
+}
+function readPos(){return{posV:[...document.querySelectorAll("#posBox [data-pv]")].map(s=>s.value),posD:[...document.querySelectorAll("#posBox [data-pd]")].map(s=>s.value)}}
+// ---- biseles: tipo de camisa y longitudes ----
+function buildBiseles(rep){
+  const r=rep||{};
+  $("repParams").innerHTML=`<label class="f"><span class="label">Tipo de camisa</span><select class="field" id="bTipo"><option value="directa">Directa</option><option value="anillos">Sobre anillos</option><option value="seccionada">Seccionada</option></select></label>
+  <label class="f"><span class="label">Unidad de longitud</span><select class="field" id="bUni"><option>cm</option><option>pulg</option><option>m</option></select></label>
+  <div id="bBody" style="grid-column:1/-1;min-width:0"></div>`;
+  $("bTipo").value=r.tipoCamisa||"seccionada";$("bUni").value=r.unidad||"cm";
+  bisBody(r);
+}
+function bisBody(r){
+  const b=$("bBody");
+  if($("bTipo").value==="directa"){
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Longitud de la camisa</span><input class="field mono" id="bLC" inputmode="decimal" value="${esc(r?.largoCamisa??"")}"></label></div>`;
+  } else if($("bTipo").value==="anillos"){
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Longitud de cada anillo directo</span><input class="field mono" id="bLA" inputmode="decimal" value="${esc(r?.largoAnillo??"")}"></label><label class="f"><span class="label">Longitud de la sobre camisa</span><input class="field mono" id="bLS" inputmode="decimal" value="${esc(r?.largoSobre??"")}"></label></div>`;
+  } else {
+    const nd=nInt(r?.nDir,3,1,12), ns=nInt(r?.nSob,nd-1,0,12);
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Secciones directas</span><input class="field mono" type="number" min="1" max="12" id="bND" value="${nd}"></label><label class="f"><span class="label">Secciones sobre camisa</span><input class="field mono" type="number" min="0" max="12" id="bNS" value="${ns}"></label></div><p class="note" style="margin:10px 0 6px">Longitud de cada sección</p><div class="grid3" id="bLens"></div>`;
+    bisLens(r?.largosDir||[],r?.largosSob||[]);
+  }
+}
+function bisLens(ld,ls){
+  const nd=nInt($("bND").value,3,1,12), ns=nInt($("bNS").value,nd-1,0,12);
+  let h="";
+  for(let i=0;i<nd;i++)h+=`<label class="f"><span class="label">Sección ${i+1} · directa</span><input class="field mono" data-ld="${i}" inputmode="decimal" value="${esc(ld[i]??"")}"></label>`;
+  for(let i=0;i<ns;i++)h+=`<label class="f"><span class="label">Sección ${nd+i+1} · sobre</span><input class="field mono" data-ls="${i}" inputmode="decimal" value="${esc(ls[i]??"")}"></label>`;
+  $("bLens").innerHTML=h;
+}
+function readBiseles(){
+  const v=x=>String(x??"").replace(",",".").trim();
+  const r={tipoCamisa:$("bTipo")?.value||"seccionada",unidad:$("bUni")?.value||"cm"};
+  if(r.tipoCamisa==="directa"){r.largoCamisa=v($("bLC")?.value)}
+  else if(r.tipoCamisa==="anillos"){r.largoAnillo=v($("bLA")?.value);r.largoSobre=v($("bLS")?.value)}
+  else{r.nDir=nInt($("bND")?.value,3,1,12);r.nSob=nInt($("bNS")?.value,r.nDir-1,0,12);
+    r.largosDir=[...document.querySelectorAll("#bLens [data-ld]")].map(i=>v(i.value)).slice(0,r.nDir);
+    r.largosSob=[...document.querySelectorAll("#bLens [data-ls]")].map(i=>v(i.value)).slice(0,r.nSob)}
+  return r;
+}
+function buildParams(rep){
+  const tipo=$("iRep").value;
+  const ps=tipo?REPS[tipo].params:[];
+  $("repParams").innerHTML=ps.map(([k,lab,def,min,max,ty,opts])=>ty==="sel"
+    ?`<label class="f"><span class="label">${lab}</span><select class="field" id="rp_${k}">${opts.map(o=>`<option${(rep&&rep[k]!=null?rep[k]:def)===o?" selected":""}>${o}</option>`).join("")}</select></label>`
+    :ty==="yesno"
+    ?`<label class="f"><span class="label">${lab}</span><select class="field" id="rp_${k}"><option value="si">Sí</option><option value="no">No</option></select></label>`
+    :`<label class="f"><span class="label">${lab}</span><input class="field mono" type="number" id="rp_${k}" min="${min}" max="${max}" value="${rep&&rep[k]!=null?rep[k]:def}" inputmode="numeric"></label>`).join("");
+  ps.forEach(([k,,def,,,ty])=>{if(ty==="yesno")$("rp_"+k).value=(rep&&rep[k]!=null?rep[k]:def)?"si":"no"});
+  $("repParams").hidden=!ps.length&&tipo!=="Biseles"&&!LENS.includes(tipo);
+  if(tipo==="Biseles")buildBiseles(rep);
+  if(LENS.includes(tipo)){$("repParams").insertAdjacentHTML("beforeend",`<div id="lenBox" style="grid-column:1/-1;min-width:0"></div>`);renderLens(rep?.unidad,rep?.largos)}
+  if(tipo==="Corte y empalme"){$("repParams").insertAdjacentHTML("beforeend",`<div id="posBox" style="grid-column:1/-1;min-width:0"></div>`);renderPos(rep)}
+  if(tipo==="Camisa sobre anillos sobre venteo")avLabel();
+  $("wRepNota").hidden=!tipo; $("wLT").hidden=!tipo;
+  $("iRepNota").placeholder=tipo==="Otra"?"Describe la reparación":"Opcional: medidas, material, tipo de soldadura";
+  $("repParams").querySelectorAll("input,select").forEach(i=>i.disabled=readOnly);
+  updateDrawing();
+}
+function metaForm(){const it=formItems[active], zs=it?.act==="Zona sana";
+  return{pk:$("iPk").value.trim(),linea:lineaVal(),consecutivo:$("iCons").value.trim().toUpperCase(),tipoReparacion:$("iTipoRep").value,espesor:$("iEsp").value,material:$("iMat").value,
+    zs:zs?it.zsMin:null,zsNom:zs?$("iNom").value:"",zsMat:zs?$("iMatTub").value:""}}
+
+// ---- zona sana: espesor mínimo por cada área del esquema ----
+function zsAreas(rep){
+  if(rep?.tipo==="Corte y empalme")return layoutCE(rep).it.filter(o=>o.k==="b").map(o=>o.l);
+  if(rep?.tipo==="Ilícita")return[...Array(nInt(rep.cascotas,3,1,12))].map((_,i)=>`Zona sana Cascota #${i+1}`);
+  if(rep?.tipo==="Zona sana")return[...Array(nInt(rep.zonas,2,1,8))].map((_,i)=>"AS C"+(i+1));
+  return["AS C1","AS C2"];
+}
+function zsHtml(it){
+  const areas=zsAreas(it.reparacion), mins=it.zsMin||{};
+  const opt=(list,sel)=>`<option value="">Sin definir</option>`+list.map(o=>`<option${o===sel?" selected":""}>${o}</option>`).join("");
+  return `<span class="label">Medición de zona sana</span>
+  <p class="note">Espesor mínimo encontrado (pulg)${it.reparacion?.tipo?"":" · escoge el esquema para ver todas las áreas"}</p>
+  <div class="grid3">${areas.map(a=>`<label class="f"><span class="label">${esc(a)}</span><input class="field mono" data-zs="${esc(a)}" value="${esc(mins[a]||"")}" inputmode="decimal" placeholder="0,000" autocomplete="off"></label>`).join("")}</div>`;
+}
+function zsSync(c,i){
+  const it=formItems[i];if(!it)return;
+  const zi=c.querySelectorAll("[data-zs]");
+  if(zi.length){const o={...(it.zsMin||{})};zi.forEach(inp=>{o[inp.dataset.zs]=inp.value.trim()});it.zsMin=o}
+}
+// vuelve a dibujar las casillas si cambian las áreas del esquema (sin perder lo escrito)
+function refreshZs(i,force){
+  const card=$("itemsBox").querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
+  const box=card.querySelector(".zsbox"); box.hidden=it.act!=="Zona sana"; if(box.hidden)return;
+  const key=zsAreas(it.reparacion).join("|");
+  if(force||box.dataset.k!==key){zsSync(card,i);box.innerHTML=zsHtml(it);box.dataset.k=key;box.querySelectorAll("input,select").forEach(el=>el.disabled=readOnly)}
+}
+// ---- 0 horas: técnicas y longitud inspeccionada PT/MT ----
+const TECNICAS=["PAUT","MT","PT","UTME"];
+const OD_NPS={"4":4.5,"6":6.625,"8":8.625,"10":10.75,"12":12.75}; // diámetro exterior real; desde 14" el OD es igual al nominal
+const odOf=n=>{const v=parseFloat(String(n||"").replace(",","."));return OD_NPS[String(n)]||(isFinite(v)&&v>0?v:null)};
+const toIn=(v,u)=>{const n=parseFloat(String(v??"").replace(",","."));if(!isFinite(n)||n<=0)return null;return u==="mm"?n/25.4:u==="m"?n*39.3701:u==="pulg"?n:n/2.54};
+const DESC_CUBIERTA=2.2; // pulg que se descuentan por cada lado de una sección directa cubierto por otra
+const fIn=v=>v.toFixed(2).replace(".",",");
+// el cálculo se hace en pulgadas y se muestra en milímetros (y el total también en metros)
+const mm=v=>(v*25.4).toLocaleString("es-CO",{maximumFractionDigits:0});
+const mm1=v=>(v*25.4).toLocaleString("es-CO",{minimumFractionDigits:1,maximumFractionDigits:1});
+const mt=v=>(v*0.0254).toFixed(2).replace(".",",");
+function calcInsp(rep,diam,esp,tipoA){
+  const D=odOf(diam), t=parseFloat(String(esp||"").replace(",","."));
+  if(!rep?.tipo)return{err:"Escoge el esquema de la camisa en esta actividad."};
+  if(!D)return{err:"Falta el diámetro en la identificación del punto."};
+  if(!isFinite(t))return{err:"Falta el espesor de camisa en la identificación del punto."};
+  const u=rep.unidad||"cm", lg=rep.largos||{}, rows=[];let lon=0,circ=0;
+  const Lw=(lab,len,cov)=>{const eff=Math.max(0,len-DESC_CUBIERTA*cov);rows.push([lab,`2 × ${mm(eff)} mm`+(cov?` (${mm(len)} − ${cov} × 55,9 mm)`:""),2*eff]);lon+=2*eff};
+  const Cw=(lab,dia)=>{const p=Math.PI*dia;rows.push([lab,`π × ${mm1(dia)} mm`,p]);circ+=p};
+  const ok=a=>a.every(x=>x!=null);
+  if(rep.tipo==="Camisa directa"){
+    const lc=toIn(lg.cd?.[0],u);if(lc==null)return{err:"Falta la longitud de la camisa en el esquema."};
+    Lw("Camisa · L1 y L2",lc,0);if(!tipoA){Cw("C1",D+2*t);Cw("C2",D+2*t)}
+  } else if(rep.tipo==="Camisa armadillo"){
+    const d=nInt(rep.directas,3,1,12),s=d-1;
+    const LD=[...Array(d)].map((_,i)=>toIn(lg.dir?.[i],u)),LS=[...Array(s)].map((_,i)=>toIn(lg.sob?.[i],u));
+    if(!ok(LD)||!ok(LS))return{err:"Faltan longitudes de las secciones en el esquema."};
+    LD.forEach((l,i)=>Lw(`Sec. ${i+1} directa · L1 y L2`,l,(i>0?1:0)+(i<d-1?1:0)));
+    LS.forEach((l,j)=>Lw(`Sec. ${d+j+1} sobre · L1 y L2`,l,0));
+    let n=1;if(!tipoA){Cw("C1",D+2*t);Cw("C2",D+2*t);n=3}
+    for(let j=0;j<s;j++){Cw(`C${n+2*j}`,D+4*t);Cw(`C${n+2*j+1}`,D+4*t)}
+  } else if(rep.tipo==="Camisa sobre anillos"||rep.tipo==="Camisa sobre anillos sobre venteo"){
+    const la=toIn(lg.an?.[0],u),ls=toIn(lg.sc?.[0],u);if(la==null||ls==null)return{err:"Faltan las longitudes de anillos y sobre camisa en el esquema."};
+    Lw("Anillo 1 · L1 y L2",la,1);Lw("Anillo 2 · L1 y L2",la,1);Lw("Sobre camisa · L1 y L2",ls,0);
+    if(!tipoA){Cw("C1",D+2*t);Cw("C2",D+2*t);Cw("C3",D+4*t);Cw("C4",D+4*t)}else{Cw("C1",D+4*t);Cw("C2",D+4*t)}
+  } else if(rep.tipo==="Camisa puenteada"){
+    const lp=toIn(lg.pu?.[0],u);if(lp==null)return{err:"Falta la longitud de la sobre camisa en el esquema."};
+    Lw("Camisa puenteada · L1 y L2",lp,0);Cw("C1",D+4*t);Cw("C2",D+4*t);
+  } else return{err:"El cálculo aplica a esquemas de camisa: directa, armadillo, sobre anillos o puenteada."};
+  return{lon,circ,total:lon+circ,rows,D,t};
+}
+const conTec=a=>a==="0H"||a==="12H";
+const tipoAForm=()=>$("iTipoRep").value==="Camisa Tipo A";
+function h0CalcHtml(it){
+  const tec=it.tecnicas||[]; if(!tec.includes("MT")&&!tec.includes("PT"))return"";
+  const c=calcInsp(it.reparacion,$("iDiam").value,$("iEsp").value,tipoAForm());
+  if(c.err)return`<div class="calc"><strong>Longitud inspeccionada PT/MT</strong><span class="note">${esc(c.err)}</span></div>`;
+  return`<div class="calc"><strong>Longitud inspeccionada PT/MT (100 %)</strong>
+  <div class="calcwrap"><table>${c.rows.map(([a,b,v])=>`<tr><td>${esc(a)}</td><td class="muted">${esc(b)}</td><td>${mm(v)} mm</td></tr>`).join("")}</table></div>
+  <div class="tot"><span>Longitudinales ${mm(c.lon)} mm</span><span>Circunferenciales ${mm(c.circ)} mm</span><span>Total <b>${mm(c.total)} mm</b> = <b>${mt(c.total)} m</b></span></div>
+  <p class="note">Directas cubiertas: −2,2" (55,9 mm) por cada lado bajo otra sección. Perímetros con OD ${mm1(c.D)} mm (${fIn(c.D)}") + espesor de cada camisa (${c.t.toFixed(3).replace(".",",")}" = ${mm1(c.t)} mm).</p></div>`;
+}
+function h0Html(it){const tec=it.tecnicas||[];
+  return`<span class="label">Técnicas de inspección ${it.act==="12H"?"12":"0"} horas</span>
+  <div class="picks">${TECNICAS.map(t=>`<label class="pick"><input type="checkbox" data-tec="${t}"${tec.includes(t)?" checked":""}><span>${t}</span></label>`).join("")}</div>
+  <div class="h0calc">${h0CalcHtml(it)}</div>`}
+function refreshH0(i,force){
+  const card=$("itemsBox").querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
+  const box=card.querySelector(".h0box"); box.hidden=!conTec(it.act); if(box.hidden)return;
+  if(force||!box.querySelector("[data-tec]")){box.innerHTML=h0Html(it);box.querySelectorAll("input").forEach(el=>el.disabled=readOnly)}
+  else box.querySelector(".h0calc").innerHTML=h0CalcHtml(it);
+}
+function h0Sub(it){if(!conTec(it.act))return"";const t=(it.tecnicas||[]).join(" · ");const l=it.longInspMm!=null?`Long. insp. ${it.longInspMm.toLocaleString("es-CO")} mm (${(it.longInspMm/1000).toFixed(2).replace(".",",")} m)`:"";return t||l?`<span class="sub2">${esc([t,l].filter(Boolean).join(" · "))}</span>`:""}
+// ---- fotos del reporte, por actividad y técnica ----
+let assets=null; const fotosQuitadas=new Set(); const subiendo=new Set();
+let puntoF={act:"__punto",fotos:{}};
+const own=i=>i==="P"?puntoF:formItems[i];
+const foOf=el=>{const v=el.closest("[data-fo]")?.dataset.fo;return v==="P"?"P":+v};
+const FOTO_PT=["Medición de la temperatura","Medición de intensidad de luz","Aplicación penetrante","Aplicación penetrante","Aplicación revelador","Aplicación revelador"];
+const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
+function fotoGrupos(it){
+  const g=[];
+  if(it.act==="__punto")return[
+    {k:"UBC",t:"Ubicación en campo",caps:["Ubicación en campo (sitio)"],min:1,ubi:"campo",fixed:true},
+    {k:"UBP",t:"Ubicación en patio",caps:["Ubicación en patio"],min:1,ubi:"patio",fixed:true},
+    {k:"ANX",t:"Fotos del anexo",caps:["Registro fotográfico","Registro fotográfico","Registro fotográfico","Registro fotográfico"],min:4}];
+  if(it.act==="Biseles")g.push({k:"PT",t:"Fotos tintas penetrantes (biseles)",caps:FOTO_PT,min:6});
+  else if(conTec(it.act)){const tec=it.tecnicas||[];
+    if(tec.includes("PT"))g.push({k:"PT",t:"Fotos tintas penetrantes (PT)",caps:FOTO_PT,min:6});
+    if(tec.includes("MT"))g.push({k:"MT",t:"Fotos partículas magnéticas (MT)",caps:FOTO_MT,min:6});
+    if(tec.includes("PAUT"))g.push({k:"PAUT",t:"Fotos PAUT",caps:["Inspección PAUT","Inspección PAUT"],min:0});
+    if(tec.includes("UTME"))g.push({k:"UTME",t:"Fotos UTME",caps:["Medición de espesores","Medición de espesores"],min:0});
+  } else g.push({k:"GEN",t:"Fotos",caps:["",""],min:0});
+  return g;
+}
+function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];const n=Math.max(gr.caps.length,cur.length);
+  return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
+const LOCAL=!!window.__LOCAL;
+const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
+function fotosHtml(it,i,only){
+  const gs=fotoGrupos(it).filter(g=>!only||only.includes(g.k));
+  if(!gs.length)return`<span class="label">Fotos del reporte</span><p class="note">Marca las técnicas (PT, MT…) para ver las fotos que pide cada reporte.</p>`;
+  const can=!!assets&&!readOnly;
+  return gs.map(gr=>{const sl=fotoSlots(it,gr), n=sl.filter(s=>s.id).length;
+    return`<div class="fgrp"><div class="fhead"><span class="label">${esc(gr.t)}</span><span class="cnt${gr.min&&n<gr.min?" low":""}">${n}${gr.min?` de ${gr.min} mínimo`:n===1?" foto":" fotos"}</span></div>
+    <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
+      return`<div class="fslot${s.id?" has":""}"><button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}"${!s.id&&!can?" disabled":""} aria-label="${s.id?"Ver":"Tomar"} foto ${j+1}">${s.id?`<img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k))}`:`<span class="cam" aria-hidden="true">📷</span><span>${can?(gr.ubi?"📍 Tomar foto":"Tomar foto"):"Sin foto"}</span>`}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>
+      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}" value="${esc(s.cap)}" placeholder="Descripción de la foto" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}></div>`}).join("")}</div>
+    ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
+}
+function refreshFotos(i){
+  if(i==="P"){$("ubiBox").innerHTML=fotosHtml(puntoF,"P",["UBC","UBP"]);$("anexoBox").innerHTML=fotosHtml(puntoF,"P",["ANX"]);updLeerBtns();return}
+  const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return; const b=card.querySelector(".fotobox"); if(b)b.innerHTML=fotosHtml(it,i)}
+function setFoto(i,k,j,patch){const it=own(i);if(!it)return;it.fotos={...(it.fotos||{})};
+  const gr=fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]};const sl=fotoSlots(it,gr);while(sl.length<=j)sl.push({cap:"",id:null});
+  sl[j]={...sl[j],...patch};it.fotos[k]=sl;}
+function fotoSub(it){const gs=fotoGrupos(it).filter(g=>g.min||((it.fotos||{})[g.k]||[]).some(f=>f?.id));if(!gs.length)return"";
+  const parts=gs.map(g=>{const n=((it.fotos||{})[g.k]||[]).filter(f=>f?.id).length;return{t:`${g.k==="GEN"?"Fotos":g.k} ${n}${g.min?"/"+g.min:""}`,low:g.min&&n<g.min}});
+  return`<span class="sub2${parts.some(p=>p.low)?" lowf":""}">📷 ${esc(parts.map(p=>p.t).join(" · "))}</span>`}
+// reduce la foto a 2560 px por el lado mayor (JPEG 88 %): buena resolución para el informe y subida razonable
+async function achicar(file){
+  let src;try{src=await createImageBitmap(file,{imageOrientation:"from-image"})}catch(e){src=await new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=no;im.src=URL.createObjectURL(file)})}
+  const w=src.width||src.naturalWidth, h=src.height||src.naturalHeight, k=Math.min(1,2560/Math.max(w,h));
+  const c=document.createElement("canvas");c.width=Math.round(w*k);c.height=Math.round(h*k);const g=c.getContext("2d");g.drawImage(src,0,0,c.width,c.height);
+  return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.88));
+}
+// estampado: fecha y hora de la foto, sistema/línea, PK, consecutivo y ubicación (GPS si el teléfono lo da)
+let ultimaUbic=null;
+function ubicacion(){return new Promise(ok=>{
+  if(!navigator.geolocation)return ok(null);
+  let done=false;const fin=v=>{if(!done){done=true;ok(v)}};setTimeout(()=>fin(ultimaUbic),7000);
+  try{navigator.geolocation.getCurrentPosition(p=>{ultimaUbic={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy};fin(ultimaUbic)},()=>fin(ultimaUbic),{enableHighAccuracy:true,timeout:6500,maximumAge:120000})}catch(e){fin(ultimaUbic)}})}
+const gms=(v,pos,neg)=>{const a=Math.abs(v),d=Math.floor(a),m=Math.floor((a-d)*60),s=((a-d)*60-m)*60;return`${d}°${String(m).padStart(2,"0")}'${s.toFixed(1).padStart(4,"0")}" ${v>=0?pos:neg}`};
+// coordenadas escritas a mano: "5.9721, -74.5875" o con N/S/E/W
+function parseCoord(v){v=String(v||"").trim();if(!v)return null;
+  const m=v.replace(/[°'"]/g," ").match(/(-?\d+(?:[.,]\d+)?)\s*([NS])?\s*[,;\s]\s*(-?\d+(?:[.,]\d+)?)\s*([EWO])?/i);if(!m)return null;
+  let lat=parseFloat(m[1].replace(",",".")),lon=parseFloat(m[3].replace(",","."));
+  if(/s/i.test(m[2]||""))lat=-Math.abs(lat);if(/[wo]/i.test(m[4]||""))lon=-Math.abs(lon);
+  return isFinite(lat)&&isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180?{lat,lon}:null}
+// lee del JPEG la ubicación GPS y la hora en que se tomó la foto (EXIF), si el teléfono las guardó
+async function leerExif(file){const out={gps:null,fecha:null};
+  try{const buf=await file.slice(0,262144).arrayBuffer(), v=new DataView(buf);
+    if(v.getUint16(0)!==0xFFD8)return out; let o=2;
+    while(o+4<v.byteLength){const mk=v.getUint16(o), len=v.getUint16(o+2);
+      if(mk===0xFFE1&&v.getUint32(o+4)===0x45786966){const T=o+10, le=v.getUint16(T)===0x4949;
+        const u16=x=>v.getUint16(T+x,le), u32=x=>v.getUint32(T+x,le);
+        const ifd=(off,cb)=>{const n=u16(off);for(let k=0;k<n;k++){const e=off+2+k*12;cb(u16(e),u16(e+2),u32(e+4),e+8)}};
+        const rat=(off,c)=>[...Array(c)].map((_,k)=>u32(off+k*8)/(u32(off+k*8+4)||1));
+        const asc=(vo,c)=>{let s="";const st=c>4?u32(vo):vo;for(let k=0;k<c-1;k++)s+=String.fromCharCode(v.getUint8(T+st+k));return s};
+        let gpsOff=0, exOff=0;
+        ifd(u32(4),(tag,typ,c,vo)=>{if(tag===0x8825)gpsOff=u32(vo);if(tag===0x8769)exOff=u32(vo)});
+        if(gpsOff){const g={};ifd(gpsOff,(tag,typ,c,vo)=>{if(tag===1)g.latR=String.fromCharCode(v.getUint8(T+vo));if(tag===3)g.lonR=String.fromCharCode(v.getUint8(T+vo));if(tag===2)g.lat=rat(u32(vo),3);if(tag===4)g.lon=rat(u32(vo),3)});
+          if(g.lat&&g.lon){const d=a=>a[0]+a[1]/60+a[2]/3600;let la=d(g.lat),lo=d(g.lon);if(g.latR==="S")la=-la;if(g.lonR==="W")lo=-lo;if(la||lo)out.gps={lat:la,lon:lo}}}
+        if(exOff)ifd(exOff,(tag,typ,c,vo)=>{if(tag===0x9003){const m=asc(vo,c).match(/(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d)/);if(m)out.fecha=new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5])}});
+        break}
+      if((mk&0xFF00)!==0xFF00)break; o+=2+len}
+  }catch(e){}
+  return out}
+// fecha de la foto (EXIF o archivo) y GPS de la foto; si trae GPS y el punto no tiene coordenada, se llena
+async function fotoMeta(file,campo){
+  const ex=await leerExif(file);
+  const t=ex.fecha?ex.fecha.getTime():(file.lastModified&&Math.abs(Date.now()-file.lastModified)<864e5*60?file.lastModified:Date.now());
+  const gps=ex.gps?{lat:+ex.gps.lat.toFixed(6),lon:+ex.gps.lon.toFixed(6)}:null;
+  // la foto de ubicación (campo o patio) fija la coordenada de ese lugar
+  if(campo){if(gps){$(campo).value=`${gps.lat.toFixed(6)}, ${gps.lon.toFixed(6)}`;scheduleDraft();setTimeout(refreshAllFotos,0)}
+  }
+  return{t,gps};
+}
+// renglones del estampado: fecha, sistema y línea con diámetro, PK y coordenada (de la foto o del punto)
+function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":"campo";const it=formItems[i];return it?.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo"}
+function stampFor(f,lugar){
+  const d=new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
+  const sis=$("iSistema").value, lin=lineaVal(), pk=$("iPk").value.trim(), dia=$("iDiam").value.trim();
+  const u=parseCoord(lugar==="patio"?$("iCoordPatio").value:$("iCoord").value)||f.gps;
+  return[`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`,
+    [sis,lin?lin+(dia?` ${dia}"`:""):(dia?`${dia}"`:"")].filter(Boolean).join(" · "),
+    pk?"PK "+pk:"",
+    u?`${gms(u.lat,"N","S")}  ${gms(u.lon,"E","W")}`:""].filter(x=>x.trim());
+}
+const stampHtml=(f,lugar)=>f?.raw?`<span class="fst">${stampFor(f,lugar).map(esc).join("<br>")}</span>`:"";
+// al cambiar datos del punto solo se reescribe el texto del estampado (sin rehacer las casillas, para no perder el toque)
+function refreshAllFotos(){document.querySelectorAll("#form .fimg[data-fshot]").forEach(b=>{const st=b.querySelector(".fst");if(!st)return;
+  const i=foOf(b), it=own(i); if(!it)return; const k=b.dataset.fshot, j=+b.dataset.j;
+  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw)st.innerHTML=stampFor(s,lugarDe(i,k)).map(esc).join("<br>")})}
+async function stampLines(file){
+  const t=new Date(file.lastModified&&Math.abs(Date.now()-file.lastModified)<864e5*30?file.lastModified:Date.now());
+  const p2=n=>String(n).padStart(2,"0");
+  const fecha=`${p2(t.getDate())}/${p2(t.getMonth()+1)}/${t.getFullYear()} ${p2(t.getHours())}:${p2(t.getMinutes())}`;
+  const sis=$("iSistema").value, lin=lineaVal(), pk=$("iPk").value.trim(), cons=$("iCons").value.trim().toUpperCase();
+  const ciu=$("iCiudad").value, base=$("iBase").value;
+  const ex=await leerExif(file);
+  let u=ex.gps;
+  if(u&&!$("iCoord").value.trim()){$("iCoord").value=`${u.lat.toFixed(6)}, ${u.lon.toFixed(6)}`;scheduleDraft()}
+  if(!u)u=parseCoord($("iCoord").value);
+  if(!u)u=await ubicacion();
+  if(ex.fecha)t.setTime(ex.fecha.getTime());
+  const fecha2=`${p2(t.getDate())}/${p2(t.getMonth()+1)}/${t.getFullYear()} ${p2(t.getHours())}:${p2(t.getMinutes())}`;
+  // estampado: fecha, sistema y línea con diámetro, PK y coordenada
+  const dia=$("iDiam").value.trim();
+  return[fecha2,
+    [sis,lin?lin+(dia?` ${dia}"`:""):(dia?`${dia}"`:"")].filter(Boolean).join(" · "),
+    pk?"PK "+pk:"",
+    u?`${gms(u.lat,"N","S")}  ${gms(u.lon,"E","W")}`:""].filter(x=>x.trim());
+}
+function estampar(g,W,H,lines){
+  if(!lines.length)return;
+  const fs=Math.max(14,Math.round(Math.min(W,H)*0.034)), lh=Math.round(fs*1.3), pad=Math.round(fs*0.6);
+  g.font=`600 ${fs}px Arial, Helvetica, sans-serif`;
+  const bw=Math.min(W,Math.max(...lines.map(l=>g.measureText(l).width))+pad*2), bh=lh*lines.length+pad*1.4;
+  g.fillStyle="rgba(0,0,0,0.55)";g.fillRect(0,H-bh,bw,bh);
+  g.fillStyle="#ffffff";g.textBaseline="top";
+  lines.forEach((l,n)=>g.fillText(l,pad,H-bh+pad*0.7+n*lh,W-pad*2));
+}
+const fileIn=document.createElement("input");fileIn.type="file";fileIn.accept="image/*";fileIn.hidden=true;document.body.appendChild(fileIn);
+let fotoTarget=null;
+function pedirFoto(i,k,j){if(!assets||readOnly)return;fotoTarget={i,k,j};fileIn.value="";fileIn.click()}
+fileIn.addEventListener("change",async()=>{
+  const f=fileIn.files?.[0], t=fotoTarget; if(!f||!t)return; const key=`${t.i}|${t.k}|${t.j}`;
+  subiendo.add(key);refreshFotos(t.i);
+  try{
+    const meta=await fotoMeta(f,t.k==="UBP"?"iCoordPatio":t.k==="UBC"?"iCoord":null);
+    const blob=await achicar(f);
+    let r;try{r=await assets.upload(blob,{type:"image/jpeg"})}catch(e){if(e?.code==="store_unavailable"){await new Promise(z=>setTimeout(z,1500));r=await assets.upload(blob,{type:"image/jpeg"})}else throw e}
+    const prev=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.id;
+    if(prev)fotosQuitadas.add(prev);
+    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps});scheduleDraft();
+    // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
+    if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
+      if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo)}
+  }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":e?.code==="too_large"?"La foto es demasiado grande.":"No se pudo subir la foto. Revisa la señal e inténtalo otra vez.")}
+  finally{subiendo.delete(key);refreshFotos(t.i)}
+});
+// GPS del teléfono (funciona en la app instalada; dentro de Claude está bloqueado)
+function gpsA(campo){
+  if(!navigator.geolocation){toast("Este equipo no da ubicación GPS.");return}
+  const box=$(campo);box.placeholder="Buscando señal GPS…";
+  navigator.geolocation.getCurrentPosition(p=>{box.value=`${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`;box.placeholder="";scheduleDraft();refreshAllFotos();updLeerBtns();
+      toast(`Coordenada tomada (precisión ±${Math.round(p.coords.accuracy)} m)`)},
+    e=>{box.placeholder="";toast(e.code===1?"Dele permiso de ubicación a la app.":"No se obtuvo el GPS. Salga a cielo abierto e intente otra vez.")},
+    {enableHighAccuracy:true,timeout:30000,maximumAge:0});
+}
+$("btnGpsC").addEventListener("click",()=>gpsA("iCoord"));$("btnGpsP").addEventListener("click",()=>gpsA("iCoordPatio"));
+if(LOCAL){$("btnGpsC").hidden=false;$("btnGpsP").hidden=false}
+// lee con Claude las coordenadas que vengan impresas (estampadas) en la foto
+let sampleNS;const sampleP=()=>sampleNS??=claude.use("sample").catch(()=>null);
+async function leerCoordVision(blob,campo){
+  const box=$(campo);
+  const sm=await sampleP(); const lim=sm?await sm.limits().catch(()=>null):null;
+  if(!sm||!lim?.images){toast("La foto no trae GPS. Escriba la coordenada a mano.");return}
+  box.placeholder="Leyendo coordenada de la foto…";
+  try{
+    let img=blob; if(lim.images.maxBytes&&img.size>lim.images.maxBytes)img=await achicarBlob(img,1600);
+    const r=await sm.json(`La imagen es una foto de campo de una inspección de tubería. Puede tener impresas (estampadas) unas coordenadas GPS, por ejemplo "N5°13.76' W74°35.25'", "5°31'05.1\" N 74°37'24.6\" W" o "5.5180, -74.6234". Lee SOLO las coordenadas impresas en la foto y conviértelas a grados decimales (sur y oeste negativos). Responde únicamente JSON: {"lat": número, "lon": número}, o {"lat": null, "lon": null} si no hay coordenadas legibles.`,{images:[img],modelTier:"quick"});
+    const lat=+r?.lat, lon=+r?.lon;
+    if(r?.lat!=null&&isFinite(lat)&&isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180&&(lat||lon)){
+      box.value=`${lat.toFixed(6)}, ${lon.toFixed(6)}`;scheduleDraft();refreshAllFotos();toast("Coordenada leída del texto de la foto. Revísela.")}
+    else toast("La foto no trae GPS ni coordenadas legibles. Escriba la coordenada a mano.");
+  }catch(e){toast(e?.code==="not_granted"?"Sin permiso para leer la foto. Escriba la coordenada a mano.":"No se pudo leer la coordenada de la foto. Escríbala a mano.")}
+  finally{box.placeholder=campo==="iCoordPatio"?"Se llena con la foto de patio":"Se llena con la foto de campo";updLeerBtns()}
+}
+async function achicarBlob(b,max){const bm=await createImageBitmap(b);const k=Math.min(1,max/Math.max(bm.width,bm.height));const c=document.createElement("canvas");c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext("2d").drawImage(bm,0,0,c.width,c.height);return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.85))}
+// botón para leer la coordenada de una foto de ubicación ya tomada
+function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLeerP"]].forEach(([k,f,b])=>{const id=(puntoF.fotos?.[k]||[])[0]?.id;$(b).hidden=LOCAL||readOnly||!id||!!$(f).value.trim()})}
+[["btnLeerC","UBC","iCoord"],["btnLeerP","UBP","iCoordPatio"]].forEach(([b,k,f])=>$(b).addEventListener("click",async()=>{
+  const id=(puntoF.fotos?.[k]||[])[0]?.id;if(!id)return;$(b).disabled=true;
+  try{const bl=await (await fetch(fotoSrc(id))).blob();await leerCoordVision(bl,f)}catch(e){toast("No se pudo abrir la foto.")}finally{$(b).disabled=false}}));
+["iCoord","iCoordPatio"].forEach(id=>$(id).addEventListener("input",updLeerBtns));
+// visor de foto
+let fvT=null;
+function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
+  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
+  $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
+  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
+$("fvClose").addEventListener("click",()=>{$("fview").hidden=true});
+$("fvChange").addEventListener("click",()=>{$("fview").hidden=true;if(fvT)pedirFoto(fvT.i,fvT.k,fvT.j)});
+$("fvDel").addEventListener("click",()=>{const b=$("fvDel");if(!b.dataset.confirm){b.dataset.confirm="1";b.textContent="¿Quitar? Toca otra vez";setTimeout(()=>{b.dataset.confirm="";b.textContent="Quitar foto"},3500);return}
+  b.dataset.confirm="";b.textContent="Quitar foto";const t=fvT;if(!t)return;const it=own(t.i);
+  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j];if(s?.id)fotosQuitadas.add(s.id);
+  setFoto(t.i,t.k,t.j,{id:null});$("fview").hidden=true;refreshFotos(t.i);scheduleDraft()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("fview").hidden){e.stopImmediatePropagation();$("fview").hidden=true}},true);
+function zsMinOf(it){const v=Object.values(it.zsMin||{}).map(x=>parseFloat(String(x).replace(",","."))).filter(x=>isFinite(x)&&x>0);return v.length?Math.min(...v).toFixed(3):null}
+
+// ---- actividades del punto (tarjetas en la ficha) ----
+// formItems guarda las actividades mientras se edita la ficha; el editor de reparación (#repBox)
+// es uno solo y se mueve dentro de la tarjeta de la actividad activa.
+let formItems=[], active=0;
+// esquema sugerido según la actividad y el tipo de reparación general del punto
+let lastG="";
+function defaultRep(act,gg){
+  const g=gg??$("iTipoRep").value;
+  const camisa={"Camisa seccionada o armadillo":"Camisa armadillo","Camisa Tipo Sobre Anillos":"Camisa sobre anillos","Camisa Puenteada":"Camisa puenteada","Camisa Tipo B directa":"Camisa directa","Camisa Tipo A":"Camisa directa","C&E":"Corte y empalme","Ilícita":"Ilícita"}[g];
+  if(act==="Ilícitas")return{tipo:"Ilícita"};
+  if(act==="Zona sana")return{tipo:g==="C&E"?"Corte y empalme":"Zona sana"};
+  if(act==="Biseles")return{tipo:"Biseles",tipoCamisa:g==="Camisa Tipo Sobre Anillos"?"anillos":(g==="Camisa Tipo B directa"||g==="Camisa Tipo A")?"directa":"seccionada"};
+  if(["Inspección de camisa","0H","12H"].includes(act)&&camisa)return{tipo:camisa};
+  return null;
+}
+function repSummaryHtml(it,i){
+  const rep=it.reparacion?.tipo?{...it.reparacion,diametro:$("iDiam").value.trim()}:null;
+  return `${rep?`<button class="thumb" type="button" data-rep="${i}" aria-label="Ver esquema">${drawRepair(rep,metaForm(),PAL_VAR,true)}</button>`:""}<span class="sub2">${rep?esc(repLabel(rep)):"Sin esquema"}</span>${readOnly&&!rep?"":`<button class="btn small" type="button" data-rep="${i}">${rep?"Ver esquema":"Agregar esquema"}</button>`}`;
+}
+function inspBoxHtml(v){
+  const sel=inspList(v);
+  const chips=sel.map(n=>`<button type="button" class="ichip" data-rminsp="${esc(n)}"${readOnly?" disabled":""} aria-label="Quitar ${esc(n)}">${esc(n)}${readOnly?"":`<span class="x" aria-hidden="true">×</span>`}</button>`).join("");
+  if(readOnly)return`<div class="inspchips">${chips}</div>${sel.length?"":`<span class="muted">—</span>`}`;
+  const rest=INSPECTORES.filter(n=>!sel.includes(n));
+  return`<div class="inspchips">${chips}</div><select class="field" data-addinsp aria-label="Agregar inspector"><option value="">${sel.length?"+ Agregar otro inspector…":"Escoge el inspector…"}</option>${rest.map(n=>`<option>${esc(n)}</option>`).join("")}<option value="__otro">Otro (escribir nombre)…</option></select><input class="field" data-otroinsp hidden placeholder="Nombre del inspector y Enter" autocomplete="off" style="margin-top:6px">`;
+}
+function setInsp(card,list){const h=card.querySelector('[data-f="inspectores"]');h.value=[...new Set(list)].join(", ");card.querySelector(".inspbox").innerHTML=inspBoxHtml(h.value);syncCards();scheduleDraft?.()}
+function itemHtml(it,i){it=it||{};
+  return `<div class="itcard${i===active?" active":""}" data-i="${i}" data-fo="${i}">
+  <div class="ithead"><select class="field" data-f="act" aria-label="Actividad">${ACTS.map(([n])=>`<option${n===(it.act||"Zona sana")?" selected":""}>${n}</option>`).join("")}</select>${readOnly?"":`<button class="btn small ghost" type="button" data-rm="${i}">Quitar</button>`}</div>
+  <div class="grid2">
+    <div class="f" style="grid-column:1/-1"><span class="label">Inspector(es)</span><input type="hidden" data-f="inspectores" value="${esc(it.inspectores||"")}"><div class="inspbox">${inspBoxHtml(it.inspectores)}</div></div>
+    <label class="f lugbis"${it.act==="Biseles"?"":" hidden"}><span class="label">Lugar de inspección</span><select class="field" data-f="lugarInsp">${["Campo","Patio"].map(o=>`<option${(it.lugarInsp||"Patio")===o?" selected":""}>${o}</option>`).join("")}</select></label>
+    <label class="f"><span class="label">Día de inspección</span><input class="field" type="date" data-f="inspFecha" value="${esc(it.inspFecha||$("iFecha").value||"")}"></label>
+    <label class="f"><span class="label">Entrega del informe</span><input class="field" type="date" data-f="entregaFecha" value="${esc(it.entregaFecha||"")}"></label>
+    <label class="f"><span class="label">Quién entregó</span><input class="field" data-f="entregaQuien" list="dlInsp" value="${esc(it.entregaQuien||"")}" autocomplete="off"></label>
+  </div>
+  <label class="check"><input type="checkbox" data-f="novedad"${it.novedad?" checked":""}> Tiene novedad (bloquea el informe)</label>
+  <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
+  <div class="h0box repbox"${conTec(it.act)?"":" hidden"}>${conTec(it.act)?h0Html(it):""}</div>
+  <div class="fotobox repbox">${fotosHtml(it,i)}</div>
+  <div class="zsbox repbox" data-k="${esc(zsAreas(it.reparacion).join("|"))}"${it.act==="Zona sana"?"":" hidden"}>${it.act==="Zona sana"?zsHtml(it):""}</div>
+  <div class="itrep"${i===active?" hidden":""}>${repSummaryHtml(it,i)}</div>
+  <div class="repslot"></div>
+</div>`}
+// pasa lo escrito en las tarjetas a formItems (sin tocar la reparación)
+function syncCards(){
+  document.querySelectorAll("#itemsBox .itcard").forEach(c=>{const i=+c.dataset.i, g=k=>c.querySelector(`[data-f="${k}"]`); if(!formItems[i])return;
+    Object.assign(formItems[i],{act:g("act").value,inspectores:g("inspectores").value.trim(),inspFecha:g("inspFecha").value,lugarInsp:g("act").value==="Biseles"?(g("lugarInsp")?.value||"Patio"):"",entregaFecha:g("entregaFecha").value,entregaQuien:g("entregaQuien").value.trim(),novedad:g("novedad").checked,observaciones:g("observaciones").value.trim()});
+    zsSync(c,i);
+    const tb=c.querySelectorAll("[data-tec]");if(tb.length)formItems[i].tecnicas=[...tb].filter(x=>x.checked).map(x=>x.dataset.tec)});
+}
+// guarda lo que hay en el editor de reparación en la actividad activa
+function commitRep(){if(formItems[active]&&$("repBox").closest(".itcard"))formItems[active].reparacion=readRep()}
+function readItems(){syncCards();commitRep();return formItems.map(({consecutivo,...x})=>{const o={...x,reparacion:x.reparacion||null};
+  if(o.zsMin)o.zsMin=Object.fromEntries(Object.entries(o.zsMin).filter(([k,v])=>v));
+  if(conTec(o.act)&&(o.tecnicas||[]).some(t=>t==="MT"||t==="PT")){const c=calcInsp(o.reparacion,$("iDiam").value,$("iEsp").value,tipoAForm());o.longInspMm=c.err?null:Math.round(c.total*25.4)}else o.longInspMm=null;
+  delete o.longInsp;
+  return o})}
+function loadRep(rep){
+  $("iRep").value=rep?.tipo||"";$("iRepNota").value=rep?.nota||"";$("iLT").value=rep?.longTotal||"";$("iLTU").value=rep?.longUnidad||"m";
+  buildParams(rep);
+}
+function renderItems(){
+  $("repHold").appendChild($("repBox"));
+  $("itemsBox").innerHTML=formItems.map(itemHtml).join("");
+  const card=$("itemsBox").querySelector(`.itcard[data-i="${active}"]`);
+  if(card)card.querySelector(".repslot").appendChild($("repBox"));
+  $("itemsBox").querySelectorAll(".itcard input,.itcard textarea,.itcard [data-f=act],.zsbox select").forEach(el=>el.disabled=readOnly);
+}
+function setActive(i){
+  syncCards();commitRep();active=i;loadRep(formItems[i]?.reparacion);renderItems();
+  $("repBox").scrollIntoView?.({block:"nearest"});
+}
+function addItem(){
+  syncCards();commitRep();
+  const used=new Set(formItems.map(x=>x.act)), next=(ACTS.find(([n])=>!used.has(n))||ACTS[0])[0];
+  formItems.push({act:next,inspectores:formItems[formItems.length-1]?.inspectores||store.get("ultimoInsp")||"",inspFecha:formItems[formItems.length-1]?.inspFecha||$("iFecha").value,reparacion:defaultRep(next)});
+  active=formItems.length-1;loadRep(formItems[active].reparacion);renderItems();updateTermHint();
+  const last=$("itemsBox").lastElementChild;last?.scrollIntoView?.({block:"nearest"});last?.querySelector('[data-addinsp]')?.focus();
+}
+// ---- revisión automática: la longitud total debe cuadrar con las piezas del esquema ----
+const U2MM={mm:1,cm:10,m:1000,pulg:25.4};
+const toMm=(v,u)=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n*(U2MM[u]||10):null};
+const COVER_MM=2*25.4; // traslape mínimo de 2" donde una camisa monta sobre otra
+function checkLen(rep){
+  if(!rep?.tipo)return null;
+  const T=toMm(rep.longTotal,rep.longUnidad||"m"); if(T==null)return null;
+  const t=rep.tipo, u=rep.unidad||"cm", lg=rep.largos||{}, fmt=v=>Math.round(v).toLocaleString("es-CO");
+  let min,max,desc;
+  if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"||(t==="Biseles"&&rep.tipoCamisa==="anillos")){
+    const A=t==="Biseles"?toMm(rep.largoAnillo,u):toMm(lg.an?.[0],u), S=t==="Biseles"?toMm(rep.largoSobre,u):toMm(lg.sc?.[0],u); if(A==null||S==null)return null;
+    max=2*A+S-2*COVER_MM; min=S; desc=`anillos de ${fmt(A)} mm, sobre camisa de ${fmt(S)} mm y traslape mínimo de 2" (50,8 mm) en cada anillo`;
+  } else if(t==="Camisa armadillo"||(t==="Biseles"&&rep.tipoCamisa!=="directa")){
+    let D,Sx;
+    if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,12);D=[...Array(d)].map((_,i)=>toMm(lg.dir?.[i],u));Sx=[...Array(d-1)].map((_,i)=>toMm(lg.sob?.[i],u))}
+    else{const d=nInt(rep.nDir,3,1,12),s=nInt(rep.nSob,d-1,0,12);D=[...Array(d)].map((_,i)=>toMm(rep.largosDir?.[i],u));Sx=[...Array(s)].map((_,i)=>toMm(rep.largosSob?.[i],u))}
+    if(D.some(x=>x==null)||Sx.some(x=>x==null))return null;
+    const sD=D.reduce((a,b)=>a+b,0), sS=Sx.reduce((a,b)=>a+b,0);
+    max=sD+sS-2*COVER_MM*Sx.length; min=sD; desc=`${D.length} directas (${fmt(sD)} mm en total), ${Sx.length} sobrecamisas (${fmt(sS)} mm) y traslape mínimo de 2" (50,8 mm) por lado`;
+  } else if(t==="Camisa directa"||(t==="Biseles"&&rep.tipoCamisa==="directa")){
+    const L=t==="Biseles"?toMm(rep.largoCamisa,u):toMm(lg.cd?.[0],u); if(L==null)return null; min=max=L; desc=`una camisa de ${fmt(L)} mm`;
+  } else if(t==="Camisa puenteada"){
+    const P=toMm(lg.pu?.[0],u); if(P==null)return null; min=max=P; desc=`una sobre camisa de ${fmt(P)} mm (de C1 a C2)`;
+  } else return null;
+  if(max<min)return{ok:false,T,min,max,sug:null,msg:`Las sobrecamisas son muy cortas: no alcanzan a montar 2" (50,8 mm) sobre cada lado.`};
+  const tol=Math.max(5,0.01*max), ok=T>=min-tol&&T<=max+tol;
+  const msg=ok?"":(min===max?`La longitud total (${fmt(T)} mm) no cuadra: con ${desc} debería ser ${fmt(max)} mm.`
+    :`La longitud total (${fmt(T)} mm) no cuadra: con ${desc}, la longitud real es como máximo ${fmt(max)} mm (puede estar entre ${fmt(min)} y ${fmt(max)} mm según el traslape).`);
+  return{ok,T,min,max,sug:T>max?max:min,msg};
+}
+function updateLtCheck(rep){
+  const box=$("ltCheck"), c=checkLen(rep);
+  if(!c||c.ok){box.hidden=true;return}
+  const un=$("iLTU").value||"m", dec={mm:0,cm:1,m:3,pulg:2}[un]??1;
+  const val=c.sug!=null?(c.sug/U2MM[un]).toFixed(dec).replace(".",","):null;
+  box.innerHTML=`<span>⚠ ${esc(c.msg)}</span>${val&&!readOnly?`<button class="btn small" type="button" id="ltFix">Usar ${val} ${un}</button>`:""}`;
+  box.hidden=false;
+  const b=$("ltFix");if(b)b.onclick=()=>{$("iLT").value=val;scheduleDraft();updateDrawing()};
+}
+function updateDrawing(){
+  const rep=readRep();
+  $("drawWrap").hidden=!rep;
+  if(rep)$("drawing").innerHTML=drawRepair(rep,metaForm(),PAL_VAR,false);
+  $("btnImg").hidden=!rep||!downloads;
+  updateLtCheck(rep);
+  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;refreshZs(active);refreshH0(active)}
+}
+function updateTermHint(){
+  const term=$("iPunto").value==="Terminado";
+  $("wTerm").hidden=!term;
+  if(term&&!$("iTerm").value)$("iTerm").value=isoDT(new Date());
+  const h=$("termHint");
+  if(term&&$("iTerm").value&&readItems().some(it=>!it.entregaFecha)){
+    now=new Date();const left=PLAZO_H-hoursSince($("iTerm").value);
+    h.textContent=left>0?`El informe debe entregarse antes de ${dmyhm(isoDT(new Date(parseDT($("iTerm").value).getTime()+PLAZO_H*36e5)))} (quedan ${fmtH(left)}).`:`Ya pasaron más de ${PLAZO_H} h: el trabajo quedará como novedad por informe vencido.`;
+    h.hidden=false;
+  } else h.hidden=true;
+}
+
+function openForm(r,addAct,actIdx){
+  editing=r||null;
+  $("formTitle").textContent=r?(readOnly?"Detalle del punto":"Editar punto de trabajo"):"Nuevo punto de trabajo";
+  $("iCons").value=r?.consecutivo||"";
+  $("iFecha").value=r?.fecha||todayISO();
+  $("iPk").value=r?.pk||"";
+  setLinea(r?.linea||"");
+  $("iSistema").value=SISTEMAS.includes(r?.sistema)?r.sistema:"";
+  $("iDiam").value=r?r.diametro||"":store.get("ultimoDiam")||"";
+  $("iLugar").value=r?.lugar||"Campo";
+  $("iCiudad").value=r?r.ciudad||"":store.get("ultimaCiudad")||"";
+  const bs=r?r.base||"":store.get("ultimaBase")||""; $("iBase").value=BASES.includes(bs)?bs:"";
+  setCiudad($("iCiudad").value);
+  $("iTipoRep").value=TIPOS_REP.includes(r?.tipoReparacion)?r.tipoReparacion:"";lastG=$("iTipoRep").value;
+  $("iEsp").value=ESPESORES.includes(r?.espesor)?r.espesor:"";
+  $("iMat").value=MATERIALES.includes(r?.material)?r.material:"";
+  $("iNom").value=NOMINALES.includes(r?.nominal)?r.nominal:"";
+  $("iMatTub").value=MATERIALES.includes(r?.materialTub)?r.materialTub:"";
+  $("iCoord").value=r?.coord||"";$("iCoordPatio").value=r?.coordPatio||"";
+  puntoF={act:"__punto",fotos:JSON.parse(JSON.stringify(r?.fotosPunto||{}))};fotosQuitadas.clear();
+  $("iPunto").value=r?.estadoPunto||(r?"":"En ejecución");
+  $("iTerm").value=r?.terminadoEn||"";
+  formItems=r?r.items.map(({consecutivo,...it})=>({...it})):[{act:"Zona sana",inspectores:store.get("ultimoInsp")||"",reparacion:defaultRep("Zona sana")}];
+  active=Math.min(Math.max(0,actIdx||0),formItems.length-1);
+  $("form").querySelectorAll("input,select,textarea").forEach(el=>el.disabled=readOnly);
+  renderItems();refreshFotos("P");loadRep(formItems[active]?.reparacion);
+  $("btnDel").hidden=!r||readOnly;$("btnDel").textContent="Eliminar punto";$("btnDel").dataset.confirm="";
+  $("btnSave").hidden=readOnly;$("btnAddItem").hidden=readOnly;
+  $("formErr").hidden=true;
+  dirty=false;$("btnCancel").textContent="Cancelar";$("btnCancel").dataset.confirm="";$("draftBar").hidden=true;
+  updateTermHint();
+  $("scrim").hidden=false;
+  if(addAct&&!readOnly)setTimeout(addItem,30);
+  else if(actIdx!=null)setTimeout(()=>$("repBox").scrollIntoView?.({block:"start"}),30);
+  else setTimeout(()=>(r?$("btnCancel"):$("iCons")).focus(),30);
+}
+function closeForm(){$("scrim").hidden=true;editing=null;dirty=false;clearTimeout(draftT);store.set(DRAFT_KEY,"")}
+
+// ---- borrador: lo que se escribe en la ficha se guarda solo, para no perderlo si la página se recarga ----
+const DRAFT_KEY="borradorPunto";
+let dirty=false, draftT=null;
+const FIELDS=["iCons","iFecha","iPk","iSistema","iLinea","iLineaOtra","iDiam","iLugar","iCiudad","iBase","iTipoRep","iEsp","iMat","iNom","iMatTub","iCoord","iCoordPatio","iPunto","iTerm"];
+function captureForm(){return{id:editing?.id||null,active,f:Object.fromEntries(FIELDS.map(k=>[k,$(k).value])),items:readItems(),pf:puntoF.fotos||{},t:Date.now()}}
+function saveDraft(){if($("scrim").hidden||readOnly||!dirty)return;try{store.set(DRAFT_KEY,JSON.stringify(captureForm()))}catch(e){}}
+function scheduleDraft(){dirty=true;clearTimeout(draftT);draftT=setTimeout(saveDraft,500)}
+function readDraft(){try{const d=JSON.parse(store.get(DRAFT_KEY)||"null");return d&&Array.isArray(d.items)?d:null}catch(e){return null}}
+function applyDraft(d){
+  const r=d.id?rows.find(x=>x.id===d.id):null;
+  openForm(r||null);
+  FIELDS.forEach(k=>{if(d.f&&d.f[k]!=null)$(k).value=d.f[k]});
+  $("wLineaOtra").hidden=$("iLinea").value!=="__otra";
+  setCiudad($("iCiudad").value);
+  lastG=$("iTipoRep").value;
+  if(d.pf)puntoF={act:"__punto",fotos:d.pf};
+  formItems=d.items.map(x=>({...x}));if(!formItems.length)formItems=[{act:"Zona sana",reparacion:null}];
+  active=Math.min(Math.max(0,d.active||0),formItems.length-1);
+  renderItems();refreshFotos("P");loadRep(formItems[active]?.reparacion);updateTermHint();
+  dirty=true;saveDraft();
+}
+function showDraftBar(){
+  const d=readDraft(), bar=$("draftBar");
+  if(!d||readOnly||!$("scrim").hidden){bar.hidden=true;return}
+  const name=[d.f?.iCons,d.f?.iPk&&"PK "+d.f.iPk].filter(Boolean).join(" · ")||"punto sin identificar";
+  const t=new Date(d.t||Date.now());
+  bar.innerHTML=`<strong>Tienes un punto sin guardar</strong><span>${esc(name)} · ${d.items.length} ${d.items.length===1?"actividad":"actividades"} · ${pad(t.getHours())}:${pad(t.getMinutes())}</span><span class="actions"><button class="btn primary small" type="button" id="draftGo">Seguir editando</button><button class="btn small ghost" type="button" id="draftDrop">Descartar</button></span>`;
+  bar.hidden=false;
+  $("draftGo").onclick=()=>applyDraft(d);
+  $("draftDrop").onclick=()=>{if($("draftDrop").dataset.c){store.set(DRAFT_KEY,"");bar.hidden=true}else{$("draftDrop").dataset.c="1";$("draftDrop").textContent="¿Seguro? Toca otra vez"}};
+}
+// cerrar solo con Cancelar; si hay cambios, pide confirmar con un segundo toque
+function requestClose(){
+  const b=$("btnCancel");
+  if(dirty&&!readOnly&&!b.dataset.confirm){b.dataset.confirm="1";b.textContent="¿Salir sin guardar? Toca otra vez";setTimeout(()=>{b.dataset.confirm="";b.textContent="Cancelar"},4000);return}
+  closeForm();
+}
+$("form").addEventListener("input",scheduleDraft);
+$("form").addEventListener("change",scheduleDraft);
+$("form").addEventListener("click",e=>{if(e.target.closest("[data-rm],#btnAddItem,[data-rep]"))scheduleDraft()});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")saveDraft()});
+window.addEventListener("pagehide",saveDraft);
+
+$("iRep").addEventListener("change",()=>buildParams(null));
+$("repParams").addEventListener("input",e=>{
+  if(e.target.id==="rp_directas"||e.target.id==="rp_cascotas"){const c=readLens();renderLens(c.unidad,c.largos)}
+  if(e.target.id==="rp_venteos"||e.target.id==="rp_drenajes")renderPos(readPos());
+  if(e.target.id==="rp_tapa")avLabel();
+  if($("iRep").value==="Biseles"){
+    const id=e.target.id;
+    if(id==="bTipo")bisBody(readBiseles());
+    else if(id==="bND"||id==="bNS"){
+      if(id==="bND")$("bNS").value=Math.max(0,nInt(e.target.value,3,1,12)-1);
+      const c=readBiseles();bisLens(c.largosDir,c.largosSob)}
+  }
+  updateDrawing();
+});
+["iDiam","iRepNota","iPk","iLinea","iLineaOtra","iLT","iLTU"].forEach(id=>["input","change"].forEach(evn=>$(id).addEventListener(evn,()=>{if(!$("drawWrap").hidden)updateDrawing()})));
+$("iPunto").addEventListener("change",updateTermHint);
+$("iTerm").addEventListener("input",updateTermHint);
+$("btnAddItem").addEventListener("click",addItem);
+$("form").addEventListener("click",e=>{
+  const fs=e.target.closest("[data-fshot]");
+  if(fs){const i=foOf(fs),k=fs.dataset.fshot,j=+fs.dataset.j;const it=own(i);
+    const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(s?.id)verFoto(i,k,j);else pedirFoto(i,k,j);return}
+  const fa=e.target.closest("[data-fadd]");
+  if(fa){const i=foOf(fa),k=fa.dataset.fadd;const it=own(i);const gr=fotoGrupos(it).find(g=>g.k===k);
+    const n=fotoSlots(it,gr).length;setFoto(i,k,n,{cap:gr.caps[gr.caps.length-1]||"",id:null});refreshFotos(i);scheduleDraft();return}
+});
+$("form").addEventListener("input",e=>{if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,{cap:e.target.value})}});
+$("itemsBox").addEventListener("click",e=>{
+  const rb=e.target.closest("[data-rep]");
+  if(rb){e.preventDefault();setActive(+rb.dataset.rep);return}
+  const ri=e.target.closest("[data-rminsp]");
+  if(ri&&!readOnly){const c=ri.closest(".itcard");setInsp(c,inspList(c.querySelector('[data-f="inspectores"]').value).filter(n=>n!==ri.dataset.rminsp));return}
+  const b=e.target.closest("[data-rm]");if(!b)return;
+  syncCards();commitRep();const i=+b.dataset.rm;formItems.splice(i,1);
+  if(active>i||active>=formItems.length)active=Math.max(0,active-1);
+  loadRep(formItems[active]?.reparacion);renderItems();updateTermHint();
+});
+$("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.target.closest(".itcard"); if(!card)return; const i=+card.dataset.i;
+  if(e.target.dataset.addinsp!=null){const v=e.target.value;if(v==="__otro"){e.target.value="";const o=card.querySelector("[data-otroinsp]");o.hidden=false;o.focus()}else if(v)setInsp(card,[...inspList(card.querySelector('[data-f="inspectores"]').value),v]);return}
+  if(e.target.dataset.otroinsp!=null){const v=e.target.value.trim();if(v)setInsp(card,[...inspList(card.querySelector('[data-f="inspectores"]').value),v]);return}
+  // si el esquema era el sugerido para la actividad anterior (o no había), se cambia al de la nueva actividad
+  if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
+  if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
+  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();refreshZs(i,true);refreshH0(i,true);refreshFotos(i)}
+  if(f==="lugarInsp"){syncCards();refreshAllFotos()}
+  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i)}
+});
+$("itemsBox").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.otroinsp!=null){e.preventDefault();e.target.blur()}});
+// si cambia la fecha del punto, las actividades que tenían esa misma fecha de inspección la siguen
+let fechaPrev="";
+$("iFecha").addEventListener("focus",()=>{fechaPrev=$("iFecha").value});
+$("iFecha").addEventListener("change",()=>{const nv=$("iFecha").value;document.querySelectorAll('#itemsBox [data-f="inspFecha"]').forEach(x=>{if(!x.value||x.value===fechaPrev)x.value=nv});fechaPrev=nv;syncCards()});
+$("itemsBox").addEventListener("input",e=>{if(e.target.dataset.zs==null)return;const c=e.target.closest(".itcard");if(!c)return;zsSync(c,+c.dataset.i);if(+c.dataset.i===active&&!$("drawWrap").hidden)updateDrawing()});
+$("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing()});
+// el cálculo de 0 horas depende del diámetro, el espesor y el tipo de camisa del punto
+["iDiam","iEsp","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>{syncCards();formItems.forEach((_,i)=>refreshH0(i))}));
+["iSistema","iLinea","iLineaOtra","iDiam","iPk","iCoord","iCoordPatio"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>refreshAllFotos())));
+["iEsp","iMat","iNom","iMatTub"].forEach(id=>$(id).addEventListener("change",()=>{if(!$("drawWrap").hidden)updateDrawing()}));
+// al escoger el tipo de reparación general se sugiere el esquema de las actividades que aún no tienen
+$("iTipoRep").addEventListener("change",()=>{
+  syncCards();commitRep();
+  // cambia el esquema de las actividades que no tienen o que aún tienen el sugerido por el tipo anterior
+  formItems.forEach(it=>{const cur=it.reparacion?.tipo, prev=defaultRep(it.act,lastG);
+    if(!cur||(prev&&cur===prev.tipo&&(!prev.tipoCamisa||prev.tipoCamisa===it.reparacion.tipoCamisa)))it.reparacion=defaultRep(it.act)});
+  lastG=$("iTipoRep").value;
+  formItems.forEach((it,i)=>refreshZs(i,true));
+  loadRep(formItems[active]?.reparacion);renderItems();
+});
+
+$("form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(readOnly||!db)return;
+  const items=readItems();
+  const data={
+    consecutivo:$("iCons").value.trim().toUpperCase(),
+    tipoReparacion:$("iTipoRep").value,
+    espesor:$("iEsp").value,
+    material:$("iMat").value,
+    nominal:$("iNom").value,
+    materialTub:$("iMatTub").value,
+    coord:$("iCoord").value.trim(),
+    coordPatio:$("iCoordPatio").value.trim(),
+    fotosPunto:puntoF.fotos||{},
+    fecha:$("iFecha").value,
+    pk:$("iPk").value.trim(),
+    sistema:$("iSistema").value,
+    linea:lineaVal(),
+    diametro:$("iDiam").value.replace(",",".").trim(),
+    lugar:$("iLugar").value,
+    ciudad:$("iCiudad").value.trim(),
+    base:$("iBase").value,
+    estadoPunto:$("iPunto").value,
+    terminadoEn:$("iPunto").value==="Terminado"?$("iTerm").value:"",
+    items
+  };
+  const fail=m=>{$("formErr").textContent=m;$("formErr").hidden=false};
+  if(!data.fecha)return fail("Pon la fecha del punto de trabajo.");
+  if(!items.length)return fail("Agrega al menos una actividad.");
+  if(!data.pk&&!data.consecutivo)return fail("Escribe el consecutivo o el PK para identificar el punto.");
+  if(data.estadoPunto==="Terminado"&&!data.terminadoEn)return fail("Pon la fecha y hora en que se terminó el punto.");
+  $("btnSave").disabled=true;
+  try{
+    data.modificado=Date.now();
+    if(editing){await db.collection("trabajos").doc(editing.id).set({...data,creado:editing.creado||Date.now()})}
+    else{await db.collection("trabajos").add({...data,creado:Date.now()})}
+    const li=[...items].reverse().find(it=>it.inspectores);if(li)store.set("ultimoInsp",li.inspectores);
+    const lq=[...items].reverse().find(it=>it.entregaQuien);if(lq)store.set("ultimoQuien",lq.entregaQuien);
+    if(data.diametro)store.set("ultimoDiam",data.diametro);
+    if(data.ciudad)store.set("ultimaCiudad",data.ciudad);
+    if(data.base)store.set("ultimaBase",data.base);
+    // las fotos que se quitaron (y ya no usa ninguna actividad) se borran del almacenamiento
+    const usadas=new Set([...items,puntoF].flatMap(it=>Object.values(it.fotos||{}).flat().map(f=>f?.id).filter(Boolean)));
+    if(assets)[...fotosQuitadas].filter(id=>!usadas.has(id)).forEach(id=>assets.delete(id).catch(()=>{}));
+    fotosQuitadas.clear();
+    const was=!!editing;closeForm();toast(was?"Cambios guardados":`Punto registrado con ${items.length} ${items.length===1?"actividad":"actividades"}`);
+  }catch(err){
+    fail(err?.code==="invalid_argument"?"No tienes permiso para guardar cambios en esta tabla.":err?.code==="quota_exceeded"?"La tabla llegó a su límite de registros.":"No se pudo guardar. Revisa tu conexión e inténtalo otra vez.");
+  }finally{$("btnSave").disabled=false}
+});
+
+$("btnDel").addEventListener("click",async()=>{
+  const b=$("btnDel");
+  if(!b.dataset.confirm){b.dataset.confirm="1";b.textContent="¿Seguro? Toca otra vez";return}
+  try{await db.collection("trabajos").doc(editing.id).delete();closeForm();toast("Punto eliminado")}
+  catch(e){$("formErr").textContent="No se pudo eliminar.";$("formErr").hidden=false}
+});
+$("btnCancel").addEventListener("click",requestClose);
+// tocar fuera de la ficha ya no la cierra
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("scrim").hidden)requestClose()});
+$("btnNew").addEventListener("click",()=>openForm(null));
+
+// descargar esquema como PNG
+$("btnImg").addEventListener("click",async()=>{
+  const rep=readRep(); if(!rep||!downloads)return;
+  const svg=drawRepair(rep,metaForm(),PAL_PNG,false);
+  const img=new Image();
+  img.onload=async()=>{
+    const c=document.createElement("canvas");c.width=1440;c.height=560;
+    const g=c.getContext("2d");g.drawImage(img,0,0,c.width,c.height);
+    c.toBlob(async blob=>{
+      if(!blob)return toast("No se pudo crear la imagen");
+      const name=`esquema-${(metaForm().consecutivo||metaForm().pk||"reparacion").replace(/[^A-Za-z0-9+_-]/g,"_")}.png`;
+      try{await downloads.save({filename:name,data:blob});toast("Imagen lista")}
+      catch(e){if(e?.code!=="declined")toast("No se pudo descargar la imagen")}
+    },"image/png");
+  };
+  img.onerror=()=>toast("No se pudo crear la imagen");
+  img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg);
+});
+
+// acciones en la lista y la alerta
+async function onAction(e){
+  const t=e.target.closest("button");if(!t)return;
+  if(t.hasAttribute("data-new"))return openForm(null);
+  if(t.hasAttribute("data-clear")){$("q").value="";$("fAct").value="";$("fMes").value="";$("fPunto").value="";setEstado("todos");return}
+  if(t.dataset.edit)return openForm(rows.find(r=>r.id===t.dataset.edit),false,t.dataset.i!=null?+t.dataset.i:undefined);
+  if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
+  const id=t.dataset.deliver||t.dataset.finish; if(!id||!db)return;
+  const r=rows.find(x=>x.id===id);if(!r)return;
+  t.disabled=true;
+  try{
+    if(t.dataset.finish){await db.collection("trabajos").doc(r.id).update({estadoPunto:"Terminado",terminadoEn:isoDT(new Date()),modificado:Date.now()});toast(`Punto ${r.pk||""} terminado · los informes vencen en ${PLAZO_H} h`)}
+    else{
+      const items=r.items.map(x=>({...x})), it=items[+t.dataset.i]; if(!it)return;
+      it.entregaFecha=todayISO(); it.entregaQuien=store.get("ultimoQuien")||(it.inspectores||"").split(",")[0].trim();
+      await db.collection("trabajos").doc(r.id).update({items,modificado:Date.now()});
+      toast(`Informe ${itName(r,it)} entregado`);
+    }
+  }catch(err){t.disabled=false;toast("No se pudo guardar el cambio")}
+}
+$("list").addEventListener("click",onAction);
+$("alertBox").addEventListener("click",onAction);
+
+function setEstado(v){filtroEstado=v;document.querySelectorAll("#segEstado button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===v)));render()}
+$("segEstado").addEventListener("click",e=>{const b=e.target.closest("button");if(b)setEstado(b.dataset.v)});
+document.querySelectorAll("button.stat").forEach(b=>b.addEventListener("click",()=>setEstado(filtroEstado===b.dataset.f?"todos":b.dataset.f)));
+["q","fAct","fMes","fPunto"].forEach(id=>$(id).addEventListener("input",render));
+
+// CSV
+// ---------- paquete .zip entre la app del celular y la app de Claude ----------
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+const crc32=b=>{let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0};
+async function zipBlob(files){// files: [{name, data:Uint8Array}] sin compresión (las fotos ya vienen comprimidas)
+  const enc=new TextEncoder(), parts=[], cen=[];let off=0;
+  for(const f of files){const nm=enc.encode(f.name), d=f.data, crc=crc32(d);
+    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint32(14,crc,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nm.length,true);
+    parts.push(h.buffer,nm,d);
+    const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint32(16,crc,true);c.setUint32(20,d.length,true);c.setUint32(24,d.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+    cen.push(c.buffer,nm);off+=30+nm.length+d.length}
+  const csz=cen.reduce((a,b)=>a+(b.byteLength??b.length),0);
+  const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,csz,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cen,e.buffer],{type:"application/zip"});
+}
+async function unzip(buf){// solo lee zips sin compresión, como los que arma la app
+  const v=new DataView(buf), u8=new Uint8Array(buf), dec=new TextDecoder(), out={};
+  let e=buf.byteLength-22;while(e>=0&&v.getUint32(e,true)!==0x06054b50)e--; if(e<0)throw new Error("zip");
+  let n=v.getUint16(e+10,true), o=v.getUint32(e+16,true);
+  while(n--){const meth=v.getUint16(o+10,true), sz=v.getUint32(o+20,true), nl=v.getUint16(o+28,true), xl=v.getUint16(o+30,true), cl=v.getUint16(o+32,true), lo=v.getUint32(o+42,true);
+    const name=dec.decode(u8.subarray(o+46,o+46+nl)); if(meth!==0)throw new Error("comprimido");
+    const lnl=v.getUint16(lo+26,true), lxl=v.getUint16(lo+28,true), st=lo+30+lnl+lxl; out[name]=u8.slice(st,st+sz); o+=46+nl+xl+cl}
+  return out;
+}
+const fotoIdsDe=r=>[...(r.items||[]),{fotos:r.fotosPunto||{}}].flatMap(it=>Object.values(it.fotos||{}).flat().map(f=>f?.id).filter(Boolean));
+// celular → archivo .zip con los puntos y sus fotos
+$("btnPaquete").addEventListener("click",async()=>{
+  const b=$("btnPaquete");b.disabled=true;b.textContent="Armando paquete…";
+  try{
+    const files=[], ids=new Set();rows.forEach(r=>fotoIdsDe(r).forEach(id=>ids.add(id)));
+    for(const id of ids){try{const bl=await (await fetch(fotoSrc(id))).blob();files.push({name:`fotos/${id}.jpg`,data:new Uint8Array(await bl.arrayBuffer())})}catch(e){}}
+    const data=rows.map(({id,...d})=>({id,...d}));
+    files.unshift({name:"inspecciones.json",data:new TextEncoder().encode(JSON.stringify({version:1,exportado:Date.now(),puntos:data}))});
+    const zip=await zipBlob(files);
+    const p2=n=>String(n).padStart(2,"0"),d=new Date();
+    await downloads.save({filename:`inspecciones-${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.zip`,data:zip});
+    store.set("ultimoEnvio",String(Date.now()));updPaquete();
+    toast(`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo desde la app en Claude con "Importar del celular".`);
+  }catch(e){if(e?.code!=="declined")toast("No se pudo armar el paquete.")}
+  finally{b.disabled=false;updPaquete()}
+});
+function updPaquete(){if(!LOCAL)return;const t=+store.get("ultimoEnvio")||0;const n=rows.filter(r=>(r.modificado||r.creado||0)>t).length;
+  $("btnPaquete").textContent=n?`📤 Enviar a Claude (${n} sin enviar)`:"📤 Enviar a Claude"}
+// app de Claude ← paquete del celular (no duplica: cada punto conserva su id; cada foto su id del celular)
+const zipIn=document.createElement("input");zipIn.type="file";zipIn.accept=".zip,application/zip";zipIn.hidden=true;document.body.appendChild(zipIn);
+$("btnImport").addEventListener("click",()=>{zipIn.value="";zipIn.click()});
+zipIn.addEventListener("change",async()=>{
+  const f=zipIn.files?.[0];if(!f)return;const b=$("btnImport");b.disabled=true;
+  try{
+    const z=await unzip(await f.arrayBuffer());const pk=JSON.parse(new TextDecoder().decode(z["inspecciones.json"]));
+    let nP=0,nF=0;
+    for(const p of pk.puntos||[]){
+      const prev=rows.find(r=>r.id===p.id);
+      const ya={};if(prev)[...(prev.items||[]),{fotos:prev.fotosPunto||{}}].forEach(it=>Object.values(it.fotos||{}).flat().forEach(x=>{if(x?.lid&&x?.id)ya[x.lid]=x.id}));
+      const mapF=async x=>{if(!x?.id)return x;const lid=x.lid||x.id;if(ya[lid])return{...x,id:ya[lid],lid};
+        const d=z[`fotos/${x.id}.jpg`];if(!d)return{...x,id:null,lid};
+        b.textContent=`Subiendo fotos… ${++nF}`;const r=await assets.upload(new Blob([d],{type:"image/jpeg"}),{type:"image/jpeg"});ya[lid]=r.id;return{...x,id:r.id,lid}};
+      const mapG=async g=>{const o={};for(const[k,arr]of Object.entries(g||{}))o[k]=await Promise.all((arr||[]).map(mapF));return o};
+      const items=[];for(const it of p.items||[])items.push({...it,fotos:await mapG(it.fotos)});
+      const {id,...rest}=p;
+      await db.collection("trabajos").doc(id).set({...rest,items,fotosPunto:await mapG(p.fotosPunto),importado:Date.now()});nP++;
+    }
+    toast(`Importados ${nP} puntos y ${nF} fotos nuevas.`);
+  }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":"No se pudo leer el paquete. ¿Es el .zip que armó la app del celular?")}
+  finally{b.disabled=false;b.textContent="📥 Importar del celular"}
+});
+$("btnExport").addEventListener("click",async()=>{
+  if(!downloads)return;
+  const cols=["Fecha","Día","PK","Sistema","Línea","Diámetro","Lugar","Ciudad","Base asignada","Tipo de reparación","Espesor camisa (pulg)","Material camisa","Actividad","Día de inspección","Consecutivo","Inspector(es)","Estado del punto","Terminado","Esquema","Detalle reparación","Longitud total","Estado informe","Horas desde terminado","Fecha entrega","Entregó","Novedad","Observaciones","Espesor nominal línea (pulg)","Material tubería existente","Espesor mínimo (pulg)","Espesores mínimos por área","Técnicas 0 horas","Longitud inspeccionada PT/MT (mm)","Longitud inspeccionada PT/MT (m)"];
+  const q=v=>{v=String(v??"");return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
+  const lab={entregado:"Entregado",pendiente:"Falta informe",novedad:"Con novedad",vencido:"Informe vencido"};
+  now=new Date();
+  // una fila por actividad, repitiendo los datos del punto
+  const lines=filtered().slice().reverse().flatMap(r=>{const v=vencimiento(r);return r.items.map(it=>{const st=estadoIt(r,it);const rp=it.reparacion;return[dmy(r.fecha),r.fecha?parse(r.fecha).toLocaleDateString("es-CO",{weekday:"long"}):"",r.pk,r.sistema||"",r.linea,r.diametro||"",r.lugar,r.ciudad||"",r.base||"",r.tipoReparacion||"",r.espesor||"",r.material||"",it.act,dmy(it.inspFecha||r.fecha),r.consecutivo||"",it.inspectores,r.estadoPunto||"",r.terminadoEn?dmyhm(r.terminadoEn):"",repLabel(rp),rp?.nota||"",rp?.longTotal?(rp.longTotal+" "+(rp.longUnidad||"m")):"",lab[st],v&&st!=="entregado"?Math.floor(v.h):"",dmy(it.entregaFecha),it.entregaQuien,it.novedad?"Sí":"",it.observaciones,r.nominal||"",r.materialTub||"",zsMinOf(it)!=null?String(zsMinOf(it)).replace(".",","):"",Object.entries(it.zsMin||{}).filter(([k,v])=>v).map(([k,v])=>k+": "+v).join(" | "),(it.tecnicas||[]).join(", "),it.longInspMm!=null?String(it.longInspMm):"",it.longInspMm!=null?(it.longInspMm/1000).toFixed(2).replace(".",","):""].map(q).join(";")})});
+  const csv="﻿"+[cols.join(";"),...lines].join("\r\n");
+  try{await downloads.save({filename:`inspecciones-${todayISO()}.csv`,data:csv});toast("Archivo listo")}
+  catch(e){if(e?.code!=="declined")toast("No se pudo descargar el archivo")}
+});
+
+// refresca contadores de horas cada minuto (solo vista)
+setInterval(()=>{if(rows.length)render()},60000);
+
+// ---------- datos ----------
+(async()=>{
+  $("today").textContent=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  if(!window.claude?.use){$("list").innerHTML=`<div class="empty"><h3>Abre esta página en Claude</h3><p class="note">Los trabajos se guardan en la nube de la página y solo cargan dentro de Claude.</p></div>`;return}
+  claude.use("downloads").then(d=>{downloads=d;$("btnExport").hidden=!d;$("btnPaquete").hidden=!d||!LOCAL});
+  claude.use("assets").then(a=>{assets=a;$("btnImport").hidden=!a||LOCAL;formItems.forEach((_,i)=>refreshFotos(i));if(!$("scrim").hidden)refreshFotos("P")}).catch(()=>{});
+  db=await claude.use("db");
+  if(!db){readOnly=true;$("btnNew").hidden=true;$("list").innerHTML=`<div class="empty"><h3>No se pudo abrir la tabla</h3><p class="note">Inicia sesión en Claude para ver y registrar trabajos.</p></div>`;return}
+  const user=await claude.use("user");
+  if(user&&user.can){try{const w=await user.can("data.write");if(w===false){readOnly=true;$("btnNew").hidden=true}}catch(e){}}
+  let draftChecked=false;
+  try{window.claude?.hot?.snapshot?.(()=>({draft:!$("scrim").hidden&&dirty?captureForm():null}))}catch(e){}
+  const timer=setTimeout(()=>{$("banner").textContent=rows.length?"Puede que los datos no estén actualizados; revisa tu conexión.":"No se ha podido conectar con la tabla todavía. Revisa tu conexión.";$("banner").hidden=false},10000);
+  db.collection("trabajos").onSnapshot(snap=>{
+    if(!snap.metadata.fromCache){clearTimeout(timer);$("banner").hidden=true}
+    rows=snap.docs.map(d=>norm({id:d.id,...d.data()}));
+    renderOptions();render();updPaquete();
+    if(!draftChecked){draftChecked=true;
+      // si la página se recargó con la ficha abierta, se reabre sola; si no, se ofrece el borrador
+      let hd=null;try{hd=window.claude?.hot?.data?.draft||null}catch(e){}
+      if(hd&&Array.isArray(hd.items)&&!readOnly)applyDraft(hd);else showDraftBar();
+    }
+  },err=>{clearTimeout(timer);$("banner").textContent="Se perdió la conexión con la tabla. Recarga la página para reconectar.";$("banner").hidden=false});
+})();
+})();
+</script>
+
+</body></html>
