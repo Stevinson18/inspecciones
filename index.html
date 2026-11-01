@@ -654,6 +654,7 @@ function layoutCE(rep){
   return{it,total:it.reduce((s,o)=>s+o.w,0),v,d,cams,cam,BW};
 }
 
+let REPMODE=false; // dibujo para el reporte: sin datos repetidos y el flujo sobre el tubo
 function drawRepair(rep,meta,P,compact){
   // Camisa Tipo A: no lleva soldaduras de compromiso (las que van directas a la tubería)
   const sinComp=meta?.tipoReparacion==="Camisa Tipo A";
@@ -698,7 +699,9 @@ function drawRepair(rep,meta,P,compact){
     else if(pos==="right")T(x+w+10,cy+5,label,{a:"start",s:14,w:700});
     else T(x+w/2,cy-h/2-8,label,{s:12,w:700})};
   const dim=(xa,xb,y,txt)=>{if(compact)return;L(xa,y,xb,y,{s:P.muted});L(xa,y-5,xa,y+5,{s:P.muted});L(xb,y-5,xb,y+5,{s:P.muted});T((xa+xb)/2,y+15,txt,{s:11,c:P.muted})};
-  const flow=(fx,fy,col)=>{if(compact)return;T(fx-10,fy-7,"Sentido de flujo",{s:12,w:700,c:col});L(fx-62,fy+6,fx+40,fy+6,{s:col,sw:2.5});S.push(`<path d="M${fx+40},${fy} L${fx+54},${fy+6} L${fx+40},${fy+12} Z" style="fill:${col}"/>`)};
+  const flow=(fx,fy,col)=>{if(compact)return;
+    if(REPMODE&&RA!==null&&RA-x0>50){const sp=RA-x0-12,xm=(x0+12+RA)/2,h=Math.min(46,sp*0.38);T(xm,cy-5,sp<120?"Flujo":"Sentido de flujo",{s:12,w:700,c:"#14324a"});L(xm-h,cy+11,xm+h-14,cy+11,{s:"#14324a",sw:2.5});S.push(`<path d="M${xm+h-14},${cy+5} L${xm+h},${cy+11} L${xm+h-14},${cy+17} Z" style="fill:#14324a"/>`);return}
+   T(fx-10,fy-7,"Sentido de flujo",{s:12,w:700,c:col});L(fx-62,fy+6,fx+40,fy+6,{s:col,sw:2.5});S.push(`<path d="M${fx+40},${fy} L${fx+54},${fy+6} L${fx+40},${fy+12} Z" style="fill:${col}"/>`)};
   const seam=(a,b,ySolid,yDash)=>{L(a+4,ySolid,b-4,ySolid,{s:P.fg,sw:1.8});L(a+4,yDash,b-4,yDash,{s:P.muted,sw:1.4,d:"6 4"})};
   const tipo=rep?.tipo||"";
   const LN=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
@@ -834,8 +837,8 @@ function drawRepair(rep,meta,P,compact){
       const tag=s.tag??("S"+s.n), pre=tag?tag+" ":"";
       shell(x,top1+hS-h,w,h,`${pre}CPS`,true);
       shell(x,top2,w,h,`${pre}CPI`,false);
-      T(x+w/2,top2+hS+22,s.cap||`Sección ${s.n}`,{s:13,w:700});
-      T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":""),{s:11,c:P.muted});
+      if(!(REPMODE&&LTv&&secs.length===1)){T(x+w/2,top2+hS+22,s.cap||`Sección ${s.n}`,{s:13,w:700});
+      T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":""),{s:11,c:P.muted})}
       x+=w+GAP;});
     if(!compact){
       S.push(`<g data-fijo="135">`);L(20,70,52,70,{s:P.l1,sw:3});T(58,74,"Biseles L1",{a:"start",s:12,w:600});
@@ -890,7 +893,7 @@ function drawRepair(rep,meta,P,compact){
     if(!compact){
       T(sx+wC/2,cy-9,"L1",{s:13,w:700});T(sx+wC/2,cy+26,"L2",{s:12,c:P.muted});
       if(!sinComp){T(sx-5,cy-hC/2+12,"C1",{a:"end",s:13,w:700,c:P.bad});T(sx+wC+5,cy-hC/2+12,"C2",{a:"start",s:13,w:700,c:P.bad})}
-      T(sx+wC/2,cy+hC/2+18,"Camisa directa"+(lc?` · ${lc} ${U}`:""),{s:12,w:600});
+      if(!(REPMODE&&LTv))T(sx+wC/2,cy+hC/2+18,"Camisa directa"+(lc?` · ${lc} ${U}`:""),{s:12,w:600});
       flow(W/2,cy+hC/2+52,P.zs);
     }
     titulo=sinComp?"Camisa directa Tipo A":"Camisa directa";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";
@@ -1482,7 +1485,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v18";
+const LOCAL=!!window.__LOCAL;const APPV="v19";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2254,12 +2257,20 @@ function estirarSvg(svg,sx,vy,vh){const doc=new DOMParser().parseFromString(svg,
 function cajaTinta(c){const g=c.getContext("2d"),d=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=-1,y1=-1;
   for(let y=0;y<c.height;y++){const o=y*c.width*4;for(let x=0;x<c.width;x++){const i=o+x*4;if(d[i]<238||d[i+1]<238||d[i+2]<238){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}}
   return x1<0?{x:0,y:0,w:c.width,h:c.height}:{x:x0,y:y0,w:x1-x0+1,h:y1-y0+1}}
+// quita las franjas vacías largas entre partes del dibujo (deja un espacio corto)
+function compactar(c,b,G=40){const d=c.getContext("2d").getImageData(b.x,b.y,b.w,b.h).data,vac=[];
+  for(let y=0;y<b.h;y++){let v=true;const o=y*b.w*4;for(let x=0;x<b.w;x++){const i=o+x*4;if(d[i]<238||d[i+1]<238||d[i+2]<238){v=false;break}}vac.push(v)}
+  const keep=[];let run=0;for(let y=0;y<b.h;y++){if(vac[y]){run++;if(run<=G)keep.push(y)}else{run=0;keep.push(y)}}
+  if(keep.length===b.h)return{c,b};
+  const n=document.createElement("canvas");n.width=b.w;n.height=keep.length;const g=n.getContext("2d");
+  let i=0;while(i<keep.length){let j=i;while(j+1<keep.length&&keep[j+1]===keep[j]+1)j++;g.drawImage(c,b.x,b.y+keep[i],b.w,j-i+1,0,i,b.w,j-i+1);i=j+1}
+  return{c:n,b:{x:0,y:0,w:n.width,h:n.height}}}
 async function esquemaRep(rep,meta,an){
-  const svg=drawRepair(rep,meta,PAL_PNG,false);const vb=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);const H=+vb[2];
+  let svg;REPMODE=true;try{svg=drawRepair(rep,meta,PAL_PNG,false)}finally{REPMODE=false}const vb=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);const H=+vb[2];
   const A=an.cx/an.cy;
   // sin el título ni la nota de pie: solo el dibujo
   const pinta=async sx=>{const im=await cargarImg("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(estirarSvg(svg,sx,56,H-80)));
-    const c=document.createElement("canvas");c.width=im.width;c.height=im.height;const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0);return{c,b:cajaTinta(c)}};
+    const c=document.createElement("canvas");c.width=im.width;c.height=im.height;const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0);return compactar(c,cajaTinta(c))};
   let sx=1,r=await pinta(1);
   for(let i=0;i<3;i++){const a=r.b.w/r.b.h;if(a>=A*0.95||sx>=4)break;sx=Math.min(4,sx*A/a);r=await pinta(sx)}
   const m=8,cr=document.createElement("canvas");cr.width=r.b.w+2*m;cr.height=r.b.h+2*m;const gc=cr.getContext("2d");gc.fillStyle="#fff";gc.fillRect(0,0,cr.width,cr.height);gc.drawImage(r.c,r.b.x,r.b.y,r.b.w,r.b.h,m,m,r.b.w,r.b.h);
