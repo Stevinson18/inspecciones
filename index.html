@@ -160,7 +160,9 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .fhead .cnt{font-size:.8rem;font-weight:600;color:var(--muted)}
 .fhead .cnt.low{color:var(--bad)}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
-.fslot{display:grid;gap:4px;min-width:0}
+.fslot{display:grid;gap:4px;min-width:0;position:relative}
+.fstog{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.72rem;font-weight:700;border-radius:999px;padding:4px 9px;min-height:28px;border:1px solid rgba(255,255,255,.7);background:rgba(22,50,74,.85);color:#fff;cursor:pointer}
+.fstog.off{background:rgba(255,255,255,.92);color:#16324a;border-color:#16324a}
 .fimg{position:relative;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:6px;background:var(--surface);color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;font-size:.8rem;cursor:pointer;overflow:hidden;padding:0}
 .fslot.has .fimg{border-style:solid}
 .fimg img{width:100%;height:100%;object-fit:cover;display:block}
@@ -1174,6 +1176,7 @@ function fotosHtml(it,i,only){
     return`<div class="fgrp"><div class="fhead"><span class="label">${esc(gr.t)}</span><span class="cnt${gr.min&&n<gr.min?" low":""}">${n}${gr.min?` de ${gr.min} mínimo`:n===1?" foto":" fotos"}</span></div>
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
       return`<div class="fslot${s.id?" has":""}"><button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}"${!s.id&&!can?" disabled":""} aria-label="${s.id?"Ver":"Tomar"} foto ${j+1}">${s.id?`<img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k))}`:`<span class="cam" aria-hidden="true">📷</span><span>${can?(gr.ubi?"📍 Tomar foto":"Tomar foto"):"Sin foto"}</span>`}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>
+      ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
       <input class="field fcap" data-fcap="${gr.k}" data-j="${j}" value="${esc(s.cap)}" placeholder="Descripción de la foto" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}></div>`}).join("")}</div>
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
@@ -1596,6 +1599,9 @@ $("iPunto").addEventListener("change",updateTermHint);
 $("iTerm").addEventListener("input",updateTermHint);
 $("btnAddItem").addEventListener("click",addItem);
 $("form").addEventListener("click",e=>{
+  const tg=e.target.closest("[data-fstog]");
+  if(tg){const i=foOf(tg),k=tg.dataset.fstog,j=+tg.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];
+    if(s?.id){setFoto(i,k,j,{noStamp:!s.noStamp});refreshFotos(i);scheduleDraft()}return}
   const fs=e.target.closest("[data-fshot]");
   if(fs){const i=foOf(fs),k=fs.dataset.fshot,j=+fs.dataset.j;const it=own(i);
     const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(s?.id)verFoto(i,k,j);else pedirFoto(i,k,j);return}
