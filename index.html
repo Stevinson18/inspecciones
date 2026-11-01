@@ -187,6 +187,9 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .firow .nm{font-weight:600}.firow .acts{display:flex;gap:6px;flex-wrap:wrap;grid-column:1/-1}
 .fiimg{height:56px;border:1px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;background:#fff;color:#888;font-size:.75rem}
 .fiimg img{max-height:52px;max-width:100%}
+.firbox{display:grid;gap:6px;margin-top:6px}.firbox:empty{display:none}
+.firline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fiimg.sm{height:40px;width:110px;flex:none}.fiimg.sm img{max-height:36px}
 #pad{width:100%;height:auto;aspect-ratio:900/360;background:#fff;border:1px solid var(--line);border-radius:6px;touch-action:none}
 .row-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .eqcard{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px}
@@ -1205,7 +1208,7 @@ function catInit(){
   db.collection("equipos").onSnapshot(sn=>{equipos=sn.docs.map(d=>({id:d.id,...d.data()})).filter(e=>!e.borrado).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"","es"));
     if(!$("catp").hidden&&!$("catEquipos").hidden&&!$("catEquipos").contains(document.activeElement))renderEquipos();
     formItems.forEach((_,i)=>refreshEq(i))},()=>{});
-  db.collection("firmas").onSnapshot(sn=>{firmas={};sn.docs.forEach(d=>{const v=d.data();if(!v.borrado)firmas[d.id]=v});if(!$("catp").hidden)renderFirmas()},()=>{});
+  db.collection("firmas").onSnapshot(sn=>{firmas={};sn.docs.forEach(d=>{const v=d.data();if(!v.borrado)firmas[d.id]=v});if(!$("catp").hidden)renderFirmas();refreshFir()},()=>{});
   $("btnCat").hidden=readOnly;
 }
 function abrirCat(tab){$("catp").hidden=false;setTab(tab||"firmas")}
@@ -1241,6 +1244,8 @@ async function guardarFirma(nombre,png){
 }
 const firmaIn=document.createElement("input");firmaIn.type="file";firmaIn.accept="image/*";firmaIn.hidden=true;document.body.appendChild(firmaIn);let firmaDe="";
 firmaIn.addEventListener("change",async()=>{const f=firmaIn.files?.[0];if(!f)return;try{await guardarFirma(firmaDe,await limpiarFirma(f))}catch(e){toast("No se pudo leer la imagen.")}});
+$("itemsBox").addEventListener("click",e=>{const b=e.target.closest(".firbox [data-fsub],.firbox [data-fdib]");if(!b)return;
+  if(b.dataset.fsub){firmaDe=b.dataset.fsub;firmaIn.value="";firmaIn.click()}else abrirPad(b.dataset.fdib)});
 $("catFirmas").addEventListener("click",async e=>{const b=e.target.closest("[data-fsub],[data-fdib],[data-fdel]");if(!b)return;
   if(b.dataset.fsub){firmaDe=b.dataset.fsub;firmaIn.value="";firmaIn.click()}
   else if(b.dataset.fdib)abrirPad(b.dataset.fdib);
@@ -1561,12 +1566,16 @@ function inspBoxHtml(v){
   const rest=INSPECTORES.filter(n=>!sel.includes(n));
   return`<div class="inspchips">${chips}</div><select class="field" data-addinsp aria-label="Agregar inspector"><option value="">${sel.length?"+ Agregar otro inspector…":"Escoge el inspector…"}</option>${rest.map(n=>`<option>${esc(n)}</option>`).join("")}<option value="__otro">Otro (escribir nombre)…</option></select><input class="field" data-otroinsp hidden placeholder="Nombre del inspector y Enter" autocomplete="off" style="margin-top:6px">`;
 }
-function setInsp(card,list){const h=card.querySelector('[data-f="inspectores"]');h.value=[...new Set(list)].join(", ");card.querySelector(".inspbox").innerHTML=inspBoxHtml(h.value);syncCards();scheduleDraft?.()}
+// firma de cada inspector escogido, con botones para subirla o dibujarla ahí mismo
+function firBoxHtml(v){const ns=inspList(v);if(!ns.length)return"";const can=!!assets&&!readOnly;
+  return ns.map(n=>{const f=firmas[slug(n)];return`<div class="firline"><span class="fiimg sm">${f?.img?.id?`<img src="${esc(fotoSrc(f.img.id))}" alt="Firma de ${esc(n)}">`:"Sin firma"}</span><span class="sub2">${esc(n)}</span>${can?`<button class="btn small" type="button" data-fsub="${esc(n)}">🖼 ${f?.img?.id?"Cambiar":"Subir firma"}</button><button class="btn small" type="button" data-fdib="${esc(n)}">✍ Dibujar</button>`:""}</div>`}).join("")}
+function refreshFir(){document.querySelectorAll("#itemsBox .itcard").forEach(c=>{const h=c.querySelector('[data-f="inspectores"]'),b=c.querySelector(".firbox");if(h&&b)b.innerHTML=firBoxHtml(h.value)})}
+function setInsp(card,list){const h=card.querySelector('[data-f="inspectores"]');h.value=[...new Set(list)].join(", ");card.querySelector(".inspbox").innerHTML=inspBoxHtml(h.value);card.querySelector(".firbox").innerHTML=firBoxHtml(h.value);syncCards();scheduleDraft?.()}
 function itemHtml(it,i){it=it||{};
   return `<div class="itcard${i===active?" active":""}" data-i="${i}" data-fo="${i}">
   <div class="ithead"><select class="field" data-f="act" aria-label="Actividad">${ACTS.map(([n])=>`<option${n===(it.act||"Zona sana")?" selected":""}>${n}</option>`).join("")}</select>${readOnly?"":`<button class="btn small ghost" type="button" data-rm="${i}">Quitar</button>`}</div>
   <div class="grid2">
-    <div class="f" style="grid-column:1/-1"><span class="label">Inspector(es)</span><input type="hidden" data-f="inspectores" value="${esc(it.inspectores||"")}"><div class="inspbox">${inspBoxHtml(it.inspectores)}</div></div>
+    <div class="f" style="grid-column:1/-1"><span class="label">Inspector(es)</span><input type="hidden" data-f="inspectores" value="${esc(it.inspectores||"")}"><div class="inspbox">${inspBoxHtml(it.inspectores)}</div><div class="firbox">${firBoxHtml(it.inspectores)}</div></div>
     <label class="f lugbis"${it.act==="Biseles"?"":" hidden"}><span class="label">Lugar de inspección</span><select class="field" data-f="lugarInsp">${["Campo","Patio"].map(o=>`<option${(it.lugarInsp||"Patio")===o?" selected":""}>${o}</option>`).join("")}</select></label>
     <label class="f"><span class="label">Día de inspección</span><input class="field" type="date" data-f="inspFecha" value="${esc(it.inspFecha||$("iFecha").value||"")}"></label>
     <label class="f"><span class="label">Entrega del informe</span><input class="field" type="date" data-f="entregaFecha" value="${esc(it.entregaFecha||"")}"></label>
@@ -2032,7 +2041,7 @@ setInterval(()=>{if(rows.length)render()},60000);
   $("today").textContent=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if(!window.claude?.use){$("list").innerHTML=`<div class="empty"><h3>Abre esta página en Claude</h3><p class="note">Los trabajos se guardan en la nube de la página y solo cargan dentro de Claude.</p></div>`;return}
   claude.use("downloads").then(d=>{downloads=d;$("btnExport").hidden=!d;$("btnPaquete").hidden=!d;if(!LOCAL)$("btnPaquete").textContent="📤 Paquete para el celular"});
-  claude.use("assets").then(a=>{assets=a;$("btnImport").hidden=!a;if(LOCAL)$("btnImport").textContent="📥 Importar paquete";formItems.forEach((_,i)=>refreshFotos(i));if(!$("scrim").hidden)refreshFotos("P")}).catch(()=>{});
+  claude.use("assets").then(a=>{assets=a;setTimeout(refreshFir,0);$("btnImport").hidden=!a;if(LOCAL)$("btnImport").textContent="📥 Importar paquete";formItems.forEach((_,i)=>refreshFotos(i));if(!$("scrim").hidden)refreshFotos("P")}).catch(()=>{});
   db=await claude.use("db");
   if(!db){readOnly=true;$("btnNew").hidden=true;$("list").innerHTML=`<div class="empty"><h3>No se pudo abrir la tabla</h3><p class="note">Inicia sesión en Claude para ver y registrar trabajos.</p></div>`;return}
   const user=await claude.use("user");
