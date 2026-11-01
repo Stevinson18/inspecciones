@@ -39,8 +39,23 @@ const assets={
   async upload(blob){const id=rid(32);await tx("blobs","readwrite",s=>s.put(blob,id));return{id,url:window.__BLOB_BASE+id,sizeBytes:blob.size,contentType:blob.type}},
   async delete(ref){const id=String(ref).split("/").pop();await tx("blobs","readwrite",s=>s.delete(id));return{deleted:true}},
   async list(){return{assets:[],usage:{}}}};
-const downloads={async save({filename,data}){
+// carpeta "Control de informes" en el PC (Chrome/Edge): se elige una vez y las descargas van a sus subcarpetas
+const SUBS=["Borradores","Reportes finales","Informes Word","Datos","Esquemas"];
+let RAIZ=null;tx("blobs","readonly",s=>req(s.get("dir-raiz"))).then(h=>{RAIZ=h||null;window.__carpeta?.cambio?.()}).catch(()=>{});
+const permiso=async(pedir)=>{if(!RAIZ)return false;const o={mode:"readwrite"};try{if(await RAIZ.queryPermission(o)==="granted")return true;return pedir?(await RAIZ.requestPermission(o))==="granted":false}catch(e){return false}};
+window.__carpeta={disponible:!!window.showDirectoryPicker,listo:()=>!!RAIZ,nombre:()=>RAIZ?.name||"",
+  async elegir(){const h=await window.showDirectoryPicker({id:"control-informes",mode:"readwrite",startIn:"documents"});
+    const raiz=/^control de informes$/i.test(h.name)?h:await h.getDirectoryHandle("Control de informes",{create:true});
+    for(const n of SUBS)await raiz.getDirectoryHandle(n,{create:true});
+    await tx("blobs","readwrite",s=>s.put(raiz,"dir-raiz"));RAIZ=raiz;return raiz.name},
+  async quitar(){await tx("blobs","readwrite",s=>s.delete("dir-raiz"));RAIZ=null},
+  pedir:()=>permiso(true),
+  async sub(n){if(!(await permiso(false)))return null;return RAIZ.getDirectoryHandle(n,{create:true})}};
+// el permiso de la carpeta se pide en el clic (el navegador lo exige así)
+document.addEventListener("click",e=>{if(RAIZ&&e.target.closest?.("[data-gen],#btnPaquete,#btnExport,#btnImg,#btnImport,#revp button"))permiso(true)},true);
+const downloads={async save({filename,data,carpeta}){
   const blob=data instanceof Blob?data:new Blob([data]);
+  if(carpeta&&RAIZ){try{const d=await window.__carpeta.sub(carpeta);if(d){const fh=await d.getFileHandle(filename,{create:true});const w=await fh.createWritable();await w.write(blob);await w.close();return{status:"saved",donde:`${RAIZ.name}/${carpeta}`}}}catch(e){console.warn("carpeta",e)}}
   const file=new File([blob],filename,{type:blob.type||"application/octet-stream"});
   // en el celular se ofrece compartir (WhatsApp, Drive, correo…); si no, se descarga
   if(navigator.canShare&&navigator.canShare({files:[file]})){try{await navigator.share({files:[file],title:filename});return{status:"saved"}}catch(e){if(e.name==="AbortError")throw{code:"declined"}}}
@@ -609,6 +624,7 @@ const allItems=()=>rows.flatMap(r=>r.items.map((it,i)=>({r,it,i,st:estadoIt(r,it
 const itName=(r,it)=>`${it.act} ${r.consecutivo||r.pk||""}`.trim();
 
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+window.__toast=toast;
 
 // ---------- esquema de reparación (SVG) ----------
 const PAL_VAR={bg:"var(--bg)",fg:"var(--fg)",muted:"var(--muted)",pipe:"var(--pipe)",edge:"var(--pipe-edge)",sleeve:"var(--sleeve)",sleeve2:"var(--sleeve2)",weld:"var(--weld)",zs:"var(--zs)",zsEdge:"var(--zs-edge)",zsLine:"var(--zs-line)",zsText:"#ffffff",shell:"var(--shell)",shellHi:"var(--shell-hi)",shellEdge:"var(--shell-edge)",l1:"var(--l1)",l2:"var(--l2)",flow:"var(--ok)",bad:"var(--bad)",ink:"var(--ink)",font:"Barlow, system-ui, sans-serif"};
@@ -1466,7 +1482,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v17";
+const LOCAL=!!window.__LOCAL;const APPV="v18";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2051,7 +2067,7 @@ $("btnImg").addEventListener("click",async()=>{
     c.toBlob(async blob=>{
       if(!blob)return toast("No se pudo crear la imagen");
       const name=`esquema-${(metaForm().consecutivo||metaForm().pk||"reparacion").replace(/[^A-Za-z0-9+_-]/g,"_")}.png`;
-      try{await downloads.save({filename:name,data:blob});toast("Imagen lista")}
+      try{const d=await guardar(name,blob,"Esquemas");toast("Imagen lista"+d)}
       catch(e){if(e?.code!=="declined")toast("No se pudo descargar la imagen")}
     },"image/png");
   };
@@ -2124,9 +2140,9 @@ $("btnPaquete").addEventListener("click",async()=>{
     files.unshift({name:"inspecciones.json",data:new TextEncoder().encode(JSON.stringify({version:1,exportado:Date.now(),puntos:data}))});
     const zip=await zipBlob(files);
     const p2=n=>String(n).padStart(2,"0"),d=new Date();
-    await downloads.save({filename:`inspecciones-${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.zip`,data:zip});
+    const dnd=await guardar(`inspecciones-${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.zip`,zip,"Datos");
     store.set("ultimoEnvio",String(Date.now()));updPaquete();
-    toast(LOCAL?`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo desde la app en Claude con "Importar del celular".`:`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo en la app del celular con "Importar paquete".`);
+    toast(LOCAL?`Paquete listo${dnd}: ${data.length} puntos y ${ids.size} fotos. Ábralo desde la app en Claude con "Importar del celular".`:`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo en la app del celular con "Importar paquete".`);
   }catch(e){if(e?.code!=="declined")toast("No se pudo armar el paquete.")}
   finally{b.disabled=false;updPaquete()}
 });
@@ -2134,9 +2150,12 @@ function updPaquete(){if(!LOCAL||!$("btnPaquete"))return;const t=+store.get("ult
   $("btnPaquete").textContent=n?`📤 Enviar a Claude (${n} sin enviar)`:"📤 Enviar a Claude"}
 // app de Claude ← paquete del celular (no duplica: cada punto conserva su id; cada foto su id del celular)
 const zipIn=document.createElement("input");zipIn.type="file";zipIn.accept=".zip,application/zip";zipIn.hidden=true;document.body.appendChild(zipIn);
-$("btnImport").addEventListener("click",()=>{zipIn.value="";zipIn.click()});
-zipIn.addEventListener("change",async()=>{
-  const f=zipIn.files?.[0];if(!f)return;const b=$("btnImport");b.disabled=true;
+$("btnImport").addEventListener("click",async()=>{
+  // en el PC con carpeta elegida, abre directo en Control de informes/Datos
+  if(window.showOpenFilePicker&&window.__carpeta?.listo?.()){try{const d=await window.__carpeta.sub("Datos");const[fh]=await showOpenFilePicker({id:"paquetes",startIn:d||"downloads",types:[{description:"Paquete de inspecciones",accept:{"application/zip":[".zip"]}}]});await importarZip(await fh.getFile());return}catch(e){if(e?.name==="AbortError")return}}
+  zipIn.value="";zipIn.click()});
+zipIn.addEventListener("change",()=>{const f=zipIn.files?.[0];if(f)importarZip(f)});
+async function importarZip(f){{const b=$("btnImport");b.disabled=true;
   try{
     const z=await unzip(await f.arrayBuffer());const pk=JSON.parse(new TextDecoder().decode(z["inspecciones.json"]));
     let nP=0,nF=0,nS=0;
@@ -2158,7 +2177,7 @@ zipIn.addEventListener("change",async()=>{
     toast(`Importados ${nP} puntos y ${nF} fotos nuevas.`+(nS?` ${nS} no se cambiaron porque aquí están más actualizados.`:""));
   }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":"No se pudo leer el paquete. ¿Es el .zip que armó la app del celular?")}
   finally{b.disabled=false;b.textContent=LOCAL?"📥 Importar paquete":"📥 Importar del celular"}
-});
+}}
 $("btnExport").addEventListener("click",async()=>{
   if(!downloads)return;
   const cols=["Fecha","Día","PK","Sistema","Línea","Diámetro","Lugar","Ciudad","Base asignada","Tipo de reparación","Espesor camisa (pulg)","Material camisa","Actividad","Día de inspección","Consecutivo","Inspector(es)","Estado del punto","Terminado","Esquema","Detalle reparación","Longitud total","Estado informe","Horas desde terminado","Fecha entrega","Entregó","Novedad","Observaciones","Espesor nominal línea (pulg)","Material tubería existente","Espesor mínimo (pulg)","Espesores mínimos por área","Técnicas 0 horas","Longitud inspeccionada PT/MT (mm)","Longitud inspeccionada PT/MT (m)"];
@@ -2168,7 +2187,7 @@ $("btnExport").addEventListener("click",async()=>{
   // una fila por actividad, repitiendo los datos del punto
   const lines=filtered().slice().reverse().flatMap(r=>{const v=vencimiento(r);return r.items.map(it=>{const st=estadoIt(r,it);const rp=it.reparacion;return[dmy(r.fecha),r.fecha?parse(r.fecha).toLocaleDateString("es-CO",{weekday:"long"}):"",r.pk,r.sistema||"",r.linea,r.diametro||"",r.lugar,r.ciudad||"",r.base||"",r.tipoReparacion||"",r.espesor||"",r.material||"",it.act,dmy(it.inspFecha||r.fecha),r.consecutivo||"",it.inspectores,r.estadoPunto||"",r.terminadoEn?dmyhm(r.terminadoEn):"",repLabel(rp),rp?.nota||"",rp?.longTotal?(rp.longTotal+" "+(rp.longUnidad||"m")):"",lab[st],v&&st!=="entregado"?Math.floor(v.h):"",dmy(it.entregaFecha),it.entregaQuien,it.novedad?"Sí":"",it.observaciones,r.nominal||"",r.materialTub||"",zsMinOf(it)!=null?String(zsMinOf(it)).replace(".",","):"",Object.entries(it.zsMin||{}).filter(([k,v])=>v).map(([k,v])=>k+": "+v).join(" | "),(it.tecnicas||[]).join(", "),it.longInspMm!=null?String(it.longInspMm):"",it.longInspMm!=null?(it.longInspMm/1000).toFixed(2).replace(".",","):""].map(q).join(";")})});
   const csv="﻿"+[cols.join(";"),...lines].join("\r\n");
-  try{await downloads.save({filename:`inspecciones-${todayISO()}.csv`,data:csv});toast("Archivo listo")}
+  try{const d=await guardar(`inspecciones-${todayISO()}.csv`,csv,"Datos");toast("Archivo listo"+d)}
   catch(e){if(e?.code!=="declined")toast("No se pudo descargar el archivo")}
 });
 
@@ -2369,11 +2388,13 @@ async function generarReporte(r,modo){REP_PT=r;
   return zipEscribir(salida);
 }
 // --- botones ---
+// guarda en la carpeta "Control de informes" (PC) o descarga normal; devuelve " en …" para el aviso
+async function guardar(filename,data,carpeta){const r=await downloads.save(LOCAL?{filename,data,carpeta}:{filename,data});return r?.donde?` en ${r.donde}`:""}
 async function accionReporte(r,modo,btn){
   if(modo==="final"){const f=revisarPunto(r);if(f.length&&!(await confirmarLista(f)))return}
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":""}.xlsx`;
-    await downloads.save({filename:nom,data:blob});toast(modo==="borrador"?"Borrador listo":"Reporte final listo")}
+    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");toast((modo==="borrador"?"Borrador listo":"Reporte final listo")+d)}
   catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar: "+(e?.message||e))}}
   finally{btn.disabled=false;btn.textContent=t0}}
 function confirmarLista(f){return new Promise(ok=>{const d=$("revp");$("revLista").innerHTML=f.map(x=>`<li>${esc(x)}</li>`).join("");d.hidden=false;
@@ -2508,7 +2529,7 @@ const css=document.createElement("style");css.textContent=`
 #syncPanel .box{background:var(--surface,#fff);color:var(--fg,#111);border-radius:10px;max-width:440px;width:100%;padding:16px;display:grid;gap:10px}
 #syncPanel h2{margin:0;font-size:1.1rem}`;document.head.appendChild(css);
 const bar=document.createElement("div");bar.id="syncBar";
-bar.innerHTML=`<button class="btn small" type="button" id="btnSync">🔄 Sincronizar</button><button class="btn small ghost" type="button" id="btnSyncCfg" aria-label="Configurar sincronización">⚙</button><span id="syncSt"></span>`;
+bar.innerHTML=`<button class="btn small" type="button" id="btnSync">🔄 Sincronizar</button><button class="btn small ghost" type="button" id="btnCarpeta" hidden>📁 Carpeta</button><button class="btn small ghost" type="button" id="btnSyncCfg" aria-label="Configurar sincronización">⚙</button><span id="syncSt"></span>`;
 const hdr=document.querySelector("header.top .actions")||document.querySelector("header.top");hdr?.appendChild(bar);
 const pan=document.createElement("div");pan.id="syncPanel";pan.hidden=true;pan.setAttribute("role","dialog");pan.setAttribute("aria-modal","true");
 pan.innerHTML=`<div class="box"><h2>Sincronización entre equipos</h2>
@@ -2530,6 +2551,10 @@ $("sySave").addEventListener("click",async()=>{
   catch(e){$("syMsg").textContent=e==="push"?"La clave no tiene permiso de escritura (Contents: Read and write).":e===401?"Clave incorrecta.":e===404?"No encuentro ese repositorio con esa clave.":"Sin internet o error al probar."}
 });
 $("btnSync").addEventListener("click",()=>sync(true));
+// carpeta de descargas (solo PC con Chrome/Edge)
+{const bc=$("btnCarpeta"),C=window.__carpeta;const pinta=()=>{bc.textContent=C.listo()?"📁 "+C.nombre():"📁 Elegir carpeta";bc.title=C.listo()?"Las descargas van a "+C.nombre()+" (Borradores, Reportes finales, Informes Word, Datos, Esquemas). Toque para cambiarla.":"Elija dónde crear la carpeta Control de informes"};
+ if(C?.disponible){bc.hidden=false;C.cambio=pinta;pinta();
+  bc.addEventListener("click",async()=>{try{const n=await C.elegir();pinta();window.__toast?.(`Listo: las descargas irán a ${n}, cada una en su subcarpeta.`)}catch(e){if(e?.name!=="AbortError")window.__toast?.("No se pudo usar esa carpeta.")}})}}
 function hace(t){const m=Math.round((Date.now()-t)/60000);return m<1?"hace un momento":m<60?`hace ${m} min`:m<1440?`hace ${Math.round(m/60)} h`:`hace ${Math.round(m/1440)} d`}
 function estado(txt){const st=$("syncSt");if(!st)return;
   if(txt){st.textContent=txt;st.className="";return}
