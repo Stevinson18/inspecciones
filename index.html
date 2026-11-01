@@ -445,9 +445,10 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 <div class="catp" id="catp" hidden role="dialog" aria-modal="true" aria-labelledby="catT">
   <div class="catbox">
     <div class="cathead"><h2 id="catT">Firmas y equipos</h2><button class="btn small" type="button" id="catClose">Cerrar</button></div>
-    <div class="tabs" role="tablist"><button type="button" role="tab" class="tab on" data-tab="firmas" aria-selected="true">Firmas</button><button type="button" role="tab" class="tab" data-tab="equipos" aria-selected="false">Equipos</button></div>
+    <div class="tabs" role="tablist"><button type="button" role="tab" class="tab on" data-tab="firmas" aria-selected="true">Firmas</button><button type="button" role="tab" class="tab" data-tab="equipos" aria-selected="false">Equipos</button><button type="button" role="tab" class="tab" data-tab="planes" aria-selected="false">Planes de escaneo</button></div>
     <div id="catFirmas"></div>
     <div id="catEquipos" hidden></div>
+    <div id="catPlanes" hidden></div>
   </div>
 </div>
 <div class="catp" id="pastep" hidden role="dialog" aria-modal="true" aria-label="Pegar firma">
@@ -1218,13 +1219,75 @@ function catInit(){
   db.collection("equipos").onSnapshot(sn=>{equipos=sn.docs.map(d=>({id:d.id,...d.data()})).filter(e=>!e.borrado).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"","es"));
     if(!$("catp").hidden&&!$("catEquipos").hidden&&!$("catEquipos").contains(document.activeElement))renderEquipos();
     formItems.forEach((_,i)=>refreshEq(i))},()=>{});
+  db.collection("planes").onSnapshot(sn=>{planes=sn.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.borrado).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"","es"));
+    if(!$("catp").hidden&&!$("catPlanes").hidden&&!$("catPlanes").contains(document.activeElement))renderPlanes();refreshAllPl()},()=>{});
   db.collection("firmas").onSnapshot(sn=>{firmas={};sn.docs.forEach(d=>{const v=d.data();if(!v.borrado)firmas[d.id]=v});if(!$("catp").hidden)renderFirmas();refreshFir()},()=>{});
-  $("btnCat").hidden=readOnly;
+  $("btnCat").hidden=readOnly;$("btnCat").textContent="🖊 Firmas, equipos y planes";
 }
 function abrirCat(tab){$("catp").hidden=false;setTab(tab||"firmas")}
 function setTab(t){document.querySelectorAll("#catp .tab").forEach(b=>{const on=b.dataset.tab===t;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)});
-  $("catFirmas").hidden=t!=="firmas";$("catEquipos").hidden=t!=="equipos";t==="firmas"?renderFirmas():renderEquipos()}
-$("btnCat").addEventListener("click",()=>abrirCat());$("catClose").addEventListener("click",()=>{$("catp").hidden=true});
+  $("catFirmas").hidden=t!=="firmas";$("catEquipos").hidden=t!=="equipos";$("catPlanes").hidden=t!=="planes";t==="firmas"?renderFirmas():t==="equipos"?renderEquipos():renderPlanes()}
+$("btnCat").addEventListener("click",()=>abrirCat());
+// ---------- planes de escaneo (PAUT por soldadura y Scan C de zona sana) ----------
+const PL_TIPOS={LONG:"PAUT · soldaduras longitudinales",CIRC:"PAUT · soldaduras circunferenciales",SCANC:"Scan C · zona sana (0°)"};
+const PL_PAUT=[["palpador","Palpador (referencia)","5L16 A10"],["zapata","Zapata","SA10-N55S"],["angRef","Ángulo de referencia","36,1°"],["frecuencia","Frecuencia (MHz)","5"],["pitch","Pitch (mm)","0,6"],["elemLey","Elementos por ley","16"],["pasoAng","Paso angular","1"],["elem1","Primer elemento","1"],["elemUlt","Último elemento","16"],["angIni","Ángulo inicial","32"],["angFin","Ángulo final","70"],["profFocal","Profundidad focal","19 mm"],["rangoBarrido","Rango de barrido","3,5T"],["ganancia","Ganancia de referencia (dB)","21,1"],["alturaRef","% altura de referencia","80"],["vRef","Velocidad de referencia","3240 m/s"],["bloqueCal","Bloque de calibración","IIW-V1"],["bloqueRef","Bloque de referencia","API 1104"],["reflector","Tipo de reflector","Entallas tipo N10"],["backing","Backing","NO / SI - Platina"],["resolX","Resolución X (mm)","1"]];
+const PL_SCANC=[["palpador","Palpador (referencia)","5L60"],["zapata","Zapata","SA14-0L"],["angRef","Ángulo de referencia","0°"],["frecuencia","Frecuencia (MHz)","5"],["pitch","Pitch (mm)","1"],["elemLey","Elementos por ley","8"],["paso","Paso","1"],["elem1","Primer elemento","1"],["elemUlt","Último elemento","50"],["profFocal","Profundidad focal","19 mm"],["rangoBarrido","Rango de barrido","3T"],["ganancia","Ganancia de referencia (dB)","15"],["alturaRef","% altura de referencia","80"],["vRef","Velocidad de referencia","5920 m/s"],["bloqueCal","Bloque de calibración","IIW"],["reflector","Tipo de reflector","Fondo plano"],["modo","Modo de medición","1er eco / Eco-eco"],["resolXY","Resolución X,Y (mm)","1 x 1"],["axial","Barrido axial (mm)","110"],["perimetral","Barrido perimetral (mm)","1596"]];
+const plCampos=t=>t==="SCANC"?PL_SCANC:PL_PAUT;
+let planes=[];
+const numIn=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)?n:null};
+// cálculos que el informe pide: apertura activa, leyes focales / VPA
+function plCalc(p){const c=p.campos||{},n=k=>numIn(c[k]);
+  if(p.tipo==="SCANC"){const vpa=n("elemUlt")!=null&&n("elemLey")!=null?n("elemUlt")-n("elemLey")+1:null;return[vpa!=null?`VPA: ${vpa}`:"",vpa!=null&&n("pitch")!=null?`Apertura efectiva: ${(vpa*n("pitch")).toFixed(1).replace(".",",")} mm`:""].filter(Boolean)}
+  const ap=n("elemLey")!=null&&n("pitch")!=null?(n("elemLey")*n("pitch")).toFixed(1).replace(".",","):null, lf=n("angIni")!=null&&n("angFin")!=null?n("angFin")-n("angIni")+1:null;
+  return[ap?`Apertura activa: ${ap} mm`:"",lf!=null?`Leyes focales: ${lf}`:""].filter(Boolean)}
+function renderPlanes(){
+  const eqP=equipos.filter(e=>e.tecnica==="PAUT");
+  $("catPlanes").innerHTML=`<p class="note">Cada plan sirve para un rango de espesor y diámetro, un inspector y un equipo. En la actividad la app le propone el plan que cuadra con el punto.</p>`+
+    Object.keys(PL_TIPOS).map(t=>`<div class="eqlist"><div class="eqhead"><span class="label">${PL_TIPOS[t]}</span>${readOnly?"":`<button class="btn small" type="button" data-plnew="${t}">+ Nuevo</button>`}</div>
+      ${planes.filter(p=>p.tipo===t).map(p=>planCard(p,eqP)).join("")||`<p class="note">Sin planes registrados.</p>`}</div>`).join("");
+}
+function planCard(p,eqP){const cs=plCampos(p.tipo);const ins=[...new Set([...INSPECTORES,p.inspector].filter(Boolean))];
+  return`<div class="eqcard" data-plid="${esc(p.id)}"><label class="f"><span class="label">Nombre del plan</span><input class="field" data-k="nombre" value="${esc(p.nombre||"")}" placeholder="Ej: Long. 0,500-0,625 in · 16-20 in"></label>
+    <div class="grid2">
+      <label class="f"><span class="label">Inspector</span><select class="field" data-k="inspector"><option value="">Cualquiera</option>${ins.map(n=>`<option${n===p.inspector?" selected":""}>${esc(n)}</option>`).join("")}</select></label>
+      <label class="f"><span class="label">Equipo</span><select class="field" data-k="equipo"><option value="">Cualquiera</option>${eqP.map(e=>`<option value="${esc(e.id)}"${e.id===p.equipo?" selected":""}>${esc(e.nombre)}</option>`).join("")}</select></label>
+      <label class="f"><span class="label">Espesor desde (pulg)</span><input class="field mono" data-k="espMin" value="${esc(p.espMin||"")}" inputmode="decimal" placeholder="0,500"></label>
+      <label class="f"><span class="label">Espesor hasta (pulg)</span><input class="field mono" data-k="espMax" value="${esc(p.espMax||"")}" inputmode="decimal" placeholder="0,625"></label>
+      <label class="f"><span class="label">Diámetro desde (pulg)</span><input class="field mono" data-k="diaMin" value="${esc(p.diaMin||"")}" inputmode="decimal" placeholder="16"></label>
+      <label class="f"><span class="label">Diámetro hasta (pulg)</span><input class="field mono" data-k="diaMax" value="${esc(p.diaMax||"")}" inputmode="decimal" placeholder="20"></label>
+    </div>
+    <span class="label">Parámetros</span>
+    <div class="grid2">${cs.map(([k,l,ph])=>`<label class="f"><span class="label">${esc(l)}</span><input class="field" data-c="${k}" value="${esc(p.campos?.[k]||"")}" placeholder="${esc(ph)}"></label>`).join("")}</div>
+    ${plCalc(p).length?`<p class="note">${esc(plCalc(p).join(" · "))}</p>`:""}
+    ${readOnly?"":`<div class="row-btns"><button class="btn small ghost" type="button" data-pldel="1">Eliminar</button><button class="btn small" type="button" data-pldup="1">Duplicar</button><button class="btn small primary" type="button" data-plsave="1">Guardar</button></div>`}</div>`}
+let plPara=null;
+async function nuevoPlan(t,base){const id=rid20();const it=plPara&&formItems[plPara.i];
+  await db.collection("planes").doc(id).set({tipo:t,nombre:"",campos:{},inspector:it?inspList(it.inspectores)[0]||"":"",equipo:it?.equipos?.PAUT||"",...(base||{}),modificado:Date.now()});
+  abrirCat("planes");setTimeout(()=>{const c=$("catPlanes").querySelector(`[data-plid="${id}"]`);c?.scrollIntoView?.({block:"start"});c?.querySelector("[data-k=nombre]")?.focus()},120);return id}
+$("catPlanes").addEventListener("click",async e=>{
+  const nw=e.target.closest("[data-plnew]");if(nw){await nuevoPlan(nw.dataset.plnew);return}
+  const card=e.target.closest(".eqcard");if(!card)return;const id=card.dataset.plid;const cur=planes.find(x=>x.id===id)||{};
+  const leer=()=>{const o={campos:{}};card.querySelectorAll("[data-k]").forEach(i=>o[i.dataset.k]=i.value.trim());card.querySelectorAll("[data-c]").forEach(i=>o.campos[i.dataset.c]=i.value.trim());return o};
+  if(e.target.closest("[data-plsave]")){const o=leer();await db.collection("planes").doc(id).set({tipo:cur.tipo,...o,nombre:o.nombre||PL_TIPOS[cur.tipo],modificado:Date.now()});toast("Plan guardado");renderPlanes();
+    if(plPara?.id===id&&formItems[plPara.i]){const it=formItems[plPara.i];it.planes={...(it.planes||{}),[plPara.t]:id};store.set("ultimoPlan_"+plPara.t,id);refreshPl(plPara.i);scheduleDraft();plPara=null;$("catp").hidden=true}}
+  else if(e.target.closest("[data-pldup]")){const o=leer();await nuevoPlan(cur.tipo,{...o,nombre:(o.nombre||"Plan")+" (copia)"})}
+  else if(e.target.closest("[data-pldel]")){const b=e.target.closest("[data-pldel]");if(!b.dataset.ok){b.dataset.ok="1";b.textContent="¿Eliminar? Toca otra vez";return}await db.collection("planes").doc(id).delete();renderPlanes()}
+});
+// en la actividad: qué planes aplican y cuál cuadra mejor con el punto
+const plTiposDe=it=>it.act==="Zona sana"?["SCANC"]:conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")?["LONG","CIRC"]:[];
+function plEncaje(p,it){const esp=numIn(p.tipo==="SCANC"?$("iNom").value:$("iEsp").value), dia=numIn($("iDiam").value), ins=inspList(it.inspectores);
+  const enR=(v,a,b)=>v==null?null:((numIn(a)==null||v>=numIn(a)-1e-6)&&(numIn(b)==null||v<=numIn(b)+1e-6));
+  const r={esp:enR(esp,p.espMin,p.espMax),dia:enR(dia,p.diaMin,p.diaMax),ins:!p.inspector||ins.includes(p.inspector),eq:!p.equipo||!it.equipos?.PAUT||p.equipo===it.equipos.PAUT};
+  r.ok=r.esp!==false&&r.dia!==false&&r.ins&&r.eq;r.score=(r.esp?2:0)+(r.dia?2:0)+(p.inspector&&r.ins?1:0)+(p.equipo&&r.eq?1:0);return r}
+function plDefaults(it){const ts=plTiposDe(it);it.planes={...(it.planes||{})};
+  ts.forEach(t=>{if(it.planes[t])return;const c=planes.filter(p=>p.tipo===t).map(p=>({p,r:plEncaje(p,it)})).filter(x=>x.r.ok).sort((a,b)=>b.r.score-a.r.score);
+    const u=store.get("ultimoPlan_"+t);const pick=c[0]?.p||planes.find(p=>p.id===u);if(pick)it.planes[t]=pick.id})}
+function plHtml(it){const ts=plTiposDe(it);if(!ts.length)return"";
+  return`<span class="label">Plan de escaneo</span>`+ts.map(t=>{const lst=planes.filter(p=>p.tipo===t);const sel=it.planes?.[t]||"";const p=lst.find(x=>x.id===sel);const r=p?plEncaje(p,it):null;
+    const aviso=p?(r.ok?`<span class="sub2">✓ Cuadra con el punto${plCalc(p).length?" · "+esc(plCalc(p).join(" · ")):""}</span>`:`<span class="sub2 lowf">⚠ ${[r.esp===false?"espesor fuera de rango":"",r.dia===false?"diámetro fuera de rango":"",!r.ins?"es de otro inspector":"",!r.eq?"es de otro equipo":""].filter(Boolean).join(", ")}</span>`):"";
+    return`<div class="eqsel"><span class="sub2" style="font-weight:600">${t==="LONG"?"Long.":t==="CIRC"?"Circ.":"Scan C"}</span><div><div class="eqrow"><select class="field" data-pl="${t}" aria-label="Plan ${PL_TIPOS[t]}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el plan…":"Sin planes registrados"}</option>${lst.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-pladd="${t}">+ Nuevo</button>`}</div>${aviso}</div></div>`}).join("")}
+function refreshPl(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;plDefaults(it);const b=card.querySelector(".plbox");if(b)b.innerHTML=plHtml(it)}
+const refreshAllPl=()=>formItems.forEach((_,i)=>refreshPl(i));$("catClose").addEventListener("click",()=>{$("catp").hidden=true});
 document.querySelectorAll("#catp .tab").forEach(b=>b.addEventListener("click",()=>setTab(b.dataset.tab)));
 function renderFirmas(){
   const nombres=[...new Set([...INSPECTORES,...Object.values(firmas).map(f=>f.nombre).filter(Boolean)])];
@@ -1302,6 +1365,8 @@ function eqCard(e){const cs=EQ_CAMPOS[e.tecnica]||[];
 let eqPara=null;// actividad que pidió el equipo nuevo
 async function nuevoEquipo(t){const id=rid20();await db.collection("equipos").doc(id).set({tecnica:t,nombre:"",campos:{},modificado:Date.now()});
   abrirCat("equipos");setTimeout(()=>{const c=$("catEquipos").querySelector(`[data-eqid="${id}"]`);c?.scrollIntoView?.({block:"center"});c?.querySelector("[data-k=nombre]")?.focus()},120);return id}
+$("itemsBox").addEventListener("click",async e=>{const b=e.target.closest("[data-pladd]");if(!b)return;const i=+b.closest(".itcard").dataset.i;
+  plPara={i,t:b.dataset.pladd};plPara.id=await nuevoPlan(b.dataset.pladd)});
 $("itemsBox").addEventListener("click",async e=>{const b=e.target.closest("[data-eqadd]");if(!b)return;const i=+b.closest(".itcard").dataset.i;
   const id=await nuevoEquipo(b.dataset.eqadd);eqPara={i,t:b.dataset.eqadd,id}});
 $("catEquipos").addEventListener("click",async e=>{
@@ -1611,6 +1676,7 @@ function itemHtml(it,i){it=it||{};
   <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
   <div class="h0box repbox"${conTec(it.act)?"":" hidden"}>${conTec(it.act)?h0Html(it):""}</div>
   <div class="eqbox repbox">${eqHtml(it)}</div>
+  <div class="eqbox plbox repbox">${plHtml(it)}</div>
   <div class="fotobox repbox">${fotosHtml(it,i)}</div>
   <div class="zsbox repbox" data-k="${esc(zsAreas(it.reparacion).join("|"))}"${it.act==="Zona sana"?"":" hidden"}>${it.act==="Zona sana"?zsHtml(it):""}</div>
   <div class="itrep"${i===active?" hidden":""}>${repSummaryHtml(it,i)}</div>
@@ -1840,10 +1906,11 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   // si el esquema era el sugerido para la actividad anterior (o no había), se cambia al de la nueva actividad
   if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
   if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
-  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i)}
+  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i);refreshPl(i)}
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
-  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i)}
-  if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value)}
+  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i)}
+  if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
+  if(e.target.dataset.pl){const it=formItems[i];it.planes={...(it.planes||{}),[e.target.dataset.pl]:e.target.value};if(e.target.value)store.set("ultimoPlan_"+e.target.dataset.pl,e.target.value);refreshPl(i)}
 });
 $("itemsBox").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.otroinsp!=null){e.preventDefault();e.target.blur()}});
 // si cambia la fecha del punto, las actividades que tenían esa misma fecha de inspección la siguen
@@ -1855,6 +1922,7 @@ $("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing(
 // el cálculo de 0 horas depende del diámetro, el espesor y el tipo de camisa del punto
 ["iDiam","iEsp","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>{syncCards();formItems.forEach((_,i)=>refreshH0(i))}));
 ["iSistema","iLinea","iLineaOtra","iDiam","iPk","iCoord","iCoordPatio"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>refreshAllFotos())));
+["iEsp","iNom","iDiam"].forEach(id=>$(id).addEventListener("change",()=>refreshAllPl()));
 ["iEsp","iMat","iNom","iMatTub"].forEach(id=>$(id).addEventListener("change",()=>{if(!$("drawWrap").hidden)updateDrawing()}));
 // al escoger el tipo de reparación general se sugiere el esquema de las actividades que aún no tienen
 $("iTipoRep").addEventListener("change",()=>{
@@ -2108,7 +2176,7 @@ const utf8b64=str=>btoa(unescape(encodeURIComponent(str)));
 const fotoIds=d=>{const out=[];const w=o=>{if(!o||typeof o!=="object")return;if(Array.isArray(o)){o.forEach(w);return}
   for(const[k,v]of Object.entries(o)){if(k==="id"&&typeof v==="string"&&/^[0-9a-f]{32}$/.test(v))out.push(v);else w(v)}};w(d);return out};
 // colecciones que se sincronizan y su carpeta en el repositorio
-const COLS={trabajos:"puntos",equipos:"equipos",firmas:"firmas"};
+const COLS={trabajos:"puntos",equipos:"equipos",firmas:"firmas",planes:"planes"};
 const keyOf=(col,id)=>col==="trabajos"?id:col+"/"+id;
 const tipoImg=buf=>{const b=new Uint8Array(buf.slice(0,4));return b[0]===0x89&&b[1]===0x50?"image/png":"image/jpeg"};
 const modOf=d=>d?.modificado||d?.creado||0;
