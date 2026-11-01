@@ -194,6 +194,7 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .eqlist{display:grid;gap:8px}
 .eqbox{display:grid;gap:8px}
 .eqsel{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
+.eqrow{display:flex;gap:6px;min-width:0}.eqrow select{flex:1;min-width:0}
 .fpick{cursor:default;gap:6px;padding:22px 6px 6px}
 .fbtn{font:inherit;font-size:.78rem;font-weight:600;width:100%;max-width:120px;min-height:34px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
 .fbtn:active{transform:translateY(1px)}
@@ -1192,7 +1193,7 @@ let equipos=[], firmas={};
 const tecsDe=it=>it.act==="Biseles"?["PT"]:conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
 function eqHtml(it){const ts=tecsDe(it);if(!ts.length)return"";
   return`<span class="label">Equipos y consumibles usados</span>`+ts.map(t=>{const lst=equipos.filter(e=>e.tecnica===t);const sel=it.equipos?.[t]||"";
-    return`<label class="eqsel"><span class="sub2" style="font-weight:600">${t}</span><select class="field" data-eq="${t}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el equipo…":"Sin equipos: agréguelos en 🖊 Firmas y equipos"}</option>${lst.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nombre||"Sin nombre")}</option>`).join("")}</select></label>`}).join("");}
+    return`<div class="eqsel"><span class="sub2" style="font-weight:600">${t}</span><div class="eqrow"><select class="field" data-eq="${t}" aria-label="Equipo ${t}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el equipo…":"Sin equipos registrados"}</option>${lst.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-eqadd="${t}">+ Nuevo</button>`}</div></div>`}).join("");}
 // al marcar una técnica se propone el último equipo usado para esa técnica
 function eqDefaults(it){const ts=tecsDe(it);let ch=false;it.equipos={...(it.equipos||{})};
   ts.forEach(t=>{if(!it.equipos[t]){const u=store.get("ultimoEq_"+t);const lst=equipos.filter(e=>e.tecnica===t);const pick=lst.find(e=>e.id===u)||(lst.length===1?lst[0]:null);if(pick){it.equipos[t]=pick.id;ch=true}}});return ch}
@@ -1267,13 +1268,19 @@ function eqCard(e){const cs=EQ_CAMPOS[e.tecnica]||[];
   return`<div class="eqcard" data-eqid="${esc(e.id)}"><label class="f"><span class="label">Nombre para reconocerlo</span><input class="field" data-k="nombre" value="${esc(e.nombre||"")}" placeholder="Ej: Kit Met-L-Chek lote 18394"></label>
     <div class="grid2">${cs.map(([k,l,ph])=>`<label class="f"><span class="label">${esc(l)}</span><input class="field" data-k="${k}" value="${esc(e.campos?.[k]||"")}" placeholder="${esc(ph)}"></label>`).join("")}</div>
     ${readOnly?"":`<div class="row-btns"><button class="btn small ghost" type="button" data-eqdel="1">Eliminar</button><button class="btn small" type="button" data-eqdup="1">Duplicar</button><button class="btn small primary" type="button" data-eqsave="1">Guardar</button></div>`}</div>`}
+let eqPara=null;// actividad que pidió el equipo nuevo
+async function nuevoEquipo(t){const id=rid20();await db.collection("equipos").doc(id).set({tecnica:t,nombre:"",campos:{},modificado:Date.now()});
+  abrirCat("equipos");setTimeout(()=>{const c=$("catEquipos").querySelector(`[data-eqid="${id}"]`);c?.scrollIntoView?.({block:"center"});c?.querySelector("[data-k=nombre]")?.focus()},120);return id}
+$("itemsBox").addEventListener("click",async e=>{const b=e.target.closest("[data-eqadd]");if(!b)return;const i=+b.closest(".itcard").dataset.i;
+  const id=await nuevoEquipo(b.dataset.eqadd);eqPara={i,t:b.dataset.eqadd,id}});
 $("catEquipos").addEventListener("click",async e=>{
   const nw=e.target.closest("[data-eqnew]");
   if(nw){const id=rid20();const t=nw.dataset.eqnew;await db.collection("equipos").doc(id).set({tecnica:t,nombre:"",campos:{},modificado:Date.now()});renderEquipos();
     setTimeout(()=>$("catEquipos").querySelector(`[data-eqid="${id}"] [data-k=nombre]`)?.focus(),50);return}
   const card=e.target.closest(".eqcard");if(!card)return;const id=card.dataset.eqid;const cur=equipos.find(x=>x.id===id)||{};
   const leer=()=>{const o={campos:{}};card.querySelectorAll("[data-k]").forEach(i=>{if(i.dataset.k==="nombre")o.nombre=i.value.trim();else o.campos[i.dataset.k]=i.value.trim()});return o};
-  if(e.target.closest("[data-eqsave]")){const o=leer();await db.collection("equipos").doc(id).set({tecnica:cur.tecnica,...o,nombre:o.nombre||(EQ_NOM[cur.tecnica]+" sin nombre"),modificado:Date.now()});toast("Equipo guardado");renderEquipos()}
+  if(e.target.closest("[data-eqsave]")){const o=leer();await db.collection("equipos").doc(id).set({tecnica:cur.tecnica,...o,nombre:o.nombre||(EQ_NOM[cur.tecnica]+" sin nombre"),modificado:Date.now()});toast("Equipo guardado");renderEquipos();
+    if(eqPara?.id===id&&formItems[eqPara.i]){const it=formItems[eqPara.i];it.equipos={...(it.equipos||{}),[eqPara.t]:id};store.set("ultimoEq_"+eqPara.t,id);refreshEq(eqPara.i);scheduleDraft();eqPara=null;$("catp").hidden=true}}
   else if(e.target.closest("[data-eqdup]")){const o=leer();const nid=rid20();await db.collection("equipos").doc(nid).set({tecnica:cur.tecnica,...o,nombre:(o.nombre||"Equipo")+" (copia)",modificado:Date.now()});renderEquipos()}
   else if(e.target.closest("[data-eqdel]")){const b=e.target.closest("[data-eqdel]");if(!b.dataset.ok){b.dataset.ok="1";b.textContent="¿Eliminar? Toca otra vez";return}await db.collection("equipos").doc(id).delete();renderEquipos()}
 });
