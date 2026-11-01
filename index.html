@@ -178,6 +178,9 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .fimg .num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:.7rem;font-weight:700;border-radius:4px;padding:1px 5px}
 .fimg .busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.8);color:#1d2621;font-weight:600}
 .fimg[disabled]{cursor:default}
+.fpick{cursor:default;gap:6px;padding:22px 6px 6px}
+.fbtn{font:inherit;font-size:.78rem;font-weight:600;width:100%;max-width:120px;min-height:34px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
+.fbtn:active{transform:translateY(1px)}
 .fcap{font-size:.8rem;padding:6px 8px;min-height:32px}
 .fview{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px}
 .fview[hidden]{display:none}
@@ -415,7 +418,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 <datalist id="dlCiudad"></datalist>
 <datalist id="dlBase"></datalist>
 <div class="toast" id="toast" hidden></div>
-<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvStamp">Quitar estampado</button><button class="btn" type="button" id="fvChange">Cambiar foto</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
+<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvStamp">Quitar estampado</button><button class="btn" type="button" id="fvChange">📷 Cambiar (cámara)</button><button class="btn" type="button" id="fvChangeG">🖼 Cambiar (galería)</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
 
 <script>
 (function(){
@@ -431,7 +434,7 @@ const SISTEMAS=["Oleoducto","Poliducto","Propanoducto","Jetducto","Gasoducto","C
 const LINEAS=["Caño Limón - Coveñas","Caño Limón - Ayacucho","Albán - Mansilla","Villeta - Albán","Sebastopol - Santa Rosa","Santa Rosa - Tocancipá","Sutamarchán - Monterrey","Sutamarchán - Tocancipá","Galán - Chimitá","Galán - Sebastopol","Galán - Salgar","Monterrey - Apiay","Monterrey - Porvenir","Sebastopol - Salgar","Sebastopol - Sutamarchán","Salgar - Mansilla","Salgar - Guaduero","Mansilla - Puente Aranda","Puente Aranda - El Dorado","Vasconia - CIB"];
 const DIAMETROS=["4","6","8","10","12","14","16","18","20","24","30","36","42"];
 const NOMINALES=[...new Set(["0,219","0,250","0,277","0,280",...ESPESORES])].sort((a,b)=>parseFloat(a.replace(",","."))-parseFloat(b.replace(",",".")));
-const INSPECTORES=["Julián Duarte Alferez","Oscar Mauricio Rueda","Jorge Humberto Guzmán","Pablo Díaz","Raul Duarte","Gustavo Navarrete","John Otalvarez","Eder Alexon Jacome Torrado","Fabian Chaparro","William Riveros","Bernardo Merchán Salazar","Yair A. Jácome Torrado","Ferney Caceres"];
+const INSPECTORES=["Julián Duarte Alferez","Oscar Mauricio Rueda","Jorge Humberto Guzmán","Pablo Stevinson Díaz Ríos","Raul Duarte","Gustavo Navarrete","John Otalvarez","Eder Alexon Jacome Torrado","Fabian Chaparro","William Riveros","Bernardo Merchán Salazar","Yair A. Jácome Torrado","Ferney Caceres"];
 const inspList=s=>String(s||"").split(/[,/]/).map(x=>x.trim()).filter(Boolean);
 // Tipos de reparación y sus parámetros
 const REPS={
@@ -512,6 +515,9 @@ const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},se
 // Los registros antiguos (una actividad por registro) se leen convirtiéndolos a este formato.
 function norm(r){
   let x=r;
+  // el inspector "Pablo Díaz" pasa a llamarse con su nombre completo
+  const PD=v=>typeof v==="string"?v.replace(/\bPablo D[ií]az\b(?!\s+R)/g,"Pablo Stevinson Díaz Ríos"):v;
+  if(Array.isArray(x.items)&&x.items.some(it=>/Pablo D[ií]az\b(?!\s+R)/.test((it.inspectores||"")+"|"+(it.entregaQuien||""))))x={...x,items:x.items.map(it=>({...it,inspectores:PD(it.inspectores),entregaQuien:PD(it.entregaQuien)}))};
   if(!Array.isArray(x.items)){
     const acts=(x.actividades&&x.actividades.length)?x.actividades:["Otra"];
     x={...x,items:acts.map(a=>({act:a,consecutivo:x.consecutivo||"",inspectores:x.inspectores||"",entregaFecha:x.entregaFecha||"",entregaQuien:x.entregaQuien||"",novedad:!!x.novedad,observaciones:x.observaciones||""}))};
@@ -924,7 +930,7 @@ function rowHtml(r){
     const repCell=rp?`<div class="actrep"><button class="thumb" type="button" data-edit="${esc(r.id)}" data-i="${i}" aria-label="Ver esquema: ${esc(repLabel(rp))}">${drawRepair(rp,r,PAL_VAR,true)}</button><span class="sub2">${esc(repLabel(rp))}</span>${zsTxt}${(c=>c&&!c.ok?`<span class="warnline">⚠ Longitud total no cuadra con las piezas</span>`:"")(checkLen(rp))}</div>`:`<span class="muted">Sin esquema</span>${zsTxt}`;
     return `<div class="act ${st==="vencido"?"late":""}">
       <div class="cell"><span class="chip ${actClass(it.act)}">${esc(it.act)}</span></div>
-      <div class="cell">${esc(it.inspectores||"—")}${fotoSub(it)}${it.inspFecha&&it.inspFecha!==r.fecha?`<span class="sub2">Inspección: ${dmy(it.inspFecha)}</span>`:""}${h0Sub(it)}</div>
+      <div class="cell">${esc(it.inspectores||"—")}${fotoSub(it,r.tipoReparacion==="Camisa Tipo A")}${it.inspFecha&&it.inspFecha!==r.fecha?`<span class="sub2">Inspección: ${dmy(it.inspFecha)}</span>`:""}${h0Sub(it)}</div>
       <div class="cell">${repCell}</div>
       <div class="cell state">${itStateHtml(r,it)}</div>
       <div class="rowacts">${deliver}</div>${obs}</div>`}).join("");
@@ -1157,8 +1163,28 @@ const own=i=>i==="P"?puntoF:formItems[i];
 const foOf=el=>{const v=el.closest("[data-fo]")?.dataset.fo;return v==="P"?"P":+v};
 const FOTO_PT=["Medición de la temperatura","Medición de intensidad de luz","Aplicación penetrante","Aplicación penetrante","Aplicación revelador","Aplicación revelador"];
 const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
-function fotoGrupos(it){
+// juntas del esquema para las imágenes PAUT: longitudinales (lado superior / inferior) y circunferenciales (lados según qué une)
+function juntasPAUT(rep,tipoA){
+  const L=(n,pre)=>[`${pre}L1`,`${pre}L2`].forEach(id=>{out.push(`${id} · Lado superior`,`${id} · Lado inferior`)});
+  const C=(id,a,b)=>out.push(`${id} · ${a}`,`${id} · ${b}`);
+  const out=[];const t=rep?.tipo;
+  if(t==="Camisa directa"){L(1,"");if(!tipoA){C("C1","Lado camisa","Lado tubo");C("C2","Lado camisa","Lado tubo")}}
+  else if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,12),sb=d-1;
+    for(let i=1;i<=d+sb;i++)L(i,`S${i}`);
+    let n=1;if(!tipoA){C("C1","Lado camisa","Lado tubo");C("C2","Lado camisa","Lado tubo");n=3}
+    for(let j=0;j<sb;j++){C(`C${n+2*j}`,"Lado sobrecamisa","Lado camisa");C(`C${n+2*j+1}`,"Lado sobrecamisa","Lado camisa")}}
+  else if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"){L(1,"A1 ");L(1,"A2 ");L(1,"SC ");
+    let n=1;if(!tipoA){C("C1","Lado anillo","Lado tubo");C("C2","Lado anillo","Lado tubo");n=3}
+    C(`C${n}`,"Lado sobre camisa","Lado anillo");C(`C${n+1}`,"Lado sobre camisa","Lado anillo")}
+  else if(t==="Camisa puenteada"){L(1,"");C("C1","Lado sobre camisa","Lado camisa existente");C("C2","Lado sobre camisa","Lado camisa existente")}
+  return out;
+}
+function fotoGrupos(it,tipoA=tipoAForm()){
   const g=[];
+  if(it.act==="Zona sana"&&it.reparacion?.tipo){const a=zsAreas(it.reparacion);g.push({k:"ZSI",t:"Imágenes de inspección zona sana",caps:a,min:a.length,fixed:true,byCap:true,sinEstampe:true})}
+  if(conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")){const j=juntasPAUT(it.reparacion,tipoA);
+    if(j.length)g.push({k:"PAUTI",t:"Imágenes PAUT por junta",caps:j,min:j.length,fixed:true,byCap:true,sinEstampe:true});
+    else g.push({k:"PAUTI",t:"Imágenes PAUT por junta",caps:[],min:0,fixed:true,byCap:true,sinEstampe:true,nota:"Escoge el esquema de la camisa para ver sus juntas."})}
   if(it.act==="__punto")return[
     {k:"UBC",t:"Ubicación en campo",caps:["Ubicación en campo (sitio)"],min:1,ubi:"campo",fixed:true},
     {k:"UBP",t:"Ubicación en patio",caps:["Ubicación en patio"],min:1,ubi:"patio",fixed:true},
@@ -1172,7 +1198,9 @@ function fotoGrupos(it){
   } else g.push({k:"GEN",t:"Fotos",caps:["",""],min:0});
   return g;
 }
-function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];const n=Math.max(gr.caps.length,cur.length);
+function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
+  if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
+  const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
 const LOCAL=!!window.__LOCAL;
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1183,9 +1211,11 @@ function fotosHtml(it,i,only){
   return gs.map(gr=>{const sl=fotoSlots(it,gr), n=sl.filter(s=>s.id).length;
     return`<div class="fgrp"><div class="fhead"><span class="label">${esc(gr.t)}</span><span class="cnt${gr.min&&n<gr.min?" low":""}">${n}${gr.min?` de ${gr.min} mínimo`:n===1?" foto":" fotos"}</span></div>
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
-      return`<div class="fslot${s.id?" has":""}"><button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}"${!s.id&&!can?" disabled":""} aria-label="${s.id?"Ver":"Tomar"} foto ${j+1}">${s.id?`<img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k))}`:`<span class="cam" aria-hidden="true">📷</span><span>${can?(gr.ubi?"📍 Tomar foto":"Tomar foto"):"Sin foto"}</span>`}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>
-      ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
-      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}" value="${esc(s.cap)}" placeholder="Descripción de la foto" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}></div>`}).join("")}</div>
+      const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button></div>`
+        :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
+      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${gr.sinEstampe?"":stampHtml(s,lugarDe(i,gr.k))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
+      ${s.id&&s.raw&&!readOnly&&!gr.sinEstampe?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
+      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}" value="${esc(s.cap)}" placeholder="Descripción de la foto" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}${gr.byCap?" readonly":""}></div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
 function refreshFotos(i){
@@ -1193,9 +1223,10 @@ function refreshFotos(i){
   const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return; const b=card.querySelector(".fotobox"); if(b)b.innerHTML=fotosHtml(it,i)}
 function setFoto(i,k,j,patch){const it=own(i);if(!it)return;it.fotos={...(it.fotos||{})};
   const gr=fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]};const sl=fotoSlots(it,gr);while(sl.length<=j)sl.push({cap:"",id:null});
-  sl[j]={...sl[j],...patch};it.fotos[k]=sl;}
-function fotoSub(it){const gs=fotoGrupos(it).filter(g=>g.min||((it.fotos||{})[g.k]||[]).some(f=>f?.id));if(!gs.length)return"";
-  const parts=gs.map(g=>{const n=((it.fotos||{})[g.k]||[]).filter(f=>f?.id).length;return{t:`${g.k==="GEN"?"Fotos":g.k} ${n}${g.min?"/"+g.min:""}`,low:g.min&&n<g.min}});
+  sl[j]={...sl[j],...patch};
+  if(gr.byCap){const otros=((it.fotos||{})[k]||[]).filter(x=>x&&!gr.caps.includes(x.cap));it.fotos[k]=[...sl,...otros]}else it.fotos[k]=sl;}
+function fotoSub(it,tipoA){const gs=fotoGrupos(it,tipoA).filter(g=>g.min||((it.fotos||{})[g.k]||[]).some(f=>f?.id));if(!gs.length)return"";
+  const NOM={GEN:"Fotos",ZSI:"Imág. ZS",PAUTI:"Imág. PAUT"};const parts=gs.map(g=>{const n=fotoSlots(it,g).filter(f=>f?.id).length;return{t:`${NOM[g.k]||g.k} ${n}${g.min?"/"+g.min:""}`,low:g.min&&n<g.min}});
   return`<span class="sub2${parts.some(p=>p.low)?" lowf":""}">📷 ${esc(parts.map(p=>p.t).join(" · "))}</span>`}
 // reduce la foto a 2560 px por el lado mayor (JPEG 88 %): buena resolución para el informe y subida razonable
 async function achicar(file){
@@ -1293,7 +1324,8 @@ function estampar(g,W,H,lines){
 }
 const fileIn=document.createElement("input");fileIn.type="file";fileIn.accept="image/*";fileIn.hidden=true;document.body.appendChild(fileIn);
 let fotoTarget=null;
-function pedirFoto(i,k,j){if(!assets||readOnly)return;fotoTarget={i,k,j};fileIn.value="";fileIn.click()}
+function pedirFoto(i,k,j,modo){if(!assets||readOnly)return;fotoTarget={i,k,j};fileIn.value="";
+  if(modo==="cam")fileIn.setAttribute("capture","environment");else fileIn.removeAttribute("capture");fileIn.click()}
 fileIn.addEventListener("change",async()=>{
   const f=fileIn.files?.[0], t=fotoTarget; if(!f||!t)return; const key=`${t.i}|${t.k}|${t.j}`;
   subiendo.add(key);refreshFotos(t.i);
@@ -1303,7 +1335,7 @@ fileIn.addEventListener("change",async()=>{
     let r;try{r=await assets.upload(blob,{type:"image/jpeg"})}catch(e){if(e?.code==="store_unavailable"){await new Promise(z=>setTimeout(z,1500));r=await assets.upload(blob,{type:"image/jpeg"})}else throw e}
     const prev=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.id;
     if(prev)fotosQuitadas.add(prev);
-    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps});scheduleDraft();
+    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"?{noStamp:true}:{})});scheduleDraft();
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
       if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo,t.k)}
@@ -1353,13 +1385,14 @@ function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find
   fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
   $("fvStamp").hidden=!s.raw||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
-  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
+  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;if(k==="ZSI"||k==="PAUTI"){$("fvStamp").hidden=true;st.hidden=true}$("fview").hidden=false;$("fvClose").focus()}
 $("fvClose").addEventListener("click",()=>{$("fview").hidden=true});
 // fotos que ya vienen estampadas (p. ej. Timestamp Camera): se puede apagar el estampado de la app en esa foto
 $("fvStamp").addEventListener("click",()=>{const t=fvT;if(!t)return;const it=own(t.i);
   const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j];if(!s?.id)return;
   setFoto(t.i,t.k,t.j,{noStamp:!s.noStamp});scheduleDraft();refreshFotos(t.i);verFoto(t.i,t.k,t.j)});
-$("fvChange").addEventListener("click",()=>{$("fview").hidden=true;if(fvT)pedirFoto(fvT.i,fvT.k,fvT.j)});
+$("fvChange").addEventListener("click",()=>{$("fview").hidden=true;if(fvT)pedirFoto(fvT.i,fvT.k,fvT.j,"cam")});
+$("fvChangeG").addEventListener("click",()=>{$("fview").hidden=true;if(fvT)pedirFoto(fvT.i,fvT.k,fvT.j,"gal")});
 $("fvDel").addEventListener("click",()=>{const b=$("fvDel");if(!b.dataset.confirm){b.dataset.confirm="1";b.textContent="¿Quitar? Toca otra vez";setTimeout(()=>{b.dataset.confirm="";b.textContent="Quitar foto"},3500);return}
   b.dataset.confirm="";b.textContent="Quitar foto";const t=fvT;if(!t)return;const it=own(t.i);
   const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j];if(s?.id)fotosQuitadas.add(s.id);
@@ -1493,7 +1526,7 @@ function updateDrawing(){
   if(rep)$("drawing").innerHTML=drawRepair(rep,metaForm(),PAL_VAR,false);
   $("btnImg").hidden=!rep||!downloads;
   updateLtCheck(rep);
-  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;refreshZs(active);refreshH0(active)}
+  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>refreshFotos(active),400)}
 }
 function updateTermHint(){
   const term=$("iPunto").value==="Terminado";
@@ -1607,6 +1640,8 @@ $("iPunto").addEventListener("change",updateTermHint);
 $("iTerm").addEventListener("input",updateTermHint);
 $("btnAddItem").addEventListener("click",addItem);
 $("form").addEventListener("click",e=>{
+  const fcm=e.target.closest("[data-fcam],[data-fgal]");
+  if(fcm){pedirFoto(foOf(fcm),fcm.dataset.fcam||fcm.dataset.fgal,+fcm.dataset.j,fcm.dataset.fcam?"cam":"gal");return}
   const tg=e.target.closest("[data-fstog]");
   if(tg){const i=foOf(tg),k=tg.dataset.fstog,j=+tg.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];
     if(s?.id){setFoto(i,k,j,{noStamp:!s.noStamp});refreshFotos(i);scheduleDraft()}return}
