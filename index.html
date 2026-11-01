@@ -190,6 +190,9 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .firbox{display:grid;gap:6px;margin-top:6px}.firbox:empty{display:none}
 .firline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .fiimg.sm{height:40px;width:110px;flex:none}.fiimg.sm img{max-height:36px}
+#pasteZone{min-height:140px;border:2px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg);font-weight:600;outline:none;overflow:hidden}
+#pasteZone:focus{border-color:var(--ink,#16324a)}
+#pasteZone img{max-height:120px}
 #pad{width:100%;height:auto;aspect-ratio:900/360;background:#fff;border:1px solid var(--line);border-radius:6px;touch-action:none}
 .row-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .eqcard{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px}
@@ -445,6 +448,13 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
     <div class="tabs" role="tablist"><button type="button" role="tab" class="tab on" data-tab="firmas" aria-selected="true">Firmas</button><button type="button" role="tab" class="tab" data-tab="equipos" aria-selected="false">Equipos</button></div>
     <div id="catFirmas"></div>
     <div id="catEquipos" hidden></div>
+  </div>
+</div>
+<div class="catp" id="pastep" hidden role="dialog" aria-modal="true" aria-label="Pegar firma">
+  <div class="catbox"><div class="cathead"><h2 id="pasteT">Pegar firma</h2></div>
+    <p class="note">En Excel haga clic sobre la imagen de la firma y cópiela (Ctrl+C). Luego toque el recuadro y pegue: <b>Ctrl+V</b> en el PC, o mantenga el dedo y toque <b>Pegar</b> en el celular.</p>
+    <div id="pasteZone" contenteditable="true" tabindex="0" aria-label="Zona para pegar la firma">Toque aquí y pegue</div>
+    <div class="row-btns"><button class="btn" type="button" id="pasteCancel">Cancelar</button></div>
   </div>
 </div>
 <div class="catp" id="padp" hidden role="dialog" aria-modal="true" aria-label="Dibujar firma">
@@ -1221,7 +1231,7 @@ function renderFirmas(){
   const can=!!assets&&!readOnly;
   $("catFirmas").innerHTML=`<p class="note">La firma de cada inspector se usa en los informes. Puede subir una foto de la firma en papel blanco (se le quita el fondo sola) o dibujarla con el dedo.</p>`+
     nombres.map(n=>{const f=firmas[slug(n)];return`<div class="firow"><div class="nm">${esc(n)}</div><div class="fiimg">${f?.img?.id?`<img src="${esc(fotoSrc(f.img.id))}" alt="Firma de ${esc(n)}">`:"Sin firma"}</div>
-      ${can?`<div class="acts"><button class="btn small" type="button" data-fsub="${esc(n)}">🖼 Subir foto</button><button class="btn small" type="button" data-fdib="${esc(n)}">✍ Dibujar</button>${f?.img?.id?`<button class="btn small ghost" type="button" data-fdel="${esc(n)}">Quitar</button>`:""}</div>`:""}</div>`}).join("")+
+      ${can?`<div class="acts"><button class="btn small" type="button" data-fpeg="${esc(n)}">📋 Pegar</button><button class="btn small" type="button" data-fsub="${esc(n)}">🖼 Subir foto</button><button class="btn small" type="button" data-fdib="${esc(n)}">✍ Dibujar</button>${f?.img?.id?`<button class="btn small ghost" type="button" data-fdel="${esc(n)}">Quitar</button>`:""}</div>`:""}</div>`}).join("")+
     (assets?"":`<p class="note">Para subir firmas necesitas permiso de edición en esta página.</p>`);
 }
 // foto de la firma → PNG con fondo transparente y recortado
@@ -1244,9 +1254,25 @@ async function guardarFirma(nombre,png){
 }
 const firmaIn=document.createElement("input");firmaIn.type="file";firmaIn.accept="image/*";firmaIn.hidden=true;document.body.appendChild(firmaIn);let firmaDe="";
 firmaIn.addEventListener("change",async()=>{const f=firmaIn.files?.[0];if(!f)return;try{await guardarFirma(firmaDe,await limpiarFirma(f))}catch(e){toast("No se pudo leer la imagen.")}});
-$("itemsBox").addEventListener("click",e=>{const b=e.target.closest(".firbox [data-fsub],.firbox [data-fdib]");if(!b)return;
+$("itemsBox").addEventListener("click",e=>{const b=e.target.closest(".firbox [data-fsub],.firbox [data-fdib],.firbox [data-fpeg]");if(!b)return;
+  if(b.dataset.fpeg){pegarFirma(b.dataset.fpeg);return}
   if(b.dataset.fsub){firmaDe=b.dataset.fsub;firmaIn.value="";firmaIn.click()}else abrirPad(b.dataset.fdib)});
-$("catFirmas").addEventListener("click",async e=>{const b=e.target.closest("[data-fsub],[data-fdib],[data-fdel]");if(!b)return;
+// pegar la firma copiada desde Excel (u otro programa)
+let pegarDe="";
+async function pegarFirma(n){pegarDe=n;
+  // si el navegador deja leer el portapapeles, se toma directo
+  try{if(navigator.clipboard?.read){const its=await navigator.clipboard.read();for(const it of its){const t=it.types.find(x=>x.startsWith("image/"));if(t){await guardarFirma(n,await limpiarFirma(await it.getType(t)));return}}}}catch(e){}
+  $("pasteT").textContent="Pegar firma de "+n;$("pasteZone").innerHTML="Toque aquí y pegue";$("pastep").hidden=false;setTimeout(()=>$("pasteZone").focus(),50)}
+$("pasteCancel").addEventListener("click",()=>{$("pastep").hidden=true});
+$("pasteZone").addEventListener("paste",async e=>{e.preventDefault();
+  const its=[...(e.clipboardData?.items||[])];const im=its.find(i=>i.type.startsWith("image/"));
+  let blob=im?.getAsFile();
+  // algunas copias de Excel traen la imagen solo dentro del HTML
+  if(!blob){const h=e.clipboardData.getData("text/html");const m=h&&h.match(/src="(data:image\/[^"]+)"/);if(m)blob=await (await fetch(m[1])).blob()}
+  if(!blob){$("pasteZone").textContent="Lo que copió no es una imagen. En Excel haga clic sobre la firma (que se marque la imagen) y copie.";return}
+  $("pastep").hidden=true;await guardarFirma(pegarDe,await limpiarFirma(blob))});
+$("catFirmas").addEventListener("click",async e=>{const b=e.target.closest("[data-fsub],[data-fdib],[data-fdel],[data-fpeg]");if(!b)return;
+  if(b.dataset.fpeg){pegarFirma(b.dataset.fpeg);return}
   if(b.dataset.fsub){firmaDe=b.dataset.fsub;firmaIn.value="";firmaIn.click()}
   else if(b.dataset.fdib)abrirPad(b.dataset.fdib);
   else if(b.dataset.fdel){if(!b.dataset.ok){b.dataset.ok="1";b.textContent="¿Quitar? Toca otra vez";return}
@@ -1568,7 +1594,7 @@ function inspBoxHtml(v){
 }
 // firma de cada inspector escogido, con botones para subirla o dibujarla ahí mismo
 function firBoxHtml(v){const ns=inspList(v);if(!ns.length)return"";const can=!!assets&&!readOnly;
-  return ns.map(n=>{const f=firmas[slug(n)];return`<div class="firline"><span class="fiimg sm">${f?.img?.id?`<img src="${esc(fotoSrc(f.img.id))}" alt="Firma de ${esc(n)}">`:"Sin firma"}</span><span class="sub2">${esc(n)}</span>${can?`<button class="btn small" type="button" data-fsub="${esc(n)}">🖼 ${f?.img?.id?"Cambiar":"Subir firma"}</button><button class="btn small" type="button" data-fdib="${esc(n)}">✍ Dibujar</button>`:""}</div>`}).join("")}
+  return ns.map(n=>{const f=firmas[slug(n)];return`<div class="firline"><span class="fiimg sm">${f?.img?.id?`<img src="${esc(fotoSrc(f.img.id))}" alt="Firma de ${esc(n)}">`:"Sin firma"}</span><span class="sub2">${esc(n)}</span>${can?`<button class="btn small" type="button" data-fpeg="${esc(n)}">📋 Pegar</button><button class="btn small" type="button" data-fsub="${esc(n)}">🖼 ${f?.img?.id?"Cambiar":"Subir"}</button><button class="btn small" type="button" data-fdib="${esc(n)}">✍ Dibujar</button>`:""}</div>`}).join("")}
 function refreshFir(){document.querySelectorAll("#itemsBox .itcard").forEach(c=>{const h=c.querySelector('[data-f="inspectores"]'),b=c.querySelector(".firbox");if(h&&b)b.innerHTML=firBoxHtml(h.value)})}
 function setInsp(card,list){const h=card.querySelector('[data-f="inspectores"]');h.value=[...new Set(list)].join(", ");card.querySelector(".inspbox").innerHTML=inspBoxHtml(h.value);card.querySelector(".firbox").innerHTML=firBoxHtml(h.value);syncCards();scheduleDraft?.()}
 function itemHtml(it,i){it=it||{};
