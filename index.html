@@ -1785,11 +1785,11 @@ $("btnPaquete").addEventListener("click",async()=>{
     const p2=n=>String(n).padStart(2,"0"),d=new Date();
     await downloads.save({filename:`inspecciones-${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}.zip`,data:zip});
     store.set("ultimoEnvio",String(Date.now()));updPaquete();
-    toast(`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo desde la app en Claude con "Importar del celular".`);
+    toast(LOCAL?`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo desde la app en Claude con "Importar del celular".`:`Paquete listo: ${data.length} puntos y ${ids.size} fotos. Ábralo en la app del celular con "Importar paquete".`);
   }catch(e){if(e?.code!=="declined")toast("No se pudo armar el paquete.")}
   finally{b.disabled=false;updPaquete()}
 });
-function updPaquete(){if(!LOCAL)return;const t=+store.get("ultimoEnvio")||0;const n=rows.filter(r=>(r.modificado||r.creado||0)>t).length;
+function updPaquete(){if(!LOCAL||!$("btnPaquete"))return;const t=+store.get("ultimoEnvio")||0;const n=rows.filter(r=>(r.modificado||r.creado||0)>t).length;
   $("btnPaquete").textContent=n?`📤 Enviar a Claude (${n} sin enviar)`:"📤 Enviar a Claude"}
 // app de Claude ← paquete del celular (no duplica: cada punto conserva su id; cada foto su id del celular)
 const zipIn=document.createElement("input");zipIn.type="file";zipIn.accept=".zip,application/zip";zipIn.hidden=true;document.body.appendChild(zipIn);
@@ -1798,21 +1798,23 @@ zipIn.addEventListener("change",async()=>{
   const f=zipIn.files?.[0];if(!f)return;const b=$("btnImport");b.disabled=true;
   try{
     const z=await unzip(await f.arrayBuffer());const pk=JSON.parse(new TextDecoder().decode(z["inspecciones.json"]));
-    let nP=0,nF=0;
+    let nP=0,nF=0,nS=0;
     for(const p of pk.puntos||[]){
       const prev=rows.find(r=>r.id===p.id);
-      const ya={};if(prev)[...(prev.items||[]),{fotos:prev.fotosPunto||{}}].forEach(it=>Object.values(it.fotos||{}).flat().forEach(x=>{if(x?.lid&&x?.id)ya[x.lid]=x.id}));
+      // si este equipo tiene una versión más nueva del punto, no se pisa
+      if(prev&&(prev.modificado||0)>(p.modificado||0)){nS++;continue}
+      const ya={};if(prev)[...(prev.items||[]),{fotos:prev.fotosPunto||{}}].forEach(it=>Object.values(it.fotos||{}).flat().forEach(x=>{if(x?.id){ya[x.lid||x.id]=x.id;ya[x.id]=x.id}}));
       const mapF=async x=>{if(!x?.id)return x;const lid=x.lid||x.id;if(ya[lid])return{...x,id:ya[lid],lid};
         const d=z[`fotos/${x.id}.jpg`];if(!d)return{...x,id:null,lid};
         b.textContent=`Subiendo fotos… ${++nF}`;const r=await assets.upload(new Blob([d],{type:"image/jpeg"}),{type:"image/jpeg"});ya[lid]=r.id;return{...x,id:r.id,lid}};
       const mapG=async g=>{const o={};for(const[k,arr]of Object.entries(g||{}))o[k]=await Promise.all((arr||[]).map(mapF));return o};
       const items=[];for(const it of p.items||[])items.push({...it,fotos:await mapG(it.fotos)});
       const {id,...rest}=p;
-      await db.collection("trabajos").doc(id).set({...rest,items,fotosPunto:await mapG(p.fotosPunto),importado:Date.now()});nP++;
+      await db.collection("trabajos").doc(id).set({...rest,modificado:p.modificado||p.creado||0,items,fotosPunto:await mapG(p.fotosPunto),importado:Date.now()});nP++;
     }
     // lo que llega de otro equipo no cuenta como "sin enviar" en este
     if(LOCAL)store.set("ultimoEnvio",String(Math.max(+store.get("ultimoEnvio")||0,Date.now())));updPaquete();
-    toast(`Importados ${nP} puntos y ${nF} fotos nuevas.`);
+    toast(`Importados ${nP} puntos y ${nF} fotos nuevas.`+(nS?` ${nS} no se cambiaron porque aquí están más actualizados.`:""));
   }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":"No se pudo leer el paquete. ¿Es el .zip que armó la app del celular?")}
   finally{b.disabled=false;b.textContent=LOCAL?"📥 Importar paquete":"📥 Importar del celular"}
 });
@@ -1836,7 +1838,7 @@ setInterval(()=>{if(rows.length)render()},60000);
 (async()=>{
   $("today").textContent=new Date().toLocaleDateString("es-CO",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
   if(!window.claude?.use){$("list").innerHTML=`<div class="empty"><h3>Abre esta página en Claude</h3><p class="note">Los trabajos se guardan en la nube de la página y solo cargan dentro de Claude.</p></div>`;return}
-  claude.use("downloads").then(d=>{downloads=d;$("btnExport").hidden=!d;$("btnPaquete").hidden=!d||!LOCAL});
+  claude.use("downloads").then(d=>{downloads=d;$("btnExport").hidden=!d;$("btnPaquete").hidden=!d;if(!LOCAL)$("btnPaquete").textContent="📤 Paquete para el celular"});
   claude.use("assets").then(a=>{assets=a;$("btnImport").hidden=!a;if(LOCAL)$("btnImport").textContent="📥 Importar paquete";formItems.forEach((_,i)=>refreshFotos(i));if(!$("scrim").hidden)refreshFotos("P")}).catch(()=>{});
   db=await claude.use("db");
   if(!db){readOnly=true;$("btnNew").hidden=true;$("list").innerHTML=`<div class="empty"><h3>No se pudo abrir la tabla</h3><p class="note">Inicia sesión en Claude para ver y registrar trabajos.</p></div>`;return}
