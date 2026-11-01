@@ -358,7 +358,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 
 <div class="scrim" id="scrim" hidden>
   <form class="panel" id="form" role="dialog" aria-modal="true" aria-labelledby="formTitle" novalidate>
-    <h2 id="formTitle">Nuevo punto de trabajo</h2>
+    <h2 id="formTitle" tabindex="-1">Nuevo punto de trabajo</h2>
     <fieldset>
       <legend class="label">Identificación del punto</legend>
       <div class="grid2">
@@ -1458,7 +1458,8 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;
+const LOCAL=!!window.__LOCAL;const APPV="v15";
+setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
 function fotosHtml(it,i,only){
@@ -1838,7 +1839,7 @@ function openForm(r,addAct,actIdx){
   $("scrim").hidden=false;
   if(addAct&&!readOnly)setTimeout(addItem,30);
   else if(actIdx!=null)setTimeout(()=>$("repBox").scrollIntoView?.({block:"start"}),30);
-  else setTimeout(()=>(r?$("btnCancel"):$("iCons")).focus(),30);
+  else setTimeout(()=>{const pn=$("scrim").querySelector(".sheet,.panel,form")||$("form");try{pn.scrollTop=0;$("scrim").scrollTop=0}catch(e){}(r?$("formTitle"):$("iCons")).focus?.({preventScroll:true})},30);
 }
 function closeForm(){$("scrim").hidden=true;editing=null;dirty=false;clearTimeout(draftT);store.set(DRAFT_KEY,"")}
 
@@ -2055,7 +2056,8 @@ async function onAction(e){
   const t=e.target.closest("button");if(!t)return;
   if(t.hasAttribute("data-new"))return openForm(null);
   if(t.hasAttribute("data-clear")){$("q").value="";$("fAct").value="";$("fMes").value="";$("fPunto").value="";setEstado("todos");return}
-  if(t.dataset.edit)return openForm(rows.find(r=>r.id===t.dataset.edit),false,t.dataset.i!=null?+t.dataset.i:undefined);
+  if(t.dataset.edit){try{return openForm(rows.find(r=>r.id===t.dataset.edit),false,t.dataset.i!=null?+t.dataset.i:undefined)}
+    catch(err){console.error(err);$("scrim").hidden=false;toast("No se pudo abrir el punto: "+(err?.message||err)+". Mándele una captura a Claude.")}return}
   if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
   const id=t.dataset.deliver||t.dataset.finish; if(!id||!db)return;
   const r=rows.find(x=>x.id===id);if(!r)return;
