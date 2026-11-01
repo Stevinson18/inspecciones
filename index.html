@@ -200,7 +200,10 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .eqlist{display:grid;gap:8px}
 .eqbox{display:grid;gap:8px}
 .eqsel{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
-.eqrow{display:flex;gap:6px;min-width:0}.eqrow select{flex:1;min-width:0}
+.eqrow{display:flex;gap:6px;min-width:0}
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.sfila{display:flex;align-items:center;gap:6px;min-width:0}.sfila .sid{font-weight:700;font-size:.82rem;min-width:44px}
+.sfila select{flex:1;min-width:0;padding-left:6px;padding-right:4px}.sfila.todas{max-width:260px}.eqrow select{flex:1;min-width:0}
 .fpick{cursor:default;gap:6px;padding:22px 6px 6px}
 .fbtn{font:inherit;font-size:.78rem;font-weight:600;width:100%;max-width:120px;min-height:34px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
 .fbtn:active{transform:translateY(1px)}
@@ -1394,22 +1397,43 @@ const own=i=>i==="P"?puntoF:formItems[i];
 const foOf=el=>{const v=el.closest("[data-fo]")?.dataset.fo;return v==="P"?"P":+v};
 const FOTO_PT=["Medición de la temperatura","Medición de intensidad de luz","Aplicación penetrante","Aplicación penetrante","Aplicación revelador","Aplicación revelador"];
 const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
-// juntas del esquema para las imágenes PAUT: longitudinales (lado superior / inferior) y circunferenciales (lados según qué une)
-function juntasPAUT(rep,tipoA){
-  const L=(n,pre)=>[`${pre}L1`,`${pre}L2`].forEach(id=>{out.push(`${id} · Lado superior`,`${id} · Lado inferior`)});
-  const C=(id,a,b)=>out.push(`${id} · ${a}`,`${id} · ${b}`);
+// juntas del esquema: longitudinales (lados superior / inferior) y circunferenciales (lados según qué unen)
+function juntasDe(rep,tipoA){
   const out=[];const t=rep?.tipo;
-  if(t==="Camisa directa"){L(1,"");if(!tipoA){C("C1","Lado camisa","Lado tubo");C("C2","Lado camisa","Lado tubo")}}
+  const L=pre=>[`${pre}L1`,`${pre}L2`].forEach(id=>out.push({id,tipo:"long",lados:["Lado superior","Lado inferior"]}));
+  const C=(id,a,b)=>out.push({id,tipo:"circ",lados:[a,b]});
+  if(t==="Camisa directa"){L("");if(!tipoA){C("C1","Lado camisa","Lado tubo");C("C2","Lado camisa","Lado tubo")}}
   else if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,12),sb=d-1;
-    for(let i=1;i<=d+sb;i++)L(i,`S${i}`);
+    for(let i=1;i<=d+sb;i++)L(`S${i}`);
     let n=1;if(!tipoA){C("C1","Lado camisa","Lado tubo");C("C2","Lado camisa","Lado tubo");n=3}
     for(let j=0;j<sb;j++){C(`C${n+2*j}`,"Lado sobrecamisa","Lado camisa");C(`C${n+2*j+1}`,"Lado sobrecamisa","Lado camisa")}}
-  else if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"){L(1,"A1 ");L(1,"A2 ");L(1,"SC ");
+  else if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"){L("A1 ");L("A2 ");L("SC ");
     let n=1;if(!tipoA){C("C1","Lado anillo","Lado tubo");C("C2","Lado anillo","Lado tubo");n=3}
     C(`C${n}`,"Lado sobre camisa","Lado anillo");C(`C${n+1}`,"Lado sobre camisa","Lado anillo")}
-  else if(t==="Camisa puenteada"){L(1,"");C("C1","Lado sobre camisa","Lado camisa existente");C("C2","Lado sobre camisa","Lado camisa existente")}
+  else if(t==="Camisa puenteada"){L("");C("C1","Lado sobre camisa","Lado camisa existente");C("C2","Lado sobre camisa","Lado camisa existente")}
   return out;
 }
+const juntasPAUT=(rep,tipoA)=>juntasDe(rep,tipoA).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
+// ---------- soldadores por junta (se anotan una vez y sirven para PT, MT y PAUT) ----------
+const SOLDADORES_BASE={"Puerto Boyacá":["CCT","ETC","DPA","JFG"]};
+function soldLista(){const b=$("iBase").value;const base=SOLDADORES_BASE[b]||[...new Set(Object.values(SOLDADORES_BASE).flat())];
+  const usados=[];rows.forEach(r=>r.items.forEach(it=>Object.values(it.soldadores||{}).forEach(v=>String(v).split("/").forEach(x=>{x=x.trim();if(x)usados.push(x)}))));
+  formItems.forEach(it=>Object.values(it.soldadores||{}).forEach(v=>String(v).split("/").forEach(x=>{x=x.trim();if(x)usados.push(x)})));
+  return[...new Set([...base,...usados])]}
+function soldSel(val,attrs){const l=soldLista();return`<select class="field sold" ${attrs}${readOnly?" disabled":""}><option value="">—</option>${l.map(x=>`<option${x===val?" selected":""}>${esc(x)}</option>`).join("")}${val&&!l.includes(val)?`<option selected>${esc(val)}</option>`:""}<option value="__otro">Otro…</option></select>`}
+function soldHtml(it){
+  if(!conTec(it.act))return"";const js=juntasDe(it.reparacion,tipoAForm());if(!js.length)return"";
+  const v=it.soldadores||{};const lg=js.filter(j=>j.tipo==="long"),cc=js.filter(j=>j.tipo==="circ");
+  const fila=j=>{const p=String(v[j.id]||"").split("/").map(x=>x.trim());
+    return`<div class="sfila"><span class="sid">${esc(j.id)}</span>${soldSel(p[0]||"",`data-sj="${esc(j.id)}" data-sp="0" aria-label="Soldador ${esc(j.id)}"`)}${j.tipo==="circ"?soldSel(p[1]||"",`data-sj="${esc(j.id)}" data-sp="1" aria-label="Segundo soldador ${esc(j.id)}"`):""}</div>`};
+  return`<span class="label">Soldadores por junta</span><p class="note">Se anotan una vez y salen en PT, MT y PAUT. Longitudinales: un soldador; circunferenciales: dos.</p>
+    ${lg.length?`<div class="sfila todas"><span class="sid">Todas long.</span>${soldSel("",`data-sall="long" aria-label="Mismo soldador para todas las longitudinales"`)}</div>`:""}
+    <div class="sgrid">${lg.map(fila).join("")}</div>${cc.length?`<div class="sgrid">${cc.map(fila).join("")}</div>`:""}`}
+function refreshSold(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
+  // si otra actividad del punto ya tiene soldadores para las mismas juntas, se copian
+  if(conTec(it.act)&&!Object.keys(it.soldadores||{}).length){const o=formItems.find(x=>x!==it&&Object.keys(x.soldadores||{}).length);if(o)it.soldadores={...o.soldadores}}
+  const b=card.querySelector(".soldbox");if(b)b.innerHTML=soldHtml(it)}
+const soldDe=(it,id)=>String(it.soldadores?.[id]||"").split("/").map(x=>x.trim()).filter(Boolean).join(" / ");
 function fotoGrupos(it,tipoA=tipoAForm()){
   const g=[];
   if(it.act==="Zona sana"&&it.reparacion?.tipo){const a=zsAreas(it.reparacion);g.push({k:"ZSI",t:"Imágenes de inspección zona sana",caps:a,min:a.length,fixed:true,byCap:true,sinEstampe:true})}
@@ -1675,6 +1699,7 @@ function itemHtml(it,i){it=it||{};
   <label class="check"><input type="checkbox" data-f="novedad"${it.novedad?" checked":""}> Tiene novedad (bloquea el informe)</label>
   <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
   <div class="h0box repbox"${conTec(it.act)?"":" hidden"}>${conTec(it.act)?h0Html(it):""}</div>
+  <div class="eqbox soldbox repbox">${soldHtml(it)}</div>
   <div class="eqbox repbox">${eqHtml(it)}</div>
   <div class="eqbox plbox repbox">${plHtml(it)}</div>
   <div class="fotobox repbox">${fotosHtml(it,i)}</div>
@@ -1763,7 +1788,7 @@ function updateDrawing(){
   if(rep)$("drawing").innerHTML=drawRepair(rep,metaForm(),PAL_VAR,false);
   $("btnImg").hidden=!rep||!downloads;
   updateLtCheck(rep);
-  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>refreshFotos(active),400)}
+  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>{refreshFotos(active);refreshSold(active)},400)}
 }
 function updateTermHint(){
   const term=$("iPunto").value==="Terminado";
@@ -1906,10 +1931,16 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   // si el esquema era el sugerido para la actividad anterior (o no había), se cambia al de la nueva actividad
   if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
   if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
-  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i);refreshPl(i)}
+  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
-  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i)}
+  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
+  if(e.target.dataset.sj!=null||e.target.dataset.sall){const it=formItems[i];let v=e.target.value;
+    if(v==="__otro"){const n=(prompt("Iniciales del soldador")||"").trim().toUpperCase();if(!n){e.target.value="";return}v=n}
+    it.soldadores={...(it.soldadores||{})};
+    const put=(id,pos,val)=>{const p=String(it.soldadores[id]||"").split("/").map(x=>x.trim());p[pos]=val;it.soldadores[id]=p.filter((x,k)=>k<2).map(x=>x||"").join("/").replace(/\/$/,"")};
+    if(e.target.dataset.sall)juntasDe(it.reparacion,tipoAForm()).filter(j=>j.tipo==="long").forEach(j=>put(j.id,0,v));else put(e.target.dataset.sj,+e.target.dataset.sp,v);
+    refreshSold(i);scheduleDraft();return}
   if(e.target.dataset.pl){const it=formItems[i];it.planes={...(it.planes||{}),[e.target.dataset.pl]:e.target.value};if(e.target.value)store.set("ultimoPlan_"+e.target.dataset.pl,e.target.value);refreshPl(i)}
 });
 $("itemsBox").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.dataset.otroinsp!=null){e.preventDefault();e.target.blur()}});
@@ -1923,6 +1954,7 @@ $("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing(
 ["iDiam","iEsp","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>{syncCards();formItems.forEach((_,i)=>refreshH0(i))}));
 ["iSistema","iLinea","iLineaOtra","iDiam","iPk","iCoord","iCoordPatio"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>refreshAllFotos())));
 ["iEsp","iNom","iDiam"].forEach(id=>$(id).addEventListener("change",()=>refreshAllPl()));
+["iBase","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>formItems.forEach((_,i)=>refreshSold(i))));
 ["iEsp","iMat","iNom","iMatTub"].forEach(id=>$(id).addEventListener("change",()=>{if(!$("drawWrap").hidden)updateDrawing()}));
 // al escoger el tipo de reparación general se sugiere el esquema de las actividades que aún no tienen
 $("iTipoRep").addEventListener("change",()=>{
