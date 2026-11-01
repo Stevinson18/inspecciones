@@ -346,6 +346,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
   </section>
 
   <div id="banner" class="banner" hidden></div>
+  <div id="avisoApp" class="banner" hidden>Esta es la versión de Claude, con sus propios datos. Ahora se trabaja en la <b>app instalada</b> (celular y PC), que se sincroniza sola. Para pasar lo que tenga aquí: toque <b>📤 Paquete para el celular</b> y en la app instalada use <b>📥 Importar paquete</b>. Abrir la app: <b>stevinson18.github.io/inspecciones</b></div>
 
   <div class="cols label" id="cols" hidden>
     <span>Consec.</span><span>PK</span><span>Línea</span><span>Ø</span><span>Lugar · Ciudad</span><span>Base · Reparación</span><span>Estado del punto</span><span></span>
@@ -1458,6 +1459,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
 const LOCAL=!!window.__LOCAL;
+if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
 function fotosHtml(it,i,only){
   const gs=fotoGrupos(it).filter(g=>!only||only.includes(g.k));
