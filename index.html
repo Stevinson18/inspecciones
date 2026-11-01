@@ -405,7 +405,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 <datalist id="dlCiudad"></datalist>
 <datalist id="dlBase"></datalist>
 <div class="toast" id="toast" hidden></div>
-<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvChange">Cambiar foto</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
+<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvStamp">Quitar estampado</button><button class="btn" type="button" id="fvChange">Cambiar foto</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
 
 <script>
 (function(){
@@ -1246,11 +1246,11 @@ function stampFor(f,lugar){
     pk?"PK "+pk:"",
     u?`${gms(u.lat,"N","S")}  ${gms(u.lon,"E","W")}`:""].filter(x=>x.trim());
 }
-const stampHtml=(f,lugar)=>f?.raw?`<span class="fst">${stampFor(f,lugar).map(esc).join("<br>")}</span>`:"";
+const stampHtml=(f,lugar)=>f?.raw?`<span class="fst"${f.noStamp?" hidden":""}>${stampFor(f,lugar).map(esc).join("<br>")}</span>`:"";
 // al cambiar datos del punto solo se reescribe el texto del estampado (sin rehacer las casillas, para no perder el toque)
 function refreshAllFotos(){document.querySelectorAll("#form .fimg[data-fshot]").forEach(b=>{const st=b.querySelector(".fst");if(!st)return;
   const i=foOf(b), it=own(i); if(!it)return; const k=b.dataset.fshot, j=+b.dataset.j;
-  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw)st.innerHTML=stampFor(s,lugarDe(i,k)).map(esc).join("<br>")})}
+  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw){st.innerHTML=stampFor(s,lugarDe(i,k)).map(esc).join("<br>");st.hidden=!!s.noStamp}})}
 async function stampLines(file){
   const t=new Date(file.lastModified&&Math.abs(Date.now()-file.lastModified)<864e5*30?file.lastModified:Date.now());
   const p2=n=>String(n).padStart(2,"0");
@@ -1295,7 +1295,7 @@ fileIn.addEventListener("change",async()=>{
     setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps});scheduleDraft();
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
-      if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo)}
+      if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo,t.k)}
   }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":e?.code==="too_large"?"La foto es demasiado grande.":"No se pudo subir la foto. Revisa la señal e inténtalo otra vez.")}
   finally{subiendo.delete(key);refreshFotos(t.i)}
 });
@@ -1312,7 +1312,7 @@ $("btnGpsC").addEventListener("click",()=>gpsA("iCoord"));$("btnGpsP").addEventL
 if(LOCAL){$("btnGpsC").hidden=false;$("btnGpsP").hidden=false}
 // lee con Claude las coordenadas que vengan impresas (estampadas) en la foto
 let sampleNS;const sampleP=()=>sampleNS??=claude.use("sample").catch(()=>null);
-async function leerCoordVision(blob,campo){
+async function leerCoordVision(blob,campo,k){
   const box=$(campo);
   const sm=await sampleP(); const lim=sm?await sm.limits().catch(()=>null):null;
   if(!sm||!lim?.images){toast("La foto no trae GPS. Escriba la coordenada a mano.");return}
@@ -1322,7 +1322,9 @@ async function leerCoordVision(blob,campo){
     const r=await sm.json(`La imagen es una foto de campo de una inspección de tubería. Puede tener impresas (estampadas) unas coordenadas GPS, por ejemplo "N5°13.76' W74°35.25'", "5°31'05.1\" N 74°37'24.6\" W" o "5.5180, -74.6234". Lee SOLO las coordenadas impresas en la foto y conviértelas a grados decimales (sur y oeste negativos). Responde únicamente JSON: {"lat": número, "lon": número}, o {"lat": null, "lon": null} si no hay coordenadas legibles.`,{images:[img],modelTier:"quick"});
     const lat=+r?.lat, lon=+r?.lon;
     if(r?.lat!=null&&isFinite(lat)&&isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180&&(lat||lon)){
-      box.value=`${lat.toFixed(6)}, ${lon.toFixed(6)}`;scheduleDraft();refreshAllFotos();toast("Coordenada leída del texto de la foto. Revísela.")}
+      box.value=`${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      if(k){setFoto("P",k,0,{noStamp:true});refreshFotos("P")}
+      scheduleDraft();refreshAllFotos();toast("Coordenada leída del texto de la foto. Revísela.")}
     else toast("La foto no trae GPS ni coordenadas legibles. Escriba la coordenada a mano.");
   }catch(e){toast(e?.code==="not_granted"?"Sin permiso para leer la foto. Escriba la coordenada a mano.":"No se pudo leer la coordenada de la foto. Escríbala a mano.")}
   finally{box.placeholder=campo==="iCoordPatio"?"Se llena con la foto de patio":"Se llena con la foto de campo";updLeerBtns()}
@@ -1332,15 +1334,20 @@ async function achicarBlob(b,max){const bm=await createImageBitmap(b);const k=Ma
 function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLeerP"]].forEach(([k,f,b])=>{const id=(puntoF.fotos?.[k]||[])[0]?.id;$(b).hidden=LOCAL||readOnly||!id||!!$(f).value.trim()})}
 [["btnLeerC","UBC","iCoord"],["btnLeerP","UBP","iCoordPatio"]].forEach(([b,k,f])=>$(b).addEventListener("click",async()=>{
   const id=(puntoF.fotos?.[k]||[])[0]?.id;if(!id)return;$(b).disabled=true;
-  try{const bl=await (await fetch(fotoSrc(id))).blob();await leerCoordVision(bl,f)}catch(e){toast("No se pudo abrir la foto.")}finally{$(b).disabled=false}}));
+  try{const bl=await (await fetch(fotoSrc(id))).blob();await leerCoordVision(bl,f,k)}catch(e){toast("No se pudo abrir la foto.")}finally{$(b).disabled=false}}));
 ["iCoord","iCoordPatio"].forEach(id=>$(id).addEventListener("input",updLeerBtns));
 // visor de foto
 let fvT=null;
 function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
-  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
+  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
+  $("fvStamp").hidden=!s.raw||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
   $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
 $("fvClose").addEventListener("click",()=>{$("fview").hidden=true});
+// fotos que ya vienen estampadas (p. ej. Timestamp Camera): se puede apagar el estampado de la app en esa foto
+$("fvStamp").addEventListener("click",()=>{const t=fvT;if(!t)return;const it=own(t.i);
+  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j];if(!s?.id)return;
+  setFoto(t.i,t.k,t.j,{noStamp:!s.noStamp});scheduleDraft();refreshFotos(t.i);verFoto(t.i,t.k,t.j)});
 $("fvChange").addEventListener("click",()=>{$("fview").hidden=true;if(fvT)pedirFoto(fvT.i,fvT.k,fvT.j)});
 $("fvDel").addEventListener("click",()=>{const b=$("fvDel");if(!b.dataset.confirm){b.dataset.confirm="1";b.textContent="¿Quitar? Toca otra vez";setTimeout(()=>{b.dataset.confirm="";b.textContent="Quitar foto"},3500);return}
   b.dataset.confirm="";b.textContent="Quitar foto";const t=fvT;if(!t)return;const it=own(t.i);
