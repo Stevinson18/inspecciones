@@ -824,8 +824,8 @@ function drawRepair(rep,meta,P,compact){
     // las sobre camisas tienen mayor diámetro que las directas
     const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
     const shell=(xx,yy,w,h,label,sup)=>{
-      R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2,rx:6});
-      R(xx+3,sup?yy+3:yy+h-3-h*0.28,w-6,h*0.28,{f:P.shellHi,rx:4});
+      R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2});
+      R(xx+1,sup?yy+1:yy+h-1-h*0.28,w-2,h*0.28,{f:P.shellHi});
       const a=xx+5,b=xx+w-5;
       if(sup){L(a,yy+h-10,b,yy+h-10,{s:P.l1,sw:3});L(a,yy+h-3.5,b,yy+h-3.5,{s:P.l2,sw:3})}
       else{L(a,yy+3.5,b,yy+3.5,{s:P.l2,sw:3});L(a,yy+10,b,yy+10,{s:P.l1,sw:3})}
@@ -1485,7 +1485,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v19";
+const LOCAL=!!window.__LOCAL;const APPV="v20";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
