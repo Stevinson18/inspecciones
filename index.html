@@ -1574,7 +1574,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v28";
+const LOCAL=!!window.__LOCAL;const APPV="v29";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2427,7 +2427,7 @@ async function generarReporte(r,modo){REP_PT=r;
   // copias de hojas de la plantilla (p. ej. una página de Scan A por cada área)
   let wbxM=wbx;const extra={},relsAdd=[],ctAdd=[],nClon={};let ridN=0;
   let sheetN=Math.max(...Object.values(hoja).filter(Boolean).map(f=>+f.replace("sheet",""))),drawN=Math.max(0,...Object.keys(E).map(n=>+((n.match(/^xl\/drawings\/drawing(\d+)\.xml$/)||[])[1]||0))),sheetIdMax=Math.max(...[...wbx.matchAll(/sheetId="(\d+)"/g)].map(m=>+m[1]));
-  async function clonarHoja(h,nuevo){const f=hoja[h],nf="sheet"+(++sheetN);
+  async function clonarHoja(h,nuevo,area){const f=hoja[h],nf="sheet"+(++sheetN);
     extra[`xl/worksheets/${nf}.xml`]=(await txt(`xl/worksheets/${f}.xml`)).replace(/\s+tabSelected="1"/,"").replace(/<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1").replace(/<legacyDrawing[^>]*\/>/,"");
     const rl=E[`xl/worksheets/_rels/${f}.xml.rels`]?await txt(`xl/worksheets/_rels/${f}.xml.rels`):"";const dm=rl.match(/<Relationship [^>]*Target="\.\.\/drawings\/(drawing\d+\.xml)"[^>]*\/>/);
     let r2='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
@@ -2445,7 +2445,7 @@ async function generarReporte(r,modo){REP_PT=r;
     const loc=[...wbxM.matchAll(/<definedName [^>]*localSheetId="(\d+)"[^>]*>[^<]*<\/definedName>/g)].filter(m=>+m[1]===pos).map(m=>m[0]);
     wbxM=wbxM.replace(/(<definedName [^>]*localSheetId=")(\d+)(")/g,(m0,a,b,c)=>+b>=ins?a+(+b+1)+c:m0);
     const esc1=h.replace(/'/g,"''"),esc2=nuevo.replace(/'/g,"''");
-    const add=loc.map(d=>d.replace(/localSheetId="\d+"/,`localSheetId="${ins}"`).split(`'${xe(esc1)}'!`).join(`'${xe(esc2)}'!`)).join("");
+    const add=loc.map(d=>{d=d.replace(/localSheetId="\d+"/,`localSheetId="${ins}"`).split(`'${xe(esc1)}'!`).join(`'${xe(esc2)}'!`);return area&&/Print_Area/.test(d)?d.replace(/!\$A\$\d+:\$[A-Z]+\$\d+/,"!"+area):d}).join("");
     if(add)wbxM=wbxM.replace("</definedNames>",add+"</definedNames>");
     hoja[nuevo]=nf;ANCLAS_REP[nuevo]=ANCLAS_REP[h];return nuevo}
   const quitarZ={};const quitar=(h,an)=>{if(an)(quitarZ[h]??=[]).push(an)};
@@ -2468,8 +2468,17 @@ async function generarReporte(r,modo){REP_PT=r;
       for(let rr=r0;rr<=r1;rr++){const f=filas[i++]||cols.map(()=>"-");cols.forEach((c,k)=>C(h,c+rr,f[k]))}
       usadas.push(h);visibles.add(h);cab(h,usadas.length)}
     return usadas}
-  async function fotosEn(nombres,lista,lugarF){let i=0;for(const h of nombres){const a=ANCLAS_REP[h];if(!a?.fotos||i>=lista.length)continue;visibles.add(h);
-      for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k]),"jpeg");if(a.caps?.[k])C(h,a.caps[k],`Foto ${i+1}. ${f.desc||f.cap||""}`)}}}
+  // páginas de fotos: si no alcanzan las de la plantilla, se copia la última hoja de fotos (solo su página de fotos)
+  const AREA_FOTOS={"4.MT-ZS cam2":{area:"$A$68:$AK$116",pag:"AH68",tot:["AJ10","AJ68"],base:2}};
+  async function fotosEn(nombres,lista,lugarF){let i=0;const hs=nombres.filter(h=>ANCLAS_REP[h]?.fotos&&hoja[h]);if(!hs.length)return;const base=hs[hs.length-1],af=AREA_FOTOS[base];let extra=0;
+    for(let q=0;i<lista.length;q++){let h=hs[q];
+      if(!h){extra++;h=await clonarHoja(base,`${base.slice(0,22)} F${extra+1}`,af?.area);hs.push(h);
+        Object.entries(celdas[base]||{}).filter(([ref])=>+(ref.match(/\d+/)||[])[0]<=10).forEach(([ref,v])=>C(h,ref,v,true))}
+      const a=ANCLAS_REP[h];visibles.add(h);
+      for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k]),"jpeg");if(a.caps?.[k])C(h,a.caps[k],`Foto ${i+1}. ${f.desc||f.cap||""}`)}
+      if(i>=lista.length)for(let k=(i-1)%a.fotos.length+1;k<a.fotos.length;k++)if(a.caps?.[k])C(h,a.caps[k],"",true);
+      if(af&&h!==base)C(h,af.pag,af.base+extra)}
+    if(af&&extra){const tot=af.base+extra;[base,...hs.filter(x=>x!==base)].forEach(h=>af.tot.forEach(c=>C(h,c,tot)))}}
   async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);const a=ANCLAS_REP[h]||{};
     if(a.realizo)C(h,a.realizo,realizoDe(it));if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
     if(esq&&a.esq&&rep?.tipo)P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro},meta,a.esq),"png");
