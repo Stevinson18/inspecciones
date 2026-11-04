@@ -414,7 +414,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 
     <fieldset>
       <legend class="label">Anexo fotográfico</legend>
-      <p class="note">Última página del informe. Mínimo 4 fotos, estampadas con las coordenadas de campo.</p>
+      <p class="note">Última página del informe, estampadas con las coordenadas de campo. Mínimo <select class="field" id="iAnxMin" style="width:auto;display:inline-block;padding:2px 8px"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select> fotos.</p>
       <div data-fo="P" id="anexoBox"></div>
     </fieldset>
 
@@ -1491,6 +1491,8 @@ function h0Sub(it){if(!conTecUI(it.act))return"";const t=(it.tecnicas||[]).map(x
 // ---- fotos del reporte, por actividad y técnica ----
 let assets=null; const fotosQuitadas=new Set(); const subiendo=new Set();
 let puntoF={act:"__punto",fotos:{}};
+// mínimo de fotos del anexo: lo que escoja el inspector; si no, 2 cuando todo es tubería nueva y 4 en lo demás
+const anxMinDe=(items,v)=>{const n=parseInt(v);if(n>=1&&n<=8)return n;return items?.length&&items.every(x=>x.act==="Tubería nueva")?2:4};
 const own=i=>i==="P"?puntoF:formItems[i];
 const foOf=el=>{const v=el.closest("[data-fo]")?.dataset.fo;return v==="P"?"P":+v};
 const FOTO_PT=["Medición de la temperatura","Medición de intensidad de luz","Aplicación penetrante","Aplicación penetrante","Aplicación revelador","Aplicación revelador"];
@@ -1543,7 +1545,7 @@ function fotoGrupos(it,tipoA=tipoAForm()){
   if(it.act==="__punto")return[
     {k:"UBC",t:"Ubicación en campo",caps:["Ubicación en campo (sitio)"],min:1,ubi:"campo",fixed:true},
     {k:"UBP",t:"Ubicación en patio",caps:["Ubicación en patio"],min:1,ubi:"patio",fixed:true},
-    {k:"ANX",t:"Fotos del anexo",caps:["Registro fotográfico","Registro fotográfico","Registro fotográfico","Registro fotográfico"],min:4}];
+    (m=>({k:"ANX",t:"Fotos del anexo",caps:Array(m).fill("Registro fotográfico"),min:m}))(anxMinDe(it===puntoF?formItems:[],it.anexoMin))];
   if(it.act==="Biseles")g.push({k:"PT",t:"Fotos tintas penetrantes (biseles)",caps:FOTO_PT,min:6});
   else if(esTN(it.act)){const tec=it.tecnicas||[];
     if(tec.includes("MT"))g.push({k:"MT",t:"Fotos MT fluorescentes",caps:FOTO_MT,min:6});
@@ -1561,7 +1563,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v24";
+const LOCAL=!!window.__LOCAL;const APPV="v25";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1580,7 +1582,7 @@ function fotosHtml(it,i,only){
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
 function refreshFotos(i){
-  if(i==="P"){$("ubiBox").innerHTML=fotosHtml(puntoF,"P",["UBC","UBP"]);$("anexoBox").innerHTML=fotosHtml(puntoF,"P",["ANX"]);updLeerBtns();return}
+  if(i==="P"){if($("iAnxMin"))$("iAnxMin").value=anxMinDe(formItems,puntoF.anexoMin);$("ubiBox").innerHTML=fotosHtml(puntoF,"P",["UBC","UBP"]);$("anexoBox").innerHTML=fotosHtml(puntoF,"P",["ANX"]);updLeerBtns();return}
   const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return; const b=card.querySelector(".fotobox"); if(b)b.innerHTML=fotosHtml(it,i)}
 function setFoto(i,k,j,patch){const it=own(i);if(!it)return;it.fotos={...(it.fotos||{})};
   const gr=fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]};const sl=fotoSlots(it,gr);while(sl.length<=j)sl.push({cap:"",id:null});
@@ -1928,7 +1930,7 @@ function openForm(r,addAct,actIdx){
   $("iNom").value=NOMINALES.includes(r?.nominal)?r.nominal:"";
   $("iMatTub").value=MATERIALES.includes(r?.materialTub)?r.materialTub:"";
   $("iCoord").value=r?.coord||"";$("iCoordPatio").value=r?.coordPatio||"";
-  puntoF={act:"__punto",fotos:JSON.parse(JSON.stringify(r?.fotosPunto||{}))};fotosQuitadas.clear();
+  puntoF={act:"__punto",fotos:JSON.parse(JSON.stringify(r?.fotosPunto||{})),anexoMin:r?.anexoMin||""};fotosQuitadas.clear();
   $("iPunto").value=r?.estadoPunto||(r?"":"En ejecución");
   $("iTerm").value=r?.terminadoEn||"";
   formItems=r?r.items.map(({consecutivo,...it})=>({...it})):[{act:"Zona sana",inspectores:store.get("ultimoInsp")||"",reparacion:defaultRep("Zona sana")}];
@@ -2021,6 +2023,9 @@ $("form").addEventListener("click",e=>{
   if(fa){const i=foOf(fa),k=fa.dataset.fadd;const it=own(i);const gr=fotoGrupos(it).find(g=>g.k===k);
     const n=fotoSlots(it,gr).length;setFoto(i,k,n,{cap:gr.caps[gr.caps.length-1]||"",id:null});refreshFotos(i);scheduleDraft();return}
 });
+$("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refreshFotos("P");scheduleDraft()});
+// al tocar una descripción sugerida se selecciona toda, para escribir encima
+$("form").addEventListener("focusin",e=>{const t=e.target;if(t.dataset?.fcap!=null&&t.value){const def=t.defaultValue;if(t.value===def)setTimeout(()=>{try{t.select()}catch(_){}},0)}});
 $("form").addEventListener("input",e=>{if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,e.target.dataset.bycap?{desc:e.target.value}:{cap:e.target.value})}});
 $("itemsBox").addEventListener("click",e=>{
   const rb=e.target.closest("[data-rep]");
@@ -2039,7 +2044,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
   if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
   if(e.target.dataset.zstec!=null){syncCards();refreshZs(i,true);refreshPl(i);scheduleDraft();return}
-  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
+  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshFotos("P");refreshEq(i);refreshPl(i);refreshSold(i)}
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
   if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
@@ -2088,7 +2093,7 @@ $("form").addEventListener("submit",async e=>{
     materialTub:$("iMatTub").value,
     coord:$("iCoord").value.trim(),
     coordPatio:$("iCoordPatio").value.trim(),
-    fotosPunto:puntoF.fotos||{},
+    fotosPunto:puntoF.fotos||{},anexoMin:puntoF.anexoMin||"",
     fecha:$("iFecha").value,
     pk:$("iPk").value.trim(),
     sistema:$("iSistema").value,
@@ -2389,7 +2394,7 @@ function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo 
     plTiposDe(it,tipoA).forEach(t=>{const et=t==="LONG"?"TOPE":t==="CIRC"?esqCirc(it.reparacion):t;if(!esqDe(et))f.push(`Esquema del barrido: ${ES_TIPOS[et]}`)});
     plTiposDe(it,tipoA).forEach(t=>{if(!planes.find(p=>p.id===it.planes?.[t]))f.push(`${n}: plan de escaneo ${t==="LONG"?"longitudinales":t==="CIRC"?"circunferenciales":t==="SCANA"?"Scan A":"Scan C"}`)});
     if(conTec(it.act)){if(!it.reparacion?.tipo)f.push(`${n}: esquema de la camisa`);else juntasDe(it.reparacion,tipoA).forEach(j=>{const s=String(it.soldadores?.[j.id]||"").split("/").filter(x=>x.trim());if(s.length<(j.tipo==="circ"?2:1))f.push(`${n}: soldador de ${j.id}`)})}});
-  const anx=(r.fotosPunto?.ANX||[]).filter(x=>x?.id).length;if(anx<4)f.push(`Anexo fotográfico (${anx} de 4)`);
+  const anx=(r.fotosPunto?.ANX||[]).filter(x=>x?.id).length,am=anxMinDe(r.items,r.anexoMin);if(anx<am)f.push(`Anexo fotográfico (${anx} de ${am})`);
   return[...new Set(f)]}
 // --- armado del reporte ---
 let REP_PT=null;
