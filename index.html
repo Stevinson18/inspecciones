@@ -506,7 +506,7 @@ const BASES=["Puerto Boyacá","Mansilla","Villavicencio","Cúcuta","Yopal","Toca
 const TIPOS_REP=["Ilícita","C&E","Camisa Tipo A","Camisa Tipo Sobre Anillos","Camisa Tipo B directa","Camisa Puenteada","Camisa seccionada o armadillo"];
 const LENS=["Camisa directa","Camisa armadillo","Camisa sobre anillos","Camisa sobre anillos sobre venteo","Camisa puenteada","Ilícita"];
 const ESPESORES=["0,250","0,277","0,312","0,322","0,330","0,340","0,344","0,365","0,375","0,400","0,406","0,438","0,500","0,562","0,594","0,625","0,656","0,688","0,719","0,750","0,812","0,844","0,864","0,875"];
-const MATERIALES=["Grado A","Grado B","X46","X52","X56","X60","X65","X70"];
+const MATERIALES=["Grado A","Grado B","X46","X52","X56","X60","X65","X65Q","X70"];
 const SISTEMAS=["Oleoducto","Poliducto","Propanoducto","Jetducto","Gasoducto","Combustoleoducto"];
 const LINEAS=["Caño Limón - Coveñas","Caño Limón - Ayacucho","Albán - Mansilla","Villeta - Albán","Sebastopol - Santa Rosa","Santa Rosa - Tocancipá","Sutamarchán - Monterrey","Sutamarchán - Tocancipá","Galán - Chimitá","Galán - Sebastopol","Galán - Salgar","Monterrey - Apiay","Monterrey - Porvenir","Sebastopol - Salgar","Sebastopol - Sutamarchán","Salgar - Mansilla","Salgar - Guaduero","Mansilla - Puente Aranda","Puente Aranda - El Dorado","Vasconia - CIB"];
 const DIAMETROS=["4","6","8","10","12","14","16","18","20","24","30","36","42"];
@@ -1494,6 +1494,8 @@ let puntoF={act:"__punto",fotos:{}};
 const own=i=>i==="P"?puntoF:formItems[i];
 const foOf=el=>{const v=el.closest("[data-fo]")?.dataset.fo;return v==="P"?"P":+v};
 const FOTO_PT=["Medición de la temperatura","Medición de intensidad de luz","Aplicación penetrante","Aplicación penetrante","Aplicación revelador","Aplicación revelador"];
+const FOTO_SUG=["Medición de la temperatura","Medición de intensidad de luz","Aplicación penetrante","Aplicación revelador","Inspección PT","Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT fluorescente","Medición de intensidad de luz UV","Medición de luz blanca residual","Inspección con luz UV","Inspección Scan C","Inspección PAUT","Medición de espesores","Vista general de la tubería","Marcación del tubo","Registro fotográfico"];
+setTimeout(()=>{if(!document.getElementById("fcapSug"))document.body.insertAdjacentHTML("beforeend",`<datalist id="fcapSug">${FOTO_SUG.map(x=>`<option value="${esc(x)}">`).join("")}</datalist>`)},0);
 const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
 // juntas del esquema: longitudinales (lados superior / inferior) y circunferenciales (lados según qué unen)
 function juntasDe(rep,tipoA){
@@ -1559,7 +1561,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v23";
+const LOCAL=!!window.__LOCAL;const APPV="v24";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1572,9 +1574,9 @@ function fotosHtml(it,i,only){
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
       const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button></div>`
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
-      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${gr.sinEstampe?"":stampHtml(s,lugarDe(i,gr.k))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
-      ${s.id&&s.raw&&!readOnly&&!gr.sinEstampe?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
-      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}" value="${esc(s.cap)}" placeholder="Descripción de la foto" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}${gr.byCap?" readonly":""}></div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
+      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
+      ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
+      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}></div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
 function refreshFotos(i){
@@ -1744,7 +1746,7 @@ function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find
   fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
   $("fvStamp").hidden=!s.raw||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
-  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;if(k==="ZSI"||k==="PAUTI"||k==="SCI"){$("fvStamp").hidden=true;st.hidden=true}$("fview").hidden=false;$("fvClose").focus()}
+  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.desc||s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
 $("fvClose").addEventListener("click",()=>{$("fview").hidden=true});
 // fotos que ya vienen estampadas (p. ej. Timestamp Camera): se puede apagar el estampado de la app en esa foto
 $("fvStamp").addEventListener("click",()=>{const t=fvT;if(!t)return;const it=own(t.i);
@@ -2019,7 +2021,7 @@ $("form").addEventListener("click",e=>{
   if(fa){const i=foOf(fa),k=fa.dataset.fadd;const it=own(i);const gr=fotoGrupos(it).find(g=>g.k===k);
     const n=fotoSlots(it,gr).length;setFoto(i,k,n,{cap:gr.caps[gr.caps.length-1]||"",id:null});refreshFotos(i);scheduleDraft();return}
 });
-$("form").addEventListener("input",e=>{if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,{cap:e.target.value})}});
+$("form").addEventListener("input",e=>{if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,e.target.dataset.bycap?{desc:e.target.value}:{cap:e.target.value})}});
 $("itemsBox").addEventListener("click",e=>{
   const rb=e.target.closest("[data-rep]");
   if(rb){e.preventDefault();setActive(+rb.dataset.rep);return}
@@ -2444,7 +2446,7 @@ async function generarReporte(r,modo){REP_PT=r;
       usadas.push(h);visibles.add(h);cab(h,usadas.length)}
     return usadas}
   async function fotosEn(nombres,lista,lugarF){let i=0;for(const h of nombres){const a=ANCLAS_REP[h];if(!a?.fotos||i>=lista.length)continue;visibles.add(h);
-      for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k]),"jpeg");if(a.caps?.[k])C(h,a.caps[k],`Foto ${i+1}. ${f.cap||""}`)}}}
+      for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k]),"jpeg");if(a.caps?.[k])C(h,a.caps[k],`Foto ${i+1}. ${f.desc||f.cap||""}`)}}}
   async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);const a=ANCLAS_REP[h]||{};
     if(a.realizo)C(h,a.realizo,realizoDe(it));if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
     if(esq&&a.esq&&rep?.tipo)P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro},meta,a.esq),"png");
@@ -2493,11 +2495,11 @@ async function generarReporte(r,modo){REP_PT=r;
             :`Se realiza medición de espesores por ultrasonido (Scan A, palpador dual) en la ${lab.toLowerCase()}, ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`;
           C(h,"A50",`Observaciones: ${que}${it.novedad?"":""}${it.observaciones?" "+it.observaciones:""}`);
           C(h,"N48",`Registro medición de espesores en ${ilic?"zona de Cascota #"+(k+1):lab.toLowerCase()}`);
-          const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg)P(h,an.reg,await fotoRep({...im,noStamp:true},"campo",an.reg),"jpeg");
+          const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg)P(h,an.reg,await fotoRep({...im,noStamp:im.noStamp!==false},"campo",an.reg),"jpeg");
           C(h,"AT64","si");quitar(h,an.esq);await barrido(h,"SCANA")}}
       const g=fot("GEN");if(g.length)await fotosEn(["4.MT-ZS cam2"],g,"campo")}
     else if(it.act==="Zona sana"){const h="3.SC-ZS CAM2";if(hoja[h]){visibles.add(h);await cabecera(h,it,"",false,null);const a=ANCLAS_REP[h];
-        const imgs=fot("ZSI");for(let k=0;k<imgs.length&&k<(a.fotos||[]).length;k++)P(h,a.fotos[k],await fotoRep({...imgs[k],noStamp:true},"campo",a.fotos[k]),"jpeg");
+        const imgs=fot("ZSI");for(let k=0;k<imgs.length&&k<(a.fotos||[]).length;k++)P(h,a.fotos[k],await fotoRep({...imgs[k],noStamp:imgs[k].noStamp!==false},"campo",a.fotos[k]),"jpeg");
         ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"SCANC");ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC")}
       const g=fot("GEN");if(g.length)await fotosEn(["4.MT-ZS cam2"],g,"campo")}
   }

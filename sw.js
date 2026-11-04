@@ -1,5 +1,5 @@
 // Service worker: guarda la app para abrirla sin señal y sirve las fotos desde el teléfono.
-const VER="ci-v23", SHELL=["./","./index.html","./manifest.webmanifest","./icon-192.png","./icon-512.png"];
+const VER="ci-v24", SHELL=["./","./index.html","./manifest.webmanifest","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",e=>{e.waitUntil(caches.open(VER).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==VER&&k!=="ci-fonts").map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 function blobDe(id){return new Promise(ok=>{const r=indexedDB.open("inspecciones",1);r.onsuccess=()=>{try{const g=r.result.transaction("blobs").objectStore("blobs").get(id);g.onsuccess=()=>ok(g.result||null);g.onerror=()=>ok(null)}catch(e){ok(null)}};r.onerror=()=>ok(null)})}
