@@ -66,7 +66,12 @@ window.claude={use:async n=>n==="db"?db:n==="assets"?assets:n==="downloads"?down
 try{navigator.storage?.persist?.()}catch(e){}
 if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js").catch(()=>{});
   // la primera vez, recarga cuando el service worker toma el control (para que se vean las fotos)
-  if(!navigator.serviceWorker.controller)navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!sessionStorage.getItem("swr")){sessionStorage.setItem("swr","1");location.reload()}})}
+  if(!navigator.serviceWorker.controller)navigator.serviceWorker.addEventListener("controllerchange",()=>{if(!sessionStorage.getItem("swr")){sessionStorage.setItem("swr","1");location.reload()}})
+  // si la página se abrió "por fuera" del service worker (p. ej. Ctrl+Shift+R), las fotos no cargan: se recarga una vez normal
+  navigator.serviceWorker.ready.then(()=>{if(!navigator.serviceWorker.controller&&!sessionStorage.getItem("swr")){sessionStorage.setItem("swr","1");location.reload()}}).catch(()=>{})}
+// respaldo: si una foto no carga por la ruta del service worker, se toma directo del almacenamiento del equipo
+document.addEventListener("error",async e=>{const im=e.target;if(im?.tagName!=="IMG"||im.dataset.fb)return;const m=(im.getAttribute("src")||"").match(/_blob\/([0-9a-f]{32})/);if(!m)return;
+  im.dataset.fb="1";try{const b=await window.__localDB.getBlob(m[1]);if(b)im.src=URL.createObjectURL(b)}catch(_){}},true);
 })();
 </script>
 </head><body>
@@ -1563,7 +1568,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v25";
+const LOCAL=!!window.__LOCAL;const APPV="v26";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2318,7 +2323,8 @@ const serial=iso=>{if(!iso)return"";const[y,m,d]=iso.split("-").map(Number);retu
 const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)?n:null};
 // --- imágenes ---
 const cargarImg=src=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=()=>no(new Error("imagen"));im.src=src});
-async function blobFoto(id){const r=await fetch(fotoSrc(id));if(!r.ok)throw new Error("Falta la foto "+id.slice(0,6)+" en este equipo");return await r.blob()}
+async function blobFoto(id){try{const r=await fetch(fotoSrc(id));if(r.ok)return await r.blob()}catch(e){}
+  const b=window.__localDB?await window.__localDB.getBlob(id).catch(()=>null):null;if(b)return b;throw new Error("Falta la foto "+id.slice(0,6)+" en este equipo. Toque 🔄 Sincronizar con internet para bajarla.")}
 const aBytes=async b=>new Uint8Array(await b.arrayBuffer());
 function lienzo(cx,cy,esc=3){const c=document.createElement("canvas");c.width=Math.round(cx/9525*esc);c.height=Math.round(cy/9525*esc);return c}
 function encajarEn(g,src,W,H){const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight,k=Math.min(W/w,H/h);g.drawImage(src,(W-w*k)/2,(H-h*k)/2,w*k,h*k)}
