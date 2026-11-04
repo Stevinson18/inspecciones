@@ -500,7 +500,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
     <div class="row-btns"><button class="btn" type="button" id="padClear">Borrar</button><button class="btn" type="button" id="padCancel">Cancelar</button><button class="btn primary" type="button" id="padSave">Guardar firma</button></div>
   </div>
 </div>
-<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvStamp">Quitar estampado</button><button class="btn" type="button" id="fvChange">📷 Cambiar (cámara)</button><button class="btn" type="button" id="fvChangeG">🖼 Cambiar (galería)</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
+<div class="fview" id="fview" hidden role="dialog" aria-modal="true" aria-label="Foto"><div class="fvwrap"><img id="fviewImg" alt=""><span class="fst" id="fviewSt" hidden></span></div><div class="cap" id="fviewCap"></div><div class="acts"><button class="btn" type="button" id="fvRot">↻ Girar</button><button class="btn" type="button" id="fvStamp">Quitar estampado</button><button class="btn" type="button" id="fvChange">📷 Cambiar (cámara)</button><button class="btn" type="button" id="fvChangeG">🖼 Cambiar (galería)</button><button class="btn" type="button" id="fvDel">Quitar foto</button><button class="btn primary" type="button" id="fvClose">Cerrar</button></div></div>
 
 <script>
 (function(){
@@ -1574,7 +1574,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v27";
+const LOCAL=!!window.__LOCAL;const APPV="v28";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1656,7 +1656,8 @@ function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":"campo";const it=formI
 function stampFor(f,lugar,pt){
   const d=new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
   const sis=pt?pt.sistema||"":$("iSistema").value, lin=pt?pt.linea||"":lineaVal(), pk=pt?pt.pk||"":$("iPk").value.trim(), dia=pt?pt.diametro||"":$("iDiam").value.trim();
-  const u=parseCoord(lugar==="patio"?(pt?pt.coordPatio:$("iCoordPatio").value):(pt?pt.coord:$("iCoord").value))||f.gps;
+  const cC=pt?pt.coord:$("iCoord").value,cP=pt?pt.coordPatio:$("iCoordPatio").value;
+  const u=(lugar==="patio"?parseCoord(cP)||parseCoord(cC):parseCoord(cC)||parseCoord(cP))||f.gps;
   return[`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`,
     [sis,lin?lin+(dia?` ${dia}"`:""):(dia?`${dia}"`:"")].filter(Boolean).join(" · "),
     pk?"PK "+pk:"",
@@ -1757,10 +1758,15 @@ function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLee
 let fvT=null;
 function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
   fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
-  $("fvStamp").hidden=!s.raw||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
+  $("fvStamp").hidden=!s.raw||readOnly;$("fvRot").hidden=!assets||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
   $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.desc||s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
 $("fvClose").addEventListener("click",()=>{$("fview").hidden=true});
+// girar la foto 90° a la derecha (se guarda como foto nueva; el estampado se mantiene)
+$("fvRot").addEventListener("click",async()=>{const t=fvT;if(!t||!assets)return;const it=own(t.i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j];if(!s?.id)return;
+  const b=$("fvRot");b.disabled=true;try{const bm=await createImageBitmap(await blobFoto(s.id));const c=document.createElement("canvas");c.width=bm.height;c.height=bm.width;const g=c.getContext("2d");
+    g.translate(c.width,0);g.rotate(Math.PI/2);g.drawImage(bm,0,0);const nb=await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.92));const rr=await assets.upload(nb,{type:"image/jpeg"});
+    setFoto(t.i,t.k,t.j,{id:rr.id});scheduleDraft();refreshFotos(t.i);verFoto(t.i,t.k,t.j)}catch(e){toast("No se pudo girar la foto.")}finally{b.disabled=false}});
 // fotos que ya vienen estampadas (p. ej. Timestamp Camera): se puede apagar el estampado de la app en esa foto
 $("fvStamp").addEventListener("click",()=>{const t=fvT;if(!t)return;const it=own(t.i);
   const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j];if(!s?.id)return;
@@ -2180,7 +2186,7 @@ async function onAction(e){
   if(t.dataset.edit){try{return openForm(rows.find(r=>r.id===t.dataset.edit),false,t.dataset.i!=null?+t.dataset.i:undefined)}
     catch(err){console.error(err);$("scrim").hidden=false;toast("No se pudo abrir el punto: "+(err?.message||err)+". Mándele una captura a Claude.")}return}
   if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
-  if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;if(t.dataset.gen==="word"){toast("El informe en Word viene en la próxima actualización.");return}return accionReporte(r,t.dataset.gen,t)}
+  if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;if(t.dataset.gen==="word")return accionInforme(r,t);return accionReporte(r,t.dataset.gen,t)}
   const id=t.dataset.deliver||t.dataset.finish; if(!id||!db)return;
   const r=rows.find(x=>x.id===id);if(!r)return;
   t.disabled=true;
@@ -2557,6 +2563,155 @@ async function generarReporte(r,modo){REP_PT=r;
   medios.forEach(([m,b])=>salida.push({name:"xl/media/"+m,data:b}));
   return zipEscribir(salida);
 }
+// ---------- informe general en Word (plantilla INFORME GENERAL, se llena por posición) ----------
+const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+// "11, 25 y 30 de septiembre, 06 y 07 de octubre del 2026"
+function fechasTxt(isos){const ds=[...new Set(isos.filter(Boolean))].sort();if(!ds.length)return"";const p2=n=>String(n).padStart(2,"0");
+  const grupos=[];ds.forEach(s=>{const[y,m,d]=s.split("-").map(Number);const g=grupos[grupos.length-1];if(g&&g.y===y&&g.m===m)g.d.push(d);else grupos.push({y,m,d:[d]})});
+  const lista=a=>a.length>1?a.slice(0,-1).join(", ")+" y "+a[a.length-1]:a[0];
+  const anos=[...new Set(grupos.map(g=>g.y))];
+  return lista(grupos.map((g,i)=>`${lista(g.d.map(p2))} de ${MESES[g.m-1]}${anos.length>1||i===grupos.length-1?` del ${g.y}`:""}`))}
+const WNS="http://schemas.openxmlformats.org/wordprocessingml/2006/main",XMLNS_="http://www.w3.org/XML/1998/namespace";
+async function generarInforme(r){REP_PT=r;
+  const plantilla=await window.__plantillaWord?.();if(!plantilla)throw new Error("No hay plantilla del informe en este equipo. Abra la app con internet y toque 🔄 Sincronizar para descargarla.");
+  const ents=zipLeer(await plantilla.arrayBuffer());const E=Object.fromEntries(ents.map(e=>[e.name,e]));
+  const txt=async n=>new TextDecoder().decode(await inflar(E[n]));
+  const doc=new DOMParser().parseFromString(await txt("word/document.xml"),"application/xml");
+  const body=doc.getElementsByTagNameNS(WNS,"body")[0];const K=[...body.children];
+  const tx=n=>[...n.getElementsByTagNameNS(WNS,"t")].map(t=>t.textContent).join("");
+  const setT=(p,s)=>{const ts=[...p.getElementsByTagNameNS(WNS,"t")];if(!ts.length){const rr=doc.createElementNS(WNS,"w:r"),t=doc.createElementNS(WNS,"w:t");rr.appendChild(t);p.appendChild(rr);ts.push(t)}
+    ts[0].textContent=s;ts[0].setAttributeNS(XMLNS_,"xml:space","preserve");ts.slice(1).forEach(t=>t.textContent="")};
+  const kids=(n,tag)=>[...n.children].filter(e=>e.localName===tag);
+  const celda=(tc,s)=>{const ps=kids(tc,"p");setT(ps[0],String(s??""));ps.slice(1).forEach(p=>p.remove())};
+  const filasDe=tbl=>kids(tbl,"tr");const celdasDe=tr=>kids(tr,"tc");
+  const quitar=(a,b)=>{for(let i=a;i<=b;i++)K[i]?.remove()};
+  // llena una tabla desde una fila modelo; con grupo, la 1.ª columna se combina en vertical
+  function llenar(tbl,nHdr,filas,grupo){const rs=filasDe(tbl),tpl=rs[nHdr];rs.slice(nHdr).forEach(x=>x.remove());let prev=null;
+    for(const f of filas){const nr=tpl.cloneNode(true),cs=celdasDe(nr);f.c.forEach((v,k)=>{if(cs[k])celda(cs[k],v)});
+      if(grupo){const vm=cs[0].getElementsByTagNameNS(WNS,"vMerge")[0];if(f.g!==prev){if(vm)vm.setAttributeNS(WNS,"w:val","restart");celda(cs[0],f.g)}else{if(vm)vm.removeAttributeNS(WNS,"val");celda(cs[0],"")}prev=f.g}
+      tbl.appendChild(nr)}}
+  // ---- datos del punto ----
+  const tipoA=r.tipoReparacion==="Camisa Tipo A";const A=r.items;
+  const zs=A.find(x=>x.act==="Zona sana"),bis=A.find(x=>x.act==="Biseles"),h0=A.find(x=>x.act==="0H"),h12=A.find(x=>x.act==="12H"),tn=A.find(x=>esTN(x.act));
+  const repCam=[h0,h12].find(x=>x?.reparacion?.tipo)?.reparacion||null;
+  const desc=repCam?descCamisa(r,repCam):bis?descCamisa(r,{tipo:bis.reparacion?.tipoCamisa==="anillos"?"Camisa sobre anillos":bis.reparacion?.tipoCamisa==="directa"?"Camisa directa":"Camisa armadillo"}):"";
+  const elem=desc||(tn?"tubería nueva (metal base)":r.tipoReparacion==="Ilícita"?"reparación de la válvula ilícita":r.tipoReparacion==="C&E"?"corte y empalme":"reparación");
+  const lin=`${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in`.replace(/\s+/g," ").trim();
+  const enPK=`en el PK ${r.pk||""} del ${lin}`;
+  const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} – ${DEPTO[r.ciudad]}`:r.ciudad):"";
+  const fechas=fechasTxt(A.map(x=>x.inspFecha||r.fecha).concat(A.length?[]:[r.fecha]));
+  const insp=[...new Set(A.flatMap(x=>inspList(x.inspectores)))];const realizo=realizoDe(A[0]||{})||insp[0]||"";
+  const tec=x=>x?.tecnicas||[];const usaH=t=>[h0,h12].some(x=>tec(x).includes(t));
+  const scanA=zs?.zsTec==="SCANA",scanC=(zs&&!scanA)||tec(tn).includes("SCANC"),mt=!!zs||usaH("MT")||tec(tn).includes("MT"),pt=!!bis||usaH("PT"),paut=usaH("PAUT");
+  const hoy=new Date(),p2=n=>String(n).padStart(2,"0"),hoyTxt=`${p2(hoy.getDate())}/${p2(hoy.getMonth()+1)}/${hoy.getFullYear()}`;
+  // ---- portada ----
+  const cov=filasDe(K[0]);const cp=r_=>[...cov[r_].getElementsByTagNameNS(WNS,"p")];
+  {const ps=cp(1);if(tn&&!desc){setT(ps[0],"INSPECCIÓN E.N.D. A");setT(ps[1],"TUBERÍA NUEVA (METAL BASE)")}else setT(ps[1],(desc?"LA ":"")+elem.toUpperCase());
+    setT(ps[2],`EN EL PK ${r.pk||""}`);setT(ps[3],`${[r.sistema,r.linea].filter(Boolean).join(" ").toUpperCase()} ${r.diametro||""} in`)}
+  [...cov[3].getElementsByTagNameNS(WNS,"t")].forEach(t=>{if(/INSERTAR IMAGEN/i.test(t.textContent))t.textContent=""});
+  setT(cp(5)[0],lugar);setT(cp(7)[0],fechas);setT(cp(9)[0],`Informe N° ${r.consecutivo||""}`);
+  // ---- aprobación ----
+  {const f=filasDe(K[3]);celda(celdasDe(f[1])[0],`Ing. ${realizo}`);celda(celdasDe(f[3])[0],hoyTxt);celda(celdasDe(f[3])[2],hoyTxt)}
+  // ---- datos generales ----
+  {const f=filasDe(K[5]),v=i=>celdasDe(f[i])[1];celda(v(0),r.consecutivo||"");celda(v(8),r.pk||"");celda(v(10),lin);
+    const ps=kids(v(13),"p"),nombres=[[scanC,"Ultrasonido Scan C"],[pt,"Líquidos penetrantes"],[mt,tn&&!zs&&!usaH("MT")?"Partículas Magnéticas fluorescentes":"Partículas Magnéticas"],[paut,"Ultrasonido phased array"]];
+    ps.forEach((p,k)=>{const n=nombres[k];if(!n||!n[0])p.remove();else setT(p,n[1])});
+    if(scanA){const q=ps[0].cloneNode(true);setT(q,"Ultrasonido medición de espesores (Scan A)");v(13).insertBefore(q,v(13).firstChild)}
+    celda(v(14),elem.charAt(0).toUpperCase()+elem.slice(1));
+    const partes=[(zs||tn)&&"material base",bis&&"biseles",(h0||h12)&&"soldaduras"].filter(Boolean);celda(v(16),(partes.length>1?partes.slice(0,-1).join(", ")+" y "+partes.at(-1):partes[0]||"").replace(/^./,c=>c.toUpperCase()));
+    celda(v(18),insp.join(", "));const c21=celdasDe(f[21])[1];if(c21)celda(c21,"");celda(v(22),r.base||"");celda(v(24),fechas)}
+  // ---- alcance y dimensiones ----
+  setT(K[14],`Aplicación de END ${tn&&!desc?"al metal base de la tubería nueva":`en instalación de la ${elem}`} ${enPK}, así:`);
+  {const t=K[20],f=filasDe(t);const u=repCam?.unidad||"cm",mmv=v=>{const n=num(v);return n==null?null:n*(U2MM[u]||10)};const lg=repCam?.largos||{};let secs=[];const tt=repCam?.tipo;
+    if(tt==="Camisa directa")secs=[["S#1",mmv(lg.cd?.[0])]];
+    else if(tt==="Camisa armadillo"){const d=nInt(repCam.directas,3,1,12);for(let i=0;i<d;i++)secs.push([`S#${i+1}`,mmv(lg.dir?.[i])]);for(let i=0;i<d-1;i++)secs.push([`S#${d+i+1}`,mmv(lg.sob?.[i])])}
+    else if(/anillos/.test(tt||""))secs=[["A1",mmv(lg.an?.[0])],["A2",mmv(lg.an?.[0])],["SC",mmv(lg.sc?.[0])]];
+    else if(tt==="Camisa puenteada")secs=[["SC",mmv(lg.pu?.[0])]];
+    else if(tn){const rp=tn.reparacion||{};secs=tubosDe(rp).map(x=>[x.replace("Tubo ",""),num(rp.largoTubo)!=null?num(rp.largoTubo)*1000:null])}
+    if(!secs.length)secs=[["-",null]];secs=secs.slice(0,11);const n=secs.length,quita=11-n;
+    // columnas sobrantes fuera (y el ancho se reparte entre las que quedan)
+    const grid=t.getElementsByTagNameNS(WNS,"tblGrid")[0],gc=kids(grid,"gridCol");let libre=0;gc.slice(3+n,14).forEach(g=>{libre+=+g.getAttributeNS(WNS,"w")||+g.getAttribute("w:w")||0;g.remove()});
+    gc.slice(3,3+n).forEach(g=>{const w=+(g.getAttribute("w:w")||0);g.setAttribute("w:w",String(Math.round(w+libre/n)))});
+    f.forEach((tr,ri)=>{const cs=celdasDe(tr);const ini=ri===1?2:3;if(ri===0){const gs=cs[2].getElementsByTagNameNS(WNS,"gridSpan")[0];if(gs)gs.setAttribute("w:val",String(n+1));celda(cs[2],tn&&!desc?"Tubería nueva":elem.charAt(0).toUpperCase()+elem.slice(1));return}
+      cs.slice(ini+n,ini+11).forEach(c=>c.remove());const w=cs[ini]&&cs[ini].getElementsByTagNameNS(WNS,"tcW")[0];
+      const val=k=>ri===1?secs[k][0]:ri===2?(r.diametro||"-"):ri===3?(secs[k][1]!=null?(secs[k][1]/1000).toFixed(3).replace(".",","):"-"):ri===4?(r.espesor||"-"):(r.material||"-");
+      for(let k=0;k<n;k++)celda(cs[ini+k],val(k))});
+    {const v=celdasDe(f[2]),e=celdasDe(f[4]),m=celdasDe(f[5]);celda(v[1],r.diametro||"-");celda(e[1],r.nominal||"-");celda(m[2],r.materialTub||"-")}}
+  {const lt=repCam?num(repCam.longTotal):null;const ltmm=lt!=null?Math.round(lt*(U2MM[repCam.longUnidad||"m"]||1000)):null;
+    if(desc&&ltmm)setT(K[22],`En la zona de las anomalías se instaló la ${elem} con una longitud total de ${ltmm} mm.`);
+    else if(tn&&!desc){const rp=tn.reparacion||{};setT(K[22],`Se inspeccionó el metal base de la tubería nueva (${tubosDe(rp).join(", ")}): ${num(rp.extremo)??110} mm en cada extremo en todo el perímetro y ${num(rp.centro)??3000} mm en el centro.`)}
+    else K[22].remove()}
+  // ---- procedimiento ----
+  const scanTxt=scanA?"medición de espesores (Scan A)":"Scan C";
+  if(zs)setT(K[39],`Inspección por medio de ultrasonido ${scanTxt} y partículas magnéticas de las zonas donde se realizarán las soldaduras de filete de la ${elem} ${enPK}.`);
+  else if(tn)setT(K[39],`Inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} al metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}.`);
+  else K[39].remove();
+  if(bis)setT(K[40],`Inspección mediante líquidos penetrantes a los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}.`);else K[40].remove();
+  const areas=zs?zsAreas(zs.reparacion):[];
+  setT(K[48],`Esquema 1.  Identificación del área sana para la soldadura de la ${elem}`);setT(K[56],`Esquema 2.  Identificación de biseles de la ${elem}`);setT(K[64],`Esquema 3. Identificación de las soldaduras de la ${elem}`);
+  if(zs){setT(K[42],`Identificación del área sana para la realización de la soldadura de filete de la ${elem} ${enPK}`);
+    llenar(K[44],1,areas.map(a=>({c:[`Zona sana para la soldadura de filete ${a.replace(/^AS /,"")}`,a,"-"]})))}else quitar(42,49);
+  if(bis){const br=bisRows(bis.reparacion);setT(K[50],`Identificación de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);
+    llenar(K[52],1,br.map(([id])=>{const m=id.match(/Bisel (?:(\S+) )?(CPS|CPI) - (L\d)/)||[];return{g:m[1]?`Sección ${m[1]}`:"Camisa",c:["",`Bisel longitudinal ${m[3]||""} sección ${m[2]==="CPI"?"inferior":"superior"}`,id]}}),true)}else quitar(50,57);
+  const js=repCam?juntasDe(repCam,tipoA):[];
+  if(js.length){setT(K[58],`Identificación de las soldaduras de la ${elem} ${enPK}`);
+    let nl=0,nc=0;llenar(K[60],1,js.map(j=>{const s=(j.id.match(/^(S\d+|A\d|SC)/)||[])[1];const lg=j.tipo==="long";return{g:s?`Sección ${s}`:"Camisa",c:["",lg?`Junta Longitudinal #${(j.id.match(/L(\d+)$/)||[])[1]||++nl}`:`Junta Circunferencial #${(j.id.match(/C(\d+)/)||[])[1]||++nc}`,j.id,lg?"A tope -V":"A solape",lg?"En ranura":"Filete"]}}),true)}else quitar(58,65);
+  const tecsTxt=x=>{const t=tec(x).filter(q=>q!=="UTME").map(q=>({PT:"líquidos penetrantes",MT:"partículas magnéticas",PAUT:"ultrasonido Phased array"}[q])).filter(Boolean);return t.length>1?t.slice(0,-1).join(", ")+" y "+t.at(-1):t[0]||""};
+  const tipoJ=js.some(j=>j.tipo==="long")&&js.some(j=>j.tipo==="circ")?"longitudinales y circunferenciales":js.some(j=>j.tipo==="circ")?"circunferenciales":"longitudinales";
+  if(h0)setT(K[68],`Inspección “0 Horas” mediante ${tecsTxt(h0)} de las soldaduras ${tipoJ} de la ${elem} ${enPK}.`);else K[68].remove();
+  if(h12)setT(K[70],`Inspección “12 Horas” mediante ${tecsTxt(h12)} de las soldaduras ${tipoJ} de la ${elem} ${enPK}.`);else K[70].remove();
+  if(!h0&&!h12)K[66].remove();
+  // ---- resultados ----
+  const ok=x=>x?.novedad?"Ver obs.":"OK";const mmTxt=v=>v==null?"-":`${v.toFixed(2).replace(".",",")} mm`;
+  if(zs){setT(K[81],`Resultados de la inspección de las áreas sanas para la realización de las soldaduras de filete de la ${elem} ${enPK}`);setT(K[83],`Resultados de la inspección por ultrasonido ${scanTxt}`);
+    const nomMm=num(r.nominal)!=null?num(r.nominal)*25.4:null;llenar(K[84],1,areas.map(a=>{const v=num(zs.zsMin?.[a]);return{c:[a,mmTxt(nomMm),mmTxt(v!=null?v*25.4:null)]}}));
+    llenar(K[87],1,areas.map(a=>({c:[a,"-","X",ok(zs)]})))}
+  else if(tn){const tb=tubosDe(tn.reparacion||{});setT(K[81],`Resultados de la inspección del metal base de la tubería nueva ${enPK}`);
+    if(tec(tn).includes("SCANC")){setT(K[83],"Resultados de la inspección por ultrasonido Scan C");llenar(K[84],1,tb.map(t=>({c:[t,mmTxt(num(r.espesor)!=null?num(r.espesor)*25.4:null),"-"]})))}else{K[83].remove();K[84].remove();K[85]?.remove()}
+    setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes");llenar(K[87],1,tb.map(t=>({c:[t,"-",tec(tn).includes("MT")?"X":"-",ok(tn)]})))}
+  else quitar(80,88);
+  if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
+  const resH=(x,ip,it_,lab)=>{if(!x||!js.length){quitar(ip,ip+3);return}const t=tec(x);setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);
+    llenar(K[it_],2,js.map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")?"X":"-",ok(x)]})))};
+  resH(h0,93,95,"0 Horas");resH(h12,97,99,"12 Horas");
+  // ---- conclusiones ----
+  const conc=[[104,zs&&`En la inspección mediante ultrasonido ${scanTxt} de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de las soldaduras.`],
+    [106,zs?`En la inspección mediante partículas magnéticas de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones relevantes.`:tn&&`En la inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} del metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}, no se identificaron indicaciones relevantes.`],
+    [108,bis&&`En la inspección mediante líquidos penetrantes de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}, no se identificaron indicaciones relevantes causales de rechazo.`],
+    [110,h0&&js.length&&`En la inspección “0 Horas” mediante ${tecsTxt(h0)} de las soldaduras ${tipoJ} de la ${elem} ${enPK} no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`],
+    [112,h12&&js.length&&`En la inspección “12 Horas” mediante ${tecsTxt(h12)} de las soldaduras ${tipoJ} de la ${elem} ${enPK} no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`]];
+  conc.forEach(([i,t])=>{if(t)setT(K[i],t);else{K[i].remove();K[i+1]?.localName==="p"&&!tx(K[i+1]).trim()&&K[i+1].remove()}});
+  // novedades escritas en las actividades
+  const obs=A.filter(x=>x.observaciones).map(x=>`${x.act}: ${x.observaciones}`);if(obs.length){const q=K[116].cloneNode(true);setT(q,obs.join(" · "));K[116].after(q)}
+  // ---- firma y anexos ----
+  {const f=filasDe(K[161]);const c=celdasDe(f[2]).find(tc=>/Pablo|Stevinson|\w/.test(tx(tc)));if(c){const ps=kids(c,"p");setT(ps[0],realizo)}}
+  {const an=[[scanA,"TE-END-F-017","Reporte de medición de espesores"],[pt,"TE-END-F-006","Reporte de inspección por líquidos penetrantes"],[scanC,"TE-END-F-070C","Reporte de inspección por ultrasonido Scan C"],[mt,"TE-END-F-40","Reporte de inspección por partículas magnéticas"],[paut,"TE-END-F-070B","Reporte de inspección por ultrasonido Phased Array"],[true,"TE-END-F-065","Anexo Fotográfico"]].filter(x=>x[0]);
+    llenar(K[164],1,an.map((x,i)=>({c:[String(i+1),x[1],x[2]]})))}
+  // ---- imágenes: se reemplaza el contenido de las que ya trae la plantilla (mismo tamaño en la hoja) ----
+  const rel=await txt("word/_rels/document.xml.rels");const target=id=>"word/"+(rel.match(new RegExp(`Id="${id}"[^>]*Target="([^"]+)"`))||rel.match(new RegExp(`Target="([^"]+)"[^>]*Id="${id}"`)))?.[1];
+  const ext=id=>{const d=[...doc.getElementsByTagNameNS("*","blip")].find(b=>b.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","embed")===id);if(!d)return null;
+    let n=d;while(n&&n.localName!=="inline"&&n.localName!=="anchor")n=n.parentNode;const e=n&&[...n.children].find(c=>c.localName==="extent");return e?{cx:+e.getAttribute("cx"),cy:+e.getAttribute("cy")}:null};
+  const medios={};const pon=async(id,fn)=>{const e=ext(id),t=target(id);if(!e||!t)return;try{const b=await fn(e);if(b)medios[t]=b}catch(err){console.warn("imagen",id,err)}};
+  const ubc=(r.fotosPunto?.UBC||[]).find(x=>x?.id)||(r.fotosPunto?.ANX||[]).find(x=>x?.id);
+  const vacia=async(e,tipo)=>{const c=lienzo(e.cx,e.cy,1);const g=c.getContext("2d");if(tipo==="image/jpeg"){g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height)}return aBytes(await new Promise(ok=>c.toBlob(ok,tipo)))};
+  await pon("rId8",async e=>ubc?await fotoRep(ubc,"campo",e):await vacia(e,"image/jpeg"));
+  if(zs?.reparacion?.tipo)await pon("rId9",e=>esquemaRep({...zs.reparacion,diametro:r.diametro},{pk:r.pk,linea:r.linea,consecutivo:r.consecutivo,tipoReparacion:r.tipoReparacion},e));
+  if(bis?.reparacion?.tipo)await pon("rId10",e=>esquemaRep({...bis.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
+  if(repCam)await pon("rId11",e=>esquemaRep({...repCam,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
+  else if(tn?.reparacion?.tipo&&!zs)await pon("rId9",e=>esquemaRep({...tn.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
+  await pon("rId12",async e=>(await firmaRep(realizo,e))||await vacia(e,"image/png"));
+  // la de portada es JPEG: si la imagen nueva es PNG, se guarda igual con su contenido (Word lo reconoce por el contenido)
+  const extra={};for(const n of Object.keys(E).filter(n=>/^word\/(footer|header)\d+\.xml$/.test(n))){const d=new DOMParser().parseFromString(await txt(n),"application/xml");const ts=[...d.getElementsByTagNameNS(WNS,"t")];
+    const i=ts.findIndex(t=>/Informe N°/.test(t.textContent));if(i<0)continue;let j=i+1;const out=[];while(j<ts.length&&!/Pag/i.test(ts[j].textContent)){out.push(ts[j]);j++}
+    if(out.length){out[0].textContent=r.consecutivo||"";out.slice(1).forEach(t=>t.textContent="");extra[n]=new TextEncoder().encode(new XMLSerializer().serializeToString(d))}}
+  const salida=ents.map(e=>extra[e.name]?{name:e.name,data:extra[e.name]}:e.name==="word/document.xml"?{name:e.name,data:new TextEncoder().encode(new XMLSerializer().serializeToString(doc))}:medios[e.name]?{name:e.name,data:medios[e.name]}:{name:e.name,raw:e});
+  const z=await zipEscribir(salida);return new Blob([z],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})}
+async function accionInforme(r,btn){const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
+  try{const blob=await generarInforme(r);const nom=`INFORME_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}.docx`;
+    const d=await guardar(nom,blob,"Informes Word");toast("Informe Word listo"+d)}
+  catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar el informe: "+(e?.message||e))}}
+  finally{btn.disabled=false;btn.textContent=t0}}
+
 // --- botones ---
 // guarda en la carpeta "Control de informes" (PC) o descarga normal; devuelve " en …" para el aviso
 async function guardar(filename,data,carpeta){filename=filename.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.+()#-]+/g,"_");const r=await downloads.save(LOCAL?{filename,data,carpeta}:{filename,data});return r?.donde?` en ${r.donde}`:""}
@@ -2685,7 +2840,7 @@ async function sync(manual){
   try{let r,n=0;
     while(true){try{r=await syncOnce();break}catch(e){if(e.status===422&&n++<2)continue;throw e}}
     lastErr="";LS.set("sync_last",String(Date.now()));
-    window.__plantilla().catch(()=>{});
+    window.__plantilla().catch(()=>{});window.__plantillaWord().catch(()=>{});
     estado();if(manual||r.bajados||r.subidos)aviso(`Sincronizado: ${r.subidos} subido(s), ${r.bajados} recibido(s)`);
   }catch(e){lastErr=e.status===401||e.status===403?"La clave no sirve o venció. Revísela en ⚙.":e.status===404?"No se encuentra el repositorio. Revíselo en ⚙.":"No se pudo sincronizar. Se reintenta solo.";estado()}
   finally{running=false;if(again){again=false;setTimeout(()=>sync(),500)}}
@@ -2737,12 +2892,14 @@ let deb=null;const pedir=()=>{clearTimeout(deb);deb=setTimeout(()=>sync(),2500)}
 window.__onLocalChange=()=>{if(!running)pedir()};
 window.__syncNow=sync;
 // plantilla del reporte: se descarga del repositorio y queda guardada en el equipo para usarla sin internet
-const PLANT="plantillas/PLANTILLA_REPORTES_INTEGRADOS.xlsx";
-window.__plantilla=async()=>{const KEY="plantilla-integrados";const c=cfg();let blob=await L.getBlob(KEY);
-  if(navigator.onLine&&c.token){try{const meta=await gh("/repos/"+c.repo+"/contents/"+PLANT);
-      if(!blob||meta.sha!==LS.get("plantilla_sha")){const buf=await gh("/repos/"+c.repo+"/git/blobs/"+meta.sha,{raw:true});blob=new Blob([buf]);await L.putBlob(KEY,blob);LS.set("plantilla_sha",meta.sha)}}
+// plantillas guardadas en el repositorio de datos (se bajan con internet y quedan en el equipo)
+const plantillaDe=async(KEY,PATH,SHA)=>{const c=cfg();let blob=await L.getBlob(KEY);
+  if(navigator.onLine&&c.token){try{const meta=await gh("/repos/"+c.repo+"/contents/"+PATH);
+      if(!blob||meta.sha!==LS.get(SHA)){const buf=await gh("/repos/"+c.repo+"/git/blobs/"+meta.sha,{raw:true});blob=new Blob([buf]);await L.putBlob(KEY,blob);LS.set(SHA,meta.sha)}}
     catch(e){if(!blob)throw new Error("No se pudo descargar la plantilla del repositorio.")}}
   return blob||null};
+window.__plantilla=()=>plantillaDe("plantilla-integrados","plantillas/PLANTILLA_REPORTES_INTEGRADOS.xlsx","plantilla_sha");
+window.__plantillaWord=()=>plantillaDe("plantilla-informe","plantillas/PLANTILLA_INFORME_GENERAL.docx","plantillaw_sha");
 window.addEventListener("online",()=>sync());
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")sync()});
 setInterval(()=>sync(),600000);setInterval(()=>estado(),60000);
