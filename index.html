@@ -266,7 +266,7 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .ichip:hover .x{color:var(--bad)}
 .ichip[disabled]{cursor:default;padding-right:10px}
 .chip{font-size:.75rem;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid currentColor;white-space:nowrap;letter-spacing:.02em}
-.chip.zs{color:var(--a-zs)} .chip.il{color:var(--a-il)} .chip.bi{color:var(--a-bi)} .chip.h0{color:var(--a-0h)} .chip.h12{color:var(--a-12h)}
+.chip.zs{color:var(--a-zs)} .chip.il{color:var(--a-il)} .chip.bi{color:var(--a-bi)} .chip.h0{color:var(--a-0h)} .chip.h12{color:var(--a-12h)} .chip.tn{color:#8a6d1c}
 .sub2{display:block;font-size:.78rem;color:var(--muted);margin-top:3px}
 .thumb{display:block;border:1px solid var(--line);border-radius:6px;background:var(--bg);padding:2px;width:100%;max-width:150px}
 .thumb svg{display:block;width:100%;height:auto}
@@ -499,7 +499,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 
 <script>
 (function(){
-const ACTS=[["Zona sana","zs"],["Ilícitas","il"],["Biseles","bi"],["Inspección de camisa","ic"],["0H","h0"],["12H","h12"],["Otra","ot"]];
+const ACTS=[["Zona sana","zs"],["Ilícitas","il"],["Biseles","bi"],["Inspección de camisa","ic"],["0H","h0"],["12H","h12"],["Tubería nueva","tn"],["Otra","ot"]];
 const PUNTO=["Programado","En ejecución","Terminado","Suspendido"];
 const PLAZO_H=24;
 const BASES=["Puerto Boyacá","Mansilla","Villavicencio","Cúcuta","Yopal","Tocancipá","Barrancabermeja"];
@@ -523,6 +523,7 @@ const REPS={
   "Camisa puenteada":{params:[["cascota","¿Hay cascota en el espacio?",true,0,0,"yesno"]]},
   "Zona sana":{params:[["zonas","Áreas sanas",2,1,8]],act:"Zona sana"},
   "Biseles":{params:[],act:"Biseles"},
+  "Tubería nueva":{params:[["tubos","Tubos inspeccionados",1,1,20],["extremo","Cada extremo (mm, todo el perímetro)","110",0,0,"num"],["centro","Centro (mm)","3000",0,0,"num"],["largoTubo","Largo del tubo (m, opcional)","",0,0,"num"]],act:"Tubería nueva"},
   "Corte y empalme":{params:[["venteos","Venteos",2,0,8],["drenajes","Drenajes",1,0,6],["camisas","¿Zona para camisas sobre venteos?",true,0,0,"yesno"]]},
   "Otra":{params:[]}
 };
@@ -669,7 +670,7 @@ function drawRepair(rep,meta,P,compact){
   const LTv=(()=>{const n=parseFloat(String(rep?.longTotal??"").replace(",","."));return isFinite(n)&&n>0?n:null})();
   const H=(esCE?(compact?190:310):esBI?(compact?170:310):(compact?150:280))+(!compact&&LTv?36:0);
   const cy=esCE?(compact?95:170):(compact?75:150);
-  const ph=esCE?(compact?120:170):esZS?64:esIL?(compact?100:136):(esCA||esAN||esAV||esPU||esCD)?60:40;
+  const ph=rep?.tipo==="Tubería nueva"?(compact?46:62):esCE?(compact?120:170):esZS?64:esIL?(compact?100:136):(esCA||esAN||esAV||esPU||esCD)?60:40;
   // escala de diámetros: camisa = tubería + 1", sobre camisa = tubería + 2" (ej. 16" → 17" → 18")
   const DI=parseFloat(String(rep?.diametro??"").replace(",","."))||16, INC=Math.max(6,ph/DI);
   const py=cy-ph/2, x0=36, x1=W-36;
@@ -712,7 +713,7 @@ function drawRepair(rep,meta,P,compact){
   const LN=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
   const U=rep?.unidad||"cm", lg=rep?.largos||{};
   let titulo="", resumen="", RA=null, RB=null, DL="";
-  if(!esBI)pipe();
+  if(!esBI&&tipo!=="Tubería nueva")pipe();
   if(tipo==="Ilícita"){
     // cascotas circulares sobre el tubo (vistas en perspectiva), cada una con su zona sana
     const n=nInt(rep.cascotas,3,1,12), LC=[...Array(n)].map((_,i)=>LN(lg.cas?.[i])), knownC=LC.every(Boolean);
@@ -790,6 +791,15 @@ function drawRepair(rep,meta,P,compact){
     const sw=sinComp?" · soldaduras C1–C2":" · soldaduras C1–C4";
     titulo=AV?"Camisa sobre anillos sobre venteo":"Camisa sobre anillos";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";
     resumen=AV?(isV?`Tapa el venteo #${nInt(rep.tapaNum,1,1,20)}`:`Tapa ${nT} ${nT===1?"cascota":"cascotas"}`)+sw:"2 anillos + sobre camisa"+sw;
+  } else if(tipo==="Tubería nueva"){
+    // tubo nuevo (metal base): extremos inspeccionados en todo el perímetro y una franja central
+    const ext=LN(rep.extremo)??110, cen=LN(rep.centro)??3000, lt=LN(rep.largoTubo), nt=nInt(rep.tubos,1,1,20), span=x1-x0, fm=v=>String(v).replace(".",",");
+    S.push(`<rect x="${x0}" y="${f1(py)}" width="${span}" height="${ph}" style="fill:url(#gP);stroke:#3f464a;stroke-width:1.5"/>`);
+    const ew=Math.max(compact?10:30,lt?span*ext/(lt*1000):0), cw=Math.min(span*0.6,Math.max(compact?50:150,lt?span*cen/(lt*1000):0)), cxa=x0+span/2-cw/2;
+    const band=(x,w,lab,sub,a)=>{R(x,py-3,w,ph+6,{f:P.zs,s:P.zsEdge,sw:1.2});if(compact)return;const tx=a==="start"?x:a==="end"?x+w:x+w/2;T(tx,py-24,lab,{s:13,w:700,a});T(tx,py-9,sub,{s:11,c:P.muted,a})};
+    band(x0,ew,"Extremo 1",`${fm(ext)} mm · 360°`,"start");band(x1-ew,ew,"Extremo 2",`${fm(ext)} mm · 360°`,"end");band(cxa,cw,"Centro",`${fm(cen)} mm`);
+    RA=x0;RB=x1;if(lt&&!compact)dim(x0,x1,cy+ph/2+26,`Largo del tubo: ${fm(lt)} m`);
+    titulo="Tubería nueva · metal base";resumen=`Extremos ${fm(ext)} mm (todo el perímetro) + centro ${fm(cen)} mm${nt>1?` · ${nt} tubos`:""}`;
   } else if(tipo==="Zona sana"){
     const n=nInt(rep.zonas,2,1,8), zw=36, span=x1-x0;
     const a=x0+span*0.2, b=x0+span*0.76, step=n>1?(b-a)/(n-1):0;
@@ -928,6 +938,7 @@ const repLabel=rep=>{if(!rep?.tipo)return"";const t=rep.tipo;
   if(t==="Camisa puenteada")return"Camisa puenteada";
   if(t==="Camisa directa")return"Camisa directa";
   if(t==="Zona sana")return`Zona sana · ${nInt(rep.zonas,2,1,8)} áreas`;
+  if(t==="Tubería nueva"){const n=nInt(rep.tubos,1,1,20);return`Tubería nueva · extremos ${String(rep.extremo||110).replace(".",",")} mm + centro ${String(rep.centro||3000).replace(".",",")} mm${n>1?` · ${n} tubos`:""}`}
   if(t==="Biseles")return rep.tipoCamisa==="anillos"?"Biseles · sobre anillos":rep.tipoCamisa==="directa"?"Biseles · camisa directa":`Biseles · ${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`;
   if(t==="Corte y empalme")return`Corte y empalme · ${nInt(rep.venteos,2,0,8)} V · ${nInt(rep.drenajes,1,0,6)} D${rep.camisas===false?"":" · camisas"}`;
   return rep.nota?`Otra · ${rep.nota}`:"Otra"};
@@ -1050,7 +1061,7 @@ function readRep(){
   if(tipo==="Corte y empalme")Object.assign(rep,readPos());
   if(tipo==="Biseles")Object.assign(rep,readBiseles());
   if(LENS.includes(tipo))Object.assign(rep,readLens());
-  (REPS[tipo].params||[]).forEach(([k,,def,min,max,ty])=>{const el=$("rp_"+k);rep[k]=ty==="sel"?(el?.value||def):ty==="yesno"?(el?el.value!=="no":def):nInt(el?.value,def,min,max)});
+  (REPS[tipo].params||[]).forEach(([k,,def,min,max,ty])=>{const el=$("rp_"+k);rep[k]=ty==="sel"?(el?.value||def):ty==="num"?String(el?.value??def).replace(",",".").trim():ty==="yesno"?(el?el.value!=="no":def):nInt(el?.value,def,min,max)});
   return rep;
 }
 // ---- longitudes de camisas y cascotas (para dibujar a proporción) ----
@@ -1132,6 +1143,8 @@ function buildParams(rep){
     ?`<label class="f"><span class="label">${lab}</span><select class="field" id="rp_${k}">${opts.map(o=>`<option${(rep&&rep[k]!=null?rep[k]:def)===o?" selected":""}>${o}</option>`).join("")}</select></label>`
     :ty==="yesno"
     ?`<label class="f"><span class="label">${lab}</span><select class="field" id="rp_${k}"><option value="si">Sí</option><option value="no">No</option></select></label>`
+    :ty==="num"
+    ?`<label class="f"><span class="label">${lab}</span><input class="field mono" id="rp_${k}" value="${esc(String(rep&&rep[k]!=null?rep[k]:def).replace(".",","))}" inputmode="decimal" autocomplete="off"></label>`
     :`<label class="f"><span class="label">${lab}</span><input class="field mono" type="number" id="rp_${k}" min="${min}" max="${max}" value="${rep&&rep[k]!=null?rep[k]:def}" inputmode="numeric"></label>`).join("");
   ps.forEach(([k,,def,,,ty])=>{if(ty==="yesno")$("rp_"+k).value=(rep&&rep[k]!=null?rep[k]:def)?"si":"no"});
   $("repParams").hidden=!ps.length&&tipo!=="Biseles"&&!LENS.includes(tipo);
@@ -1231,6 +1244,8 @@ function calcInsp(rep,diam,esp,tipoA){
   return{lon,circ,total:lon+circ,rows,D,t};
 }
 const conTec=a=>a==="0H"||a==="12H";
+const esTN=a=>a==="Tubería nueva";const TEC_TN=[["MT","MT fluorescentes"],["SCANC","Scan C"]];
+const conTecUI=a=>conTec(a)||esTN(a);
 const tipoAForm=()=>$("iTipoRep").value==="Camisa Tipo A";
 function h0CalcHtml(it){
   const tec=it.tecnicas||[]; if(!tec.includes("MT")&&!tec.includes("PT"))return"";
@@ -1242,6 +1257,10 @@ function h0CalcHtml(it){
   <p class="note">Directas cubiertas: −2,2" (55,9 mm) por cada lado bajo otra sección. Perímetros con OD ${mm1(c.D)} mm (${fIn(c.D)}") + espesor de cada camisa (${c.t.toFixed(3).replace(".",",")}" = ${mm1(c.t)} mm).</p></div>`;
 }
 function h0Html(it){const tec=it.tecnicas||[];
+  if(esTN(it.act)){const rp=it.reparacion||{},ext=num(rp.extremo)??110,cen=num(rp.centro)??3000,nt=nInt(rp.tubos,1,1,20),od=odOf($("iDiam").value);
+    return`<span class="label">Técnicas · tubería nueva (metal base)</span>
+    <div class="picks">${TEC_TN.map(([t,l])=>`<label class="pick"><input type="checkbox" data-tec="${t}"${tec.includes(t)?" checked":""}><span>${l}</span></label>`).join("")}</div>
+    <div class="h0calc"><p class="note">Por tubo: 2 × ${String(ext).replace(".",",")} mm en los extremos (todo el perímetro) + ${String(cen).replace(".",",")} mm en el centro = ${(2*ext+cen).toLocaleString("es-CO")} mm${nt>1?` · ${nt} tubos = ${(nt*(2*ext+cen)).toLocaleString("es-CO")} mm`:""}${od?` · perímetro ${Math.round(od*25.4*Math.PI).toLocaleString("es-CO")} mm`:""}. Las medidas se cambian en el esquema.</p></div>`}
   return`<span class="label">Técnicas de inspección ${it.act==="12H"?"12":"0"} horas</span>
   <div class="picks">${TECNICAS.map(t=>`<label class="pick"><input type="checkbox" data-tec="${t}"${tec.includes(t)?" checked":""}><span>${t}</span></label>`).join("")}</div>
   <div class="h0calc">${h0CalcHtml(it)}</div>`}
@@ -1253,7 +1272,7 @@ const EQ_CAMPOS={
   UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración",""],["acoplante","Acoplante","Agua"]]};
 const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)"};
 let equipos=[], firmas={};
-const tecsDe=it=>it.act==="Biseles"?["PT"]:conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
+const tecsDe=it=>it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
 function eqHtml(it){const ts=tecsDe(it);if(!ts.length)return"";
   return`<span class="label">Equipos y consumibles usados</span>`+ts.map(t=>{const lst=equipos.filter(e=>e.tecnica===t);const sel=it.equipos?.[t]||"";
     return`<div class="eqsel"><span class="sub2" style="font-weight:600">${t}</span><div class="eqrow"><select class="field" data-eq="${t}" aria-label="Equipo ${t}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el equipo…":"Sin equipos registrados"}</option>${lst.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-eqadd="${t}">+ Nuevo</button>`}</div></div>`}).join("");}
@@ -1354,7 +1373,7 @@ $("catPlanes").addEventListener("click",async e=>{
   else if(e.target.closest("[data-pldel]")){const b=e.target.closest("[data-pldel]");if(!b.dataset.ok){b.dataset.ok="1";b.textContent="¿Eliminar? Toca otra vez";return}await db.collection("planes").doc(id).delete();renderPlanes()}
 });
 // en la actividad: qué planes aplican y cuál cuadra mejor con el punto
-const plTiposDe=(it,tipoA)=>{if(it.act==="Zona sana")return[it.zsTec==="SCANA"?"SCANA":"SCANC"];if(!(conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")))return[];
+const plTiposDe=(it,tipoA)=>{if(it.act==="Zona sana")return[it.zsTec==="SCANA"?"SCANA":"SCANC"];if(esTN(it.act))return(it.tecnicas||[]).includes("SCANC")?["SCANC"]:[];if(!(conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")))return[];
   if(!it.reparacion?.tipo)return["LONG","CIRC"];let ta=tipoA;if(ta===undefined){try{ta=tipoAForm()}catch(e){ta=false}}
   const js=juntasDe(it.reparacion,ta);return[js.some(j=>j.tipo==="long")&&"LONG",js.some(j=>j.tipo==="circ")&&"CIRC"].filter(Boolean)};
 function plEncaje(p,it){const esp=numIn(p.tipo==="SCANC"||p.tipo==="SCANA"?$("iNom").value:$("iEsp").value), dia=numIn($("iDiam").value), ins=inspList(it.inspectores);
@@ -1464,11 +1483,11 @@ $("catEquipos").addEventListener("click",async e=>{
 });
 function refreshH0(i,force){
   const card=$("itemsBox").querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
-  const box=card.querySelector(".h0box"); box.hidden=!conTec(it.act); if(box.hidden)return;
-  if(force||!box.querySelector("[data-tec]")){box.innerHTML=h0Html(it);box.querySelectorAll("input").forEach(el=>el.disabled=readOnly)}
+  const box=card.querySelector(".h0box"); box.hidden=!conTecUI(it.act); if(box.hidden)return;
+  if(force||esTN(it.act)||!box.querySelector("[data-tec]")){box.innerHTML=h0Html(it);box.querySelectorAll("input").forEach(el=>el.disabled=readOnly)}
   else box.querySelector(".h0calc").innerHTML=h0CalcHtml(it);
 }
-function h0Sub(it){if(!conTec(it.act))return"";const t=(it.tecnicas||[]).join(" · ");const l=it.longInspMm!=null?`Long. insp. ${it.longInspMm.toLocaleString("es-CO")} mm (${(it.longInspMm/1000).toFixed(2).replace(".",",")} m)`:"";return t||l?`<span class="sub2">${esc([t,l].filter(Boolean).join(" · "))}</span>`:""}
+function h0Sub(it){if(!conTecUI(it.act))return"";const t=(it.tecnicas||[]).map(x=>esTN(it.act)?(TEC_TN.find(y=>y[0]===x)||[0,x])[1]:x).join(" · ");const l=it.longInspMm!=null?`Long. insp. ${it.longInspMm.toLocaleString("es-CO")} mm (${(it.longInspMm/1000).toFixed(2).replace(".",",")} m)`:"";return t||l?`<span class="sub2">${esc([t,l].filter(Boolean).join(" · "))}</span>`:""}
 // ---- fotos del reporte, por actividad y técnica ----
 let assets=null; const fotosQuitadas=new Set(); const subiendo=new Set();
 let puntoF={act:"__punto",fotos:{}};
@@ -1524,6 +1543,10 @@ function fotoGrupos(it,tipoA=tipoAForm()){
     {k:"UBP",t:"Ubicación en patio",caps:["Ubicación en patio"],min:1,ubi:"patio",fixed:true},
     {k:"ANX",t:"Fotos del anexo",caps:["Registro fotográfico","Registro fotográfico","Registro fotográfico","Registro fotográfico"],min:4}];
   if(it.act==="Biseles")g.push({k:"PT",t:"Fotos tintas penetrantes (biseles)",caps:FOTO_PT,min:6});
+  else if(esTN(it.act)){const tec=it.tecnicas||[];
+    if(tec.includes("MT"))g.push({k:"MT",t:"Fotos MT fluorescentes",caps:FOTO_MT,min:6});
+    if(tec.includes("SCANC"))g.push({k:"SCI",t:"Imágenes Scan C",caps:["Extremo 1","Centro","Extremo 2"],min:0,fixed:true,byCap:true,sinEstampe:true});
+    g.push({k:"GEN",t:"Otras fotos",caps:[],min:0})}
   else if(conTec(it.act)){const tec=it.tecnicas||[];
     if(tec.includes("PT"))g.push({k:"PT",t:"Fotos tintas penetrantes (PT)",caps:FOTO_PT,min:6});
     if(tec.includes("MT"))g.push({k:"MT",t:"Fotos partículas magnéticas (MT)",caps:FOTO_MT,min:6});
@@ -1536,7 +1559,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v22";
+const LOCAL=!!window.__LOCAL;const APPV="v23";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1671,7 +1694,7 @@ fileIn.addEventListener("change",async()=>{
     let r;try{r=await assets.upload(blob,{type:"image/jpeg"})}catch(e){if(e?.code==="store_unavailable"){await new Promise(z=>setTimeout(z,1500));r=await assets.upload(blob,{type:"image/jpeg"})}else throw e}
     const prev=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.id;
     if(prev)fotosQuitadas.add(prev);
-    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"?{noStamp:true}:{})});scheduleDraft();
+    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"||t.k==="SCI"?{noStamp:true}:{})});scheduleDraft();
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
       if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo,t.k)}
@@ -1721,7 +1744,7 @@ function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find
   fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
   $("fvStamp").hidden=!s.raw||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
-  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;if(k==="ZSI"||k==="PAUTI"){$("fvStamp").hidden=true;st.hidden=true}$("fview").hidden=false;$("fvClose").focus()}
+  $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;if(k==="ZSI"||k==="PAUTI"||k==="SCI"){$("fvStamp").hidden=true;st.hidden=true}$("fview").hidden=false;$("fvClose").focus()}
 $("fvClose").addEventListener("click",()=>{$("fview").hidden=true});
 // fotos que ya vienen estampadas (p. ej. Timestamp Camera): se puede apagar el estampado de la app en esa foto
 $("fvStamp").addEventListener("click",()=>{const t=fvT;if(!t)return;const it=own(t.i);
@@ -1747,6 +1770,7 @@ function defaultRep(act,gg){
   const camisa={"Camisa seccionada o armadillo":"Camisa armadillo","Camisa Tipo Sobre Anillos":"Camisa sobre anillos","Camisa Puenteada":"Camisa puenteada","Camisa Tipo B directa":"Camisa directa","Camisa Tipo A":"Camisa directa","C&E":"Corte y empalme","Ilícita":"Ilícita"}[g];
   if(act==="Ilícitas")return{tipo:"Ilícita"};
   if(act==="Zona sana")return{tipo:g==="C&E"?"Corte y empalme":"Zona sana"};
+  if(act==="Tubería nueva")return{tipo:"Tubería nueva",tubos:1,extremo:"110",centro:"3000",largoTubo:""};
   if(act==="Biseles")return{tipo:"Biseles",tipoCamisa:g==="Camisa Tipo Sobre Anillos"?"anillos":(g==="Camisa Tipo B directa"||g==="Camisa Tipo A")?"directa":"seccionada"};
   if(["Inspección de camisa","0H","12H"].includes(act)&&camisa)return{tipo:camisa};
   return null;
@@ -1779,7 +1803,7 @@ function itemHtml(it,i){it=it||{};
   </div>
   <label class="check"><input type="checkbox" data-f="novedad"${it.novedad?" checked":""}> Tiene novedad (bloquea el informe)</label>
   <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
-  <div class="h0box repbox"${conTec(it.act)?"":" hidden"}>${conTec(it.act)?h0Html(it):""}</div>
+  <div class="h0box repbox"${conTecUI(it.act)?"":" hidden"}>${conTecUI(it.act)?h0Html(it):""}</div>
   <div class="eqbox soldbox repbox">${soldHtml(it)}</div>
   <div class="eqbox repbox">${eqHtml(it)}</div>
   <div class="eqbox plbox repbox">${plHtml(it)}</div>
@@ -2013,7 +2037,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
   if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
   if(e.target.dataset.zstec!=null){syncCards();refreshZs(i,true);refreshPl(i);scheduleDraft();return}
-  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
+  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
   if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
