@@ -1574,7 +1574,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v29";
+const LOCAL=!!window.__LOCAL;const APPV="v30";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2377,6 +2377,14 @@ async function esquemaRep(rep,meta,an){
   const m=8,cr=document.createElement("canvas");cr.width=r.b.w+2*m;cr.height=r.b.h+2*m;const gc=cr.getContext("2d");gc.fillStyle="#fff";gc.fillRect(0,0,cr.width,cr.height);gc.drawImage(r.c,r.b.x,r.b.y,r.b.w,r.b.h,m,m,r.b.w,r.b.h);
   const c=lienzo(an.cx,an.cy,4);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.imageSmoothingQuality="high";encajarEn(g,cr,c.width,c.height);
   return aBytes(await new Promise(ok=>c.toBlob(ok,"image/png")))}
+// recuadro completo de una foto (de borde a borde, incluido su pie), sacado de las celdas del pie de foto
+function cajaFoto(a,k){const cap=a.caps?.[k];if(!cap)return a.fotos[k];const m=cap.match(/^([A-Z]+)(\d+)$/),col=colN(m[1])-1,row=+m[2];
+  const otros=a.caps.map(c=>c.match(/^([A-Z]+)(\d+)$/)).filter(Boolean);const cols=[...new Set(otros.map(x=>colN(x[1])-1))].sort((x,y)=>x-y);const der=cols.find(c=>c>col)??37;
+  const arriba=otros.filter(x=>colN(x[1])-1===col&&+x[2]<row).map(x=>+x[2]);const fr=+(a.fotos[k].fr.match(/<xdr:row>(\d+)/)||[])[1];const top=arriba.length?Math.max(...arriba):fr-1;
+  const A=(c,r)=>`<xdr:col>${c}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${r}</xdr:row><xdr:rowOff>0</xdr:rowOff>`;
+  return{fr:`<xdr:from>${A(col,top)}</xdr:from>`,to:`<xdr:to>${A(der,row)}</xdr:to>`,cx:a.fotos[k].cx,cy:Math.round(a.fotos[k].cy*1.25)}}
+async function rayaVacia(an){const c=lienzo(an.cx,an.cy,2),g=c.getContext("2d");g.strokeStyle="#000";g.lineWidth=Math.max(2,c.width/400);g.beginPath();g.moveTo(0,0);g.lineTo(c.width,c.height);g.stroke();
+  return aBytes(await new Promise(ok=>c.toBlob(ok,"image/png")))}
 async function firmaRep(nombre,an){const f=firmas[slug(nombre)];if(!f?.img?.id)return null;
   const b=await blobFoto(f.img.id);const bm=await createImageBitmap(b);const c=lienzo(an.cx,an.cy);encajarEn(c.getContext("2d"),bm,c.width,c.height);
   return aBytes(await new Promise(ok=>c.toBlob(ok,"image/png")))}
@@ -2476,7 +2484,8 @@ async function generarReporte(r,modo){REP_PT=r;
         Object.entries(celdas[base]||{}).filter(([ref])=>+(ref.match(/\d+/)||[])[0]<=10).forEach(([ref,v])=>C(h,ref,v,true))}
       const a=ANCLAS_REP[h];visibles.add(h);
       for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k]),"jpeg");if(a.caps?.[k])C(h,a.caps[k],`Foto ${i+1}. ${f.desc||f.cap||""}`)}
-      if(i>=lista.length)for(let k=(i-1)%a.fotos.length+1;k<a.fotos.length;k++)if(a.caps?.[k])C(h,a.caps[k],"",true);
+      // recuadros sin foto en la última página: pie en blanco y una línea diagonal de esquina a esquina
+      if(i>=lista.length)for(let k=(i-1)%a.fotos.length+1;k<a.fotos.length;k++){if(a.caps?.[k])C(h,a.caps[k],"",true);const cj=cajaFoto(a,k);P(h,cj,await rayaVacia(cj),"png")}
       if(af&&h!==base)C(h,af.pag,af.base+extra)}
     if(af&&extra){const tot=af.base+extra;[base,...hs.filter(x=>x!==base)].forEach(h=>af.tot.forEach(c=>C(h,c,tot)))}}
   async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);const a=ANCLAS_REP[h]||{};
