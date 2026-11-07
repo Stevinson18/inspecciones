@@ -1588,7 +1588,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v37";
+const LOCAL=!!window.__LOCAL;const APPV="v38";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2377,11 +2377,12 @@ function encajarEn(g,src,W,H){const w=src.width||src.naturalWidth,h=src.height||
 async function fotoRep(f,lugar,an,llenar){
   const b=await blobFoto(f.id);const bm=await createImageBitmap(b);
   // estampado sobre la foto en su tamaño real, igual que en la app
-  const c0=document.createElement("canvas");c0.width=bm.width;c0.height=bm.height;const g0=c0.getContext("2d");g0.drawImage(bm,0,0);
-  if(f.raw&&!f.noStamp)estampar(g0,c0.width,c0.height,stampFor(f,lugar,REP_PT,f.fi||REP_PT?.fecha));
-  // "llenar": la imagen ocupa todo su recuadro (registros PAUT), sin márgenes blancos
-  const c=llenar?lienzo(an.cx,an.cy,2):lienzo(an.cx,an.cy);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);
-  if(llenar){g.imageSmoothingQuality="high";g.drawImage(c0,0,0,c.width,c.height)}else encajarEn(g,c0,c.width,c.height);
+  const est=f.raw&&!f.noStamp?stampFor(f,lugar,REP_PT,f.fi||REP_PT?.fecha):null;
+  // "llenar" (registros PAUT): la imagen se ajusta al recuadro. Fotos: todas del mismo alto y ancho, recortadas al centro
+  // para cubrir el recuadro; el estampe se pone después, para que no se corte
+  const c=llenar?lienzo(an.cx,an.cy,2):lienzo(an.cx,an.cy);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.imageSmoothingQuality="high";
+  if(llenar)g.drawImage(bm,0,0,c.width,c.height);else{const k=Math.max(c.width/bm.width,c.height/bm.height),w=bm.width*k,h=bm.height*k;g.drawImage(bm,(c.width-w)/2,(c.height-h)/2,w,h)}
+  if(est)estampar(g,c.width,c.height,est);
   return aBytes(await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.86)))}
 // esquema para el reporte: se estira a lo ancho (sin deformar los textos) y se recorta, para que llene el recuadro
 function estirarSvg(svg,sx,vy,vh){const doc=new DOMParser().parseFromString(svg,"image/svg+xml"),s=doc.documentElement,NS="http://www.w3.org/2000/svg";
@@ -2570,13 +2571,16 @@ async function generarReporte(r,modo){REP_PT=r;
   const paq=(h,cap,f,an)=>{const it_=fotos[h]?.at(-1);if(it_)paquete.push({carpeta:etiqueta(h),cap,bytes:it_.bytes,ext:it_.ext})};
   const altura=(h,src)=>{const a=num(src.alturaRef);if(a!=null)C(h,"AC25",a>1?a/100:a)};
   // ilícita: el bisel recto de la cascota va en el mismo registro de PT que las soldaduras (0 horas)
-  const bisCas=r.items.find(x=>x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota");
+  const bisCas0=r.items.find(x=>(x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota")||(x.act==="Ilícitas"&&(x.tecnicas||["PT"]).includes("PT")&&fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k==="PT")||{k:"PT",caps:[]}).some(f=>f.id)));
+  // el bisel recto se describe con las cascotas de la reparación (número y Ø)
+  const bisCas=bisCas0&&bisCas0.act==="Ilícitas"?{...bisCas0,reparacion:{tipo:"Biseles",tipoCamisa:"cascota",nCas:nInt(bisCas0.reparacion?.cascotas,1,1,12),diamCas:bisCas0.reparacion?.largos?.cas||[],unidad:bisCas0.reparacion?.unidad||"pulg"}}:bisCas0;
   const ptCas=r.items.find(x=>x.act==="0H"&&(x.tecnicas||[]).includes("PT")&&x.reparacion?.tipo);let bisUsado=false;
-  const fotDe=(x,k)=>fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:x.inspFecha||r.fecha}));
+  const fotDe=(x,k)=>fotoSlots(x=x===bisCas?bisCas0:x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:x.inspFecha||r.fecha}));
   const filasBisCas=()=>bisRows(bisCas.reparacion).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(bisCas),"-"]);
   const nCas=x=>nInt(x?.reparacion?.cascotas??x?.reparacion?.nCas,1,1,12);
-  for(const it of r.items){
+  for(let it of r.items){
     const lugarIt=it.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:it.inspFecha||r.fecha}));
+    if(it===bisCas0&&it.act==="Ilícitas"&&!ptCas)it=bisCas;
     if(it===bisCas&&!ptCas){bisUsado=true;const hs=await tabla(["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
       for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes al bisel recto de ${n>1?"las cascotas":"la cascota"} para la reparación de la válvula ilícita${it.novedad?"":", en el cual no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,it.reparacion);C(h,"H9","Cascotas");C(h,"T9","Bisel recto");C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
       await fotosEn(["13F.PT-CAM -4"],fot("PT"),lugarIt)}
