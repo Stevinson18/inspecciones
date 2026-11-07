@@ -1588,7 +1588,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v36";
+const LOCAL=!!window.__LOCAL;const APPV="v37";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1615,7 +1615,7 @@ function fotosHtml(it,i,only){
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
       const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button></div>`
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
-      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
+      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
       <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}>${medidaHtml(it,i,s.desc||s.cap,j)}</div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
@@ -1681,8 +1681,9 @@ async function fotoMeta(file,campo){
 }
 // renglones del estampado: fecha, sistema y línea con diámetro, PK y coordenada (de la foto o del punto)
 function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":"campo";const it=formItems[i];return it?.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo"}
-function stampFor(f,lugar,pt){
-  const d=new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
+// fecha del estampe: la del día de inspección de la actividad; si no hay, la de la foto
+function stampFor(f,lugar,pt,fi){
+  fi=fi||f.fi;const d=/^\d{4}-\d{2}-\d{2}$/.test(fi||"")?new Date(fi+"T12:00:00"):new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
   const sis=pt?pt.sistema||"":$("iSistema").value, lin=pt?pt.linea||"":lineaVal(), pk=pt?pt.pk||"":$("iPk").value.trim(), dia=pt?pt.diametro||"":$("iDiam").value.trim();
   const cC=pt?pt.coord:$("iCoord").value,cP=pt?pt.coordPatio:$("iCoordPatio").value;
   const u=(lugar==="patio"?parseCoord(cP)||parseCoord(cC):parseCoord(cC)||parseCoord(cP))||f.gps;
@@ -1691,11 +1692,12 @@ function stampFor(f,lugar,pt){
     pk?"PK "+pk:"",
     u?`${gms(u.lat,"N","S")}  ${gms(u.lon,"E","W")}`:""].filter(x=>x.trim());
 }
-const stampHtml=(f,lugar)=>f?.raw?`<span class="fst"${f.noStamp?" hidden":""}>${stampFor(f,lugar).map(esc).join("<br>")}</span>`:"";
+const stampHtml=(f,lugar,fi)=>f?.raw?`<span class="fst"${f.noStamp?" hidden":""}>${stampFor(f,lugar,null,fi).map(esc).join("<br>")}</span>`:"";
+const fechaIt=i=>{const it=own(i);return it&&it.act!=="__punto"?it.inspFecha||$("iFecha").value:$("iFecha").value};
 // al cambiar datos del punto solo se reescribe el texto del estampado (sin rehacer las casillas, para no perder el toque)
 function refreshAllFotos(){document.querySelectorAll("#form .fimg[data-fshot]").forEach(b=>{const st=b.querySelector(".fst");if(!st)return;
   const i=foOf(b), it=own(i); if(!it)return; const k=b.dataset.fshot, j=+b.dataset.j;
-  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw){st.innerHTML=stampFor(s,lugarDe(i,k)).map(esc).join("<br>");st.hidden=!!s.noStamp}})}
+  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw){st.innerHTML=stampFor(s,lugarDe(i,k),null,fechaIt(i)).map(esc).join("<br>");st.hidden=!!s.noStamp}})}
 async function stampLines(file){
   const t=new Date(file.lastModified&&Math.abs(Date.now()-file.lastModified)<864e5*30?file.lastModified:Date.now());
   const p2=n=>String(n).padStart(2,"0");
@@ -1786,7 +1788,7 @@ function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLee
 // visor de foto
 let fvT=null;
 function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
-  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k)).map(esc).join("<br>"):"";
+  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k),null,fechaIt(i)).map(esc).join("<br>"):"";
   $("fvStamp").hidden=!s.raw||readOnly;$("fvRot").hidden=!assets||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
   $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.desc||s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
@@ -2107,6 +2109,8 @@ $("itemsBox").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.datase
 // si cambia la fecha del punto, las actividades que tenían esa misma fecha de inspección la siguen
 let fechaPrev="";
 $("iFecha").addEventListener("focus",()=>{fechaPrev=$("iFecha").value});
+$("itemsBox").addEventListener("change",e=>{if(e.target.dataset.f==="inspFecha"){syncCards();refreshAllFotos()}});
+$("iFecha").addEventListener("change",()=>{syncCards();refreshAllFotos()});
 $("iFecha").addEventListener("change",()=>{const nv=$("iFecha").value;document.querySelectorAll('#itemsBox [data-f="inspFecha"]').forEach(x=>{if(!x.value||x.value===fechaPrev)x.value=nv});fechaPrev=nv;syncCards()});
 $("itemsBox").addEventListener("input",e=>{if(e.target.dataset.zsl!=null){const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i);return}if(e.target.dataset.zs==null)return;const c=e.target.closest(".itcard");if(!c)return;zsSync(c,+c.dataset.i);if(+c.dataset.i===active&&!$("drawWrap").hidden)updateDrawing()});
 $("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing()});
@@ -2374,7 +2378,7 @@ async function fotoRep(f,lugar,an,llenar){
   const b=await blobFoto(f.id);const bm=await createImageBitmap(b);
   // estampado sobre la foto en su tamaño real, igual que en la app
   const c0=document.createElement("canvas");c0.width=bm.width;c0.height=bm.height;const g0=c0.getContext("2d");g0.drawImage(bm,0,0);
-  if(f.raw&&!f.noStamp)estampar(g0,c0.width,c0.height,stampFor(f,lugar,REP_PT));
+  if(f.raw&&!f.noStamp)estampar(g0,c0.width,c0.height,stampFor(f,lugar,REP_PT,f.fi||REP_PT?.fecha));
   // "llenar": la imagen ocupa todo su recuadro (registros PAUT), sin márgenes blancos
   const c=llenar?lienzo(an.cx,an.cy,2):lienzo(an.cx,an.cy);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);
   if(llenar){g.imageSmoothingQuality="high";g.drawImage(c0,0,0,c.width,c.height)}else encajarEn(g,c0,c.width,c.height);
@@ -2568,11 +2572,11 @@ async function generarReporte(r,modo){REP_PT=r;
   // ilícita: el bisel recto de la cascota va en el mismo registro de PT que las soldaduras (0 horas)
   const bisCas=r.items.find(x=>x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota");
   const ptCas=r.items.find(x=>x.act==="0H"&&(x.tecnicas||[]).includes("PT")&&x.reparacion?.tipo);let bisUsado=false;
-  const fotDe=(x,k)=>fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id);
+  const fotDe=(x,k)=>fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:x.inspFecha||r.fecha}));
   const filasBisCas=()=>bisRows(bisCas.reparacion).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(bisCas),"-"]);
   const nCas=x=>nInt(x?.reparacion?.cascotas??x?.reparacion?.nCas,1,1,12);
   for(const it of r.items){
-    const lugarIt=it.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id);
+    const lugarIt=it.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:it.inspFecha||r.fecha}));
     if(it===bisCas&&!ptCas){bisUsado=true;const hs=await tabla(["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
       for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes al bisel recto de ${n>1?"las cascotas":"la cascota"} para la reparación de la válvula ilícita${it.novedad?"":", en el cual no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,it.reparacion);C(h,"H9","Cascotas");C(h,"T9","Bisel recto");C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
       await fotosEn(["13F.PT-CAM -4"],fot("PT"),lugarIt)}
