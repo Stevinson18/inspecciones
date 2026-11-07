@@ -1590,7 +1590,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v33";
+const LOCAL=!!window.__LOCAL;const APPV="v34";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2640,6 +2640,10 @@ async function generarReporte(r,modo){REP_PT=r;
   for(const h of visibles){const fn=`xl/worksheets/${hoja[h]}.xml`;if(!E[fn]&&nuevas[fn]==null)continue;const x=nuevas[fn]??await txt(fn);
     nuevas[fn]=x.replace(/<c r="([A-Z]+)(\d+)"([^>]*?) s="\d+"/g,(m,c,rr,rest)=>colN(c)>37?`<c r="${c}${rr}"${rest}`:m)}
   for(const f of Object.values(hoja)){const fn=`xl/worksheets/${f}.xml`;if(!visibles.has(idHoja[f])&&E[fn]){const x=nuevas[fn]??await txt(fn);if(/tabSelected="1"/.test(x))nuevas[fn]=x.replace(/\s+tabSelected="1"/,"")}}
+  // el reporte se entrega desbloqueado (sin protección de hojas ni de libro) para que el coordinador lo revise
+  for(const n of [...Object.keys(E),...Object.keys(nuevas)].filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n))){const x=nuevas[n]??await txt(n);
+    if(/<sheetProtection|<protectedRanges/.test(x))nuevas[n]=x.replace(/<sheetProtection[^>]*\/>/g,"").replace(/<protectedRanges>[\s\S]*?<\/protectedRanges>/g,"")}
+  nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<workbookProtection[^>]*\/>/g,"").replace(/<fileSharing[^>]*\/>/g,"");
   let ct=await txt("[Content_Types].xml");if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="xml"');if(!/Extension="png"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="png" ContentType="image/png"/><Default Extension="xml"');if(relsAdd.length){ct=ct.replace("</Types>",ctAdd.join("")+"</Types>").replace(/<Override [^>]*calcChain[^>]*\/>/,"");
     nuevas["xl/_rels/workbook.xml.rels"]=rels.replace(/<Relationship [^>]*calcChain[^>]*\/>/,"").replace("</Relationships>",relsAdd.join("")+"</Relationships>")}
   nuevas["[Content_Types].xml"]=ct;
