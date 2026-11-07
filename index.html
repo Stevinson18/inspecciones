@@ -217,6 +217,7 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .row-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .zsA{display:grid;gap:4px;margin-top:6px}
+.medida{margin-top:4px}.medida .label{font-size:.7rem}
 .esimg{background:#fff;border:1px dashed var(--line);border-radius:6px;min-height:80px;display:flex;align-items:center;justify-content:center;color:#888;font-size:.75rem;padding:4px}
 .esimg img{max-width:100%;max-height:160px}
 .eqcard{border:1px solid var(--line);border-radius:8px;padding:10px;display:grid;gap:8px}
@@ -1589,10 +1590,24 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v32";
+const LOCAL=!!window.__LOCAL;const APPV="v33";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
+// medidas que se leen de la foto: temperatura de la superficie e intensidad de luz
+const MEDIDA=cap=>/temperatura/i.test(cap||"")?{k:"tSup",l:"T° superficial",u:"°C",ph:"Ej: 32"}:/intensidad/i.test(cap||"")&&!/UV/i.test(cap||"")?{k:"luz",l:"Intensidad de luz",u:"lux",ph:"Ej: 1200"}:null;
+function medidaHtml(it,i,cap,j){const m=MEDIDA(cap);if(!m||!it||it.act==="__punto")return"";const lee=leyendo.has(`${i}|${m.k}`);
+  return`<label class="f medida"><span class="label">${m.l} (${m.u})${lee?" · leyendo la foto…":""}</span><input class="field mono" data-medida="${m.k}" data-mi="${i}" value="${esc(it[m.k]||"")}" inputmode="decimal" placeholder="${m.ph}"${readOnly?" disabled":""}></label>`}
+const leyendo=new Set();
+// lee el valor que marca el instrumento en la foto (solo donde hay lector de imágenes); si no, pide escribirlo
+async function leerMedida(blob,i,m){const sm=await sampleP().catch(()=>null);const lim=sm?await sm.limits().catch(()=>null):null;
+  const foco=()=>setTimeout(()=>{const el=document.querySelector(`[data-medida="${m.k}"][data-mi="${i}"]`);if(el&&!el.value){el.focus();toast(`Escriba la ${m.l.toLowerCase()} que marca la foto.`)}},300);
+  if(!sm||!lim?.images)return foco();
+  leyendo.add(`${i}|${m.k}`);refreshFotos(i);
+  try{let img=blob;if(lim.images.maxBytes&&img.size>lim.images.maxBytes)img=await achicarBlob(img,1600);
+    const r=await sm.json(m.k==="tSup"?`La foto muestra un termómetro (de contacto, de carátula o infrarrojo) midiendo la temperatura de la superficie de una tubería. Lee la temperatura que marca el instrumento y conviértela a grados Celsius si está en °F. Responde únicamente JSON: {"valor": número o null}`:`La foto muestra un luxómetro midiendo la intensidad de luz. Lee el valor que marca (en lux; si dice x10 o x100, multiplícalo). Responde únicamente JSON: {"valor": número o null}`,{images:[img]});
+    const v=r?.valor;if(v!=null&&isFinite(+v)){const it=own(i);if(it&&!it[m.k]){it[m.k]=String(Math.round(+v*10)/10).replace(".",",");scheduleDraft();toast(`${m.l}: ${it[m.k]} ${m.u} (leído de la foto, revíselo)`)}}else foco()}
+  catch(e){foco()}finally{leyendo.delete(`${i}|${m.k}`);refreshFotos(i)}}
 function fotosHtml(it,i,only){
   const gs=fotoGrupos(it).filter(g=>!only||only.includes(g.k));
   if(!gs.length)return`<span class="label">Fotos del reporte</span><p class="note">Marca las técnicas (PT, MT…) para ver las fotos que pide cada reporte.</p>`;
@@ -1604,7 +1619,7 @@ function fotosHtml(it,i,only){
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
       return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
-      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}></div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
+      <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}>${medidaHtml(it,i,s.desc||s.cap,j)}</div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
 function refreshFotos(i){
@@ -1726,6 +1741,7 @@ fileIn.addEventListener("change",async()=>{
     const prev=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.id;
     if(prev)fotosQuitadas.add(prev);
     setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"||t.k==="SCI"?{noStamp:true}:{})});scheduleDraft();
+    {const cap=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.cap;const m=MEDIDA(cap);if(m&&t.i!=="P")leerMedida(blob,t.i,m)}
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
       if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo,t.k)}
@@ -2059,7 +2075,7 @@ $("form").addEventListener("click",e=>{
 $("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refreshFotos("P");scheduleDraft()});
 // al tocar una descripción sugerida se selecciona toda, para escribir encima
 $("form").addEventListener("focusin",e=>{const t=e.target;if(t.dataset?.fcap!=null&&t.value){const def=t.defaultValue;if(t.value===def)setTimeout(()=>{try{t.select()}catch(_){}},0)}});
-$("form").addEventListener("input",e=>{if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,e.target.dataset.bycap?{desc:e.target.value}:{cap:e.target.value})}});
+$("form").addEventListener("input",e=>{if(e.target.dataset.medida){const it=own(+e.target.dataset.mi);if(it){it[e.target.dataset.medida]=e.target.value.trim();scheduleDraft()}return}if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,e.target.dataset.bycap?{desc:e.target.value}:{cap:e.target.value})}});
 $("itemsBox").addEventListener("click",e=>{
   const rb=e.target.closest("[data-rep]");
   if(rb){e.preventDefault();setActive(+rb.dataset.rep);return}
@@ -2518,13 +2534,16 @@ async function generarReporte(r,modo){REP_PT=r;
       if(af&&h!==base)C(h,af.pag,af.base+extra)}
     if(af&&extra){const tot=af.base+extra;[base,...hs.filter(x=>x!==base)].forEach(h=>af.tot.forEach(c=>C(h,c,tot)))}}
   // pie del esquema según lo que se dibuja
+  // temperatura e intensidad de luz: las de la actividad; si no tiene, las del mismo punto (misma jornada)
+  const medDe=(it,k)=>it[k]||r.items.find(x=>x[k]&&x.inspFecha===it.inspFecha)?.[k]||r.items.find(x=>x[k])?.[k]||"";
+  const ponMed=(h,it)=>{const t=medDe(it,"tSup"),l=medDe(it,"luz");if(t)C(h,"AI20",`${t} °C`);if(l)C(h,"AI21",`${l} lux`)};
   const capEsq=(it,rep)=>{const t=rep.tipo,v=rep.vista||it.act,nc=nInt(rep.cascotas??rep.nCas,1,1,12),cas=nc>1?"las cascotas":"la cascota";
     if(t==="Ilícita")return v==="Zona sana"?`Esquema 1. Zonas sanas de ${cas}`:v==="0H+B"?`Esquema 1. Identificación de ${cas}: bisel recto y soldadura de filete`:`Esquema 1. Identificación de soldaduras de ${cas}`;
     if(t==="Biseles")return rep.tipoCamisa==="cascota"?`Esquema 1. Identificación de biseles rectos de ${cas}`:"Esquema 1. Identificación de biseles inspeccionados";
     if(t==="Tubería nueva")return"Esquema 1. Zonas inspeccionadas de la tubería nueva";if(t==="Zona sana")return"Esquema 1. Identificación de las zonas sanas";
     const d=descCamisa(r,rep);return`Esquema 1. Identificación de soldaduras ${d.charAt(0).toUpperCase()+d.slice(1)}`};
   async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);const a=ANCLAS_REP[h]||{};
-    if(a.realizo)C(h,a.realizo,realizoDe(it));if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
+    if(a.realizo)C(h,a.realizo,realizoDe(it));if(/PT|MT/.test(h)&&!/PAUT|Scan/.test(h))ponMed(h,it);if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
   const equipo=(it,t)=>equipos.find(e=>e.id===it.equipos?.[t])?.campos||{};const plan=(it,t)=>planes.find(p=>p.id===it.planes?.[t])?.campos||{};
