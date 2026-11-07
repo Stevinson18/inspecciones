@@ -40,7 +40,7 @@ const assets={
   async delete(ref){const id=String(ref).split("/").pop();await tx("blobs","readwrite",s=>s.delete(id));return{deleted:true}},
   async list(){return{assets:[],usage:{}}}};
 // carpeta "Control de informes" en el PC (Chrome/Edge): se elige una vez y las descargas van a sus subcarpetas
-const SUBS=["Borradores","Reportes finales","Informes Word","Datos","Esquemas"];
+const SUBS=["Borradores","Reportes finales","Informes Word","Fotos","Datos","Esquemas"];
 let RAIZ=null;tx("blobs","readonly",s=>req(s.get("dir-raiz"))).then(h=>{RAIZ=h||null;window.__carpeta?.cambio?.()}).catch(()=>{});
 const permiso=async(pedir)=>{if(!RAIZ)return false;const o={mode:"readwrite"};try{if(await RAIZ.queryPermission(o)==="granted")return true;return pedir?(await RAIZ.requestPermission(o))==="granted":false}catch(e){return false}};
 window.__carpeta={disponible:!!window.showDirectoryPicker,listo:()=>!!RAIZ,nombre:()=>RAIZ?.name||"",
@@ -1051,7 +1051,7 @@ function rowHtml(r){
     <div class="cell"><span class="k label">Lugar · Ciudad</span>${esc(r.lugar||"—")}${r.ciudad?`<span class="sub2">${esc(r.ciudad)}</span>`:""}</div>
     <div class="cell"><span class="k label">Base · Reparación</span>${esc(r.base||"—")}${r.tipoReparacion?`<span class="sub2">${esc(r.tipoReparacion)}</span>`:""}</div>
     <div class="cell state"><span class="k label">Estado del punto</span>${puntoHtml(r)}</div>
-    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
+    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
     <div class="acts">${acts||`<p class="note" style="padding:8px 0">Sin actividades registradas.</p>`}</div>
   </div>`;
 }
@@ -1197,14 +1197,12 @@ function zsHtml(it){
   const areas=zsAreas(it.reparacion), mins=it.zsMin||{}, tec=it.zsTec||"SCANC", L=it.zsLect||{}, D=it.zsDim||{};
   const opt=ZS_TEC.map(([k,l])=>`<option value="${k}"${k===tec?" selected":""}>${l}</option>`).join("");
   const sel=`<label class="f"><span class="label">Técnica de la zona sana</span><select class="field" data-zstec>${opt}</select></label>`;
-  if(tec==="SCANA")return sel+`<span class="label">Medición de espesores (mm) · ${NPOS} posiciones por área</span>
-  <div class="grid2"><label class="f"><span class="label">Barrido axial (mm)</span><input class="field mono" data-zsd="axial" value="${esc(D.axial??"200")}" inputmode="decimal"></label><label class="f"><span class="label">Barrido perimetral (mm)</span><input class="field mono" data-zsd="perim" value="${esc(D.perim??"200")}" inputmode="decimal"></label></div>
+  const HORAS=["12:00","1:00","2:00","3:00","4:00","5:00","6:00","7:00","8:00","9:00","10:00","11:00"];
+  return sel+`<span class="label">Espesores medidos (mm) · ${NPOS} ${tec==="SCANA"?"posiciones":"posiciones horarias"} por área</span>
+  ${tec==="SCANA"?`<div class="grid2"><label class="f"><span class="label">Barrido axial (mm)</span><input class="field mono" data-zsd="axial" value="${esc(D.axial??"200")}" inputmode="decimal"></label><label class="f"><span class="label">Barrido perimetral (mm)</span><input class="field mono" data-zsd="perim" value="${esc(D.perim??"200")}" inputmode="decimal"></label></div>`:""}
   ${areas.map(a=>{const v=L[a]||[];const ns=v.map(mmNum).filter(x=>x!=null);const mn=ns.length?Math.min(...ns):null;
     return`<div class="zsA"><span class="label">${esc(a)}${mn!=null?` · mín ${String(mn).replace(".",",")} mm (${(mn/25.4).toFixed(3).replace(".",",")}")`:""}</span>
-    <div class="grid4">${[...Array(NPOS)].map((_,k)=>`<label class="f"><span class="label">${k+1}</span><input class="field mono" data-zsl="${esc(a)}" data-k="${k}" value="${esc(v[k]||"")}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>`).join("")}</div></div>`}).join("")}`;
-  return sel+`<span class="label">Medición de zona sana</span>
-  <p class="note">Espesor mínimo encontrado (pulg)${it.reparacion?.tipo?"":" · escoge el esquema para ver todas las áreas"}</p>
-  <div class="grid3">${areas.map(a=>`<label class="f"><span class="label">${esc(a)}</span><input class="field mono" data-zs="${esc(a)}" value="${esc(mins[a]||"")}" inputmode="decimal" placeholder="0,000" autocomplete="off"></label>`).join("")}</div>`;
+    <div class="grid4">${[...Array(NPOS)].map((_,k)=>`<label class="f"><span class="label">${tec==="SCANA"?k+1:HORAS[k]}</span><input class="field mono" data-zsl="${esc(a)}" data-k="${k}" value="${esc(v[k]||"")}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>`).join("")}</div></div>`}).join("")}`;
 }
 function zsSync(c,i){
   const it=formItems[i];if(!it)return;
@@ -1590,7 +1588,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v35";
+const LOCAL=!!window.__LOCAL;const APPV="v36";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2357,7 +2355,7 @@ const colN=c=>[...c].reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0);
 function setCelda(x,r,val){
   const re=new RegExp(`<c r="${r}"((?:\\s+[a-z]+="[^"]*")*)\\s*(?:/>|>[\\s\\S]*?</c>)`);const m=x.match(re);
   let st="";if(m){const s=m[1].match(/s="(\d+)"/);if(s)st=` s="${s[1]}"`}
-  const nueva=typeof val==="number"?`<c r="${r}"${st}><v>${val}</v></c>`:`<c r="${r}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(val)}</t></is></c>`;
+  const nueva=val&&typeof val==="object"?`<c r="${r}"${st}><f>${xe(val.f)}</f>${val.v!=null&&isFinite(val.v)?`<v>${val.v}</v>`:""}</c>`:typeof val==="number"?`<c r="${r}"${st}><v>${val}</v></c>`:`<c r="${r}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(val)}</t></is></c>`;
   if(m)return x.slice(0,m.index)+nueva+x.slice(m.index+m[0].length);
   const[,col,row]=r.match(/([A-Z]+)(\d+)/);const rm=x.match(new RegExp(`<row r="${row}"[^>]*?(?:/>|>([\\s\\S]*?)</row>)`));if(!rm)return x;
   if(rm[0].endsWith("/>"))return x.slice(0,rm.index)+rm[0].slice(0,-2)+">"+nueva+"</row>"+x.slice(rm.index+rm[0].length);
@@ -2528,7 +2526,7 @@ async function generarReporte(r,modo){REP_PT=r;
       if(!h){extra++;h=await clonarHoja(base,`${base.slice(0,22)} F${extra+1}`,af?.area);hs.push(h);
         Object.entries(celdas[base]||{}).filter(([ref])=>+(ref.match(/\d+/)||[])[0]<=10).forEach(([ref,v])=>C(h,ref,v,true))}
       const a=ANCLAS_REP[h];visibles.add(h);
-      for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k],llenar),"jpeg");if(a.caps?.[k])C(h,a.caps[k],a.pares?capPaut(Math.floor(i/2)+1,f,lista[i+1]):`Foto ${i+1}. ${f.desc||f.cap||""}`)}
+      for(let k=0;k<a.fotos.length&&i<lista.length;k++,i++){const f=lista[i];P(h,a.fotos[k],await fotoRep(f,lugarF,a.fotos[k],llenar),"jpeg");const capT=a.pares?capPaut(Math.floor(i/2)+1,f,lista[i+1]):`Foto ${i+1}. ${f.desc||f.cap||""}`;if(a.caps?.[k])C(h,a.caps[k],capT);paq(h,a.pares?`${capT.replace(/ \(.*$/,"")} ${(f.cap||"").split(" · ")[1]||""}`.trim():capT,f,a.fotos[k])}
       // recuadros sin foto en la última página: pie en blanco y una línea diagonal de esquina a esquina
       if(i>=lista.length){const k0=(i-1)%a.fotos.length+1;for(let k=k0;k<a.fotos.length;k++){
         if(a.pares&&k%2===1&&k-1>=k0)continue; // la mitad de abajo de un recuadro ya cruzado
@@ -2556,6 +2554,16 @@ async function generarReporte(r,modo){REP_PT=r;
   const PL_UT={AC20:"palpador",V22:"zapata",V23:"angRef",AC23:"frecuencia",AC22:"pitch",AJ21:"elemLey",AJ22:"pasoAng",AJ23:"elem1",AJ24:"elemUlt",AC26:"angIni",AE26:"angFin",AJ26:"profFocal",W26:"rangoBarrido",AC24:"ganancia",Q25:"vRef",H25:"bloqueCal",H26:"bloqueRef",H27:"reflector",AJ27:"resolX"};
   const PL_SC={AC20:"palpador",V22:"zapata",V23:"angRef",AC23:"frecuencia",AC22:"pitch",AJ21:"elemLey",AJ22:"paso",AJ23:"elem1",AJ24:"elemUlt",AJ26:"profFocal",AC26:"rangoBarrido",AC24:"ganancia",Q25:"vRef",H25:"bloqueCal",H27:"reflector",AJ27:"resolXY",V13:"axial",V14:"perimetral"};
   const PL_SA={AC20:"palpador",AC21:"tamano",AC22:"angulo",AC23:"frecuencia",AC24:"ganancia",AC26:"rangoBarrido",H25:"bloqueCal",H26:"serieBloque",Q25:"vRef",O27:"acoplante",H27:"reflector"};
+  // espesor nominal (pulg y mm) y promedio / mínimo / % de pérdida con su valor ya calculado
+  const nomIn=num(r.nominal),nomMm=nomIn!=null?nomIn*25.4:null;
+  const nominalCache=h=>{C(h,"AI8",{f:"+Matriz1!AI8",v:nomIn});C(h,"AH13",{f:"+AI8",v:nomIn});C(h,"AL13",{f:"+AH13*25.4",v:nomMm})};
+  const calcEsp=(h,cP,cM,cL,rango,vals)=>{const ns=vals.filter(x=>x!=null&&isFinite(x));const pr=ns.length?ns.reduce((a,b)=>a+b,0)/ns.length:null,mn=ns.length?Math.min(...ns):null;
+    C(h,cP,{f:`AVERAGE(${rango})`,v:pr!=null?Math.round(pr*1000)/1000:null});C(h,cM,{f:`MIN(${rango})`,v:mn});C(h,cL,{f:`(AL13-${cM})/AL13`,v:mn!=null&&nomMm?Math.round((nomMm-mn)/nomMm*10000)/10000:null})};
+  const desZS=(r,it)=>`del PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in`;
+  // paquete de fotos tal como quedan en el reporte (carpeta por registro)
+  const paquete=[];const etiqueta=h=>{const t=/ANEXFOT/.test(h)?"Anexo fotográfico":/PT-BIS/.test(h)?"PT biseles":/MT-ZS/.test(h)?(r.items.some(x=>esTN(x.act))&&!r.items.some(x=>x.act==="Zona sana")?"MT tubería nueva":"MT zona sana"):/SC-ZS/.test(h)?"Scan C zona sana":/Scan A/.test(h)?"Scan A zona sana":/PAUT-LONG/.test(h)?"PAUT longitudinales":/PAUT-CIRC/.test(h)?"PAUT circunferenciales":/PT/.test(h)?"PT soldaduras":/MT/.test(h)?"MT soldaduras":h;
+    return /^(PT|MT|PAUT) (soldaduras|longitudinales|circunferenciales)$/.test(t)?t+(/12H|-12\b|1-12/.test(h)?" 12 horas":" 0 horas"):t};
+  const paq=(h,cap,f,an)=>{const it_=fotos[h]?.at(-1);if(it_)paquete.push({carpeta:etiqueta(h),cap,bytes:it_.bytes,ext:it_.ext})};
   const altura=(h,src)=>{const a=num(src.alturaRef);if(a!=null)C(h,"AC25",a>1?a/100:a)};
   // ilícita: el bisel recto de la cascota va en el mismo registro de PT que las soldaduras (0 horas)
   const bisCas=r.items.find(x=>x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota");
@@ -2608,20 +2616,30 @@ async function generarReporte(r,modo){REP_PT=r;
           C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);ponEq(h,EQ_UT,eq);ponEq(h,PL_SA,pl);altura(h,pl);
           const lab=/zona sana/i.test(a)?a.replace(/^zona sana/i,"Zona Sana"):`Zona Sana ${a}`;C(h,"F31",lab);
           const v=it.zsLect?.[a]||[];for(let q=0;q<12;q++){C(h,"D"+(34+q),num(v[q])??"",true);C(h,"F"+(34+q),"",true);C(h,"H"+(34+q),"",true)}
+          nominalCache(h);calcEsp(h,"D46","D47","D48","D34:I45",v.map(num));
           ["AM32","A57","E57","O57","S57"].forEach(c=>C(h,c,"",true));
           const que=ilic?`Se realiza medición de espesores en la zona sana dónde se va a instalar la cascota #${k+1} que cubrirá la zona afectada por la válvula ilícita ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`
             :`Se realiza medición de espesores por ultrasonido (Scan A, palpador dual) en la ${lab.toLowerCase()}, ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`;
           C(h,"A50",`Observaciones: ${que}${it.novedad?"":""}${it.observaciones?" "+it.observaciones:""}`);
           C(h,"N48",`Registro medición de espesores en ${ilic?"zona de Cascota #"+(k+1):lab.toLowerCase()}`);
-          const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg)P(h,an.reg,await fotoRep({...im,noStamp:im.noStamp!==false},"campo",an.reg),"jpeg");
+          const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg){P(h,an.reg,await fotoRep({...im,noStamp:im.noStamp!==false},"campo",an.reg),"jpeg");paq(h,`Registro ${a}`,im,an.reg)}
           C(h,"AT64","si");quitar(h,an.esq);await barrido(h,"SCANA")}}
       const g=fot("GEN");if(g.length)await fotosEn(["4.MT-ZS cam2"],g,"campo")}
-    else if(it.act==="Zona sana"){const h="3.SC-ZS CAM2";if(hoja[h]){visibles.add(h);await cabecera(h,it,"",false,null);const a=ANCLAS_REP[h];
-        const imgs=fot("ZSI");for(let k=0;k<imgs.length&&k<(a.fotos||[]).length;k++)P(h,a.fotos[k],await fotoRep({...imgs[k],noStamp:imgs[k].noStamp!==false},"campo",a.fotos[k]),"jpeg");
-        ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"SCANC");ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC")}
+    else if(it.act==="Zona sana"){const base="3.SC-ZS CAM2";if(hoja[base]){const areas=zsAreas(it.reparacion),hs=[base];for(let k=2;k<areas.length;k+=2)hs.push(await clonarHoja(base,`3.SC-ZS CAM2 (${k/2+1})`));
+        const imgs=fot("ZSI"),pl=plan(it,"SCANC");
+        for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=areas.slice(2*p,2*p+2);
+          const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
+          await cabecera(h,it,obsSC,false,null);C(h,"A50",obsSC);
+          ponEq(h,EQ_UT,equipo(it,"PAUT"));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);
+          for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
+            const v=(it.zsLect?.[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
+            const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[2*p+s_]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_]),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}
       const g=fot("GEN");if(g.length)await fotosEn(["4.MT-ZS cam2"],g,"campo")}
   }
   const anx=(r.fotosPunto?.ANX||[]).filter(x=>x?.id);if(anx.length)await fotosEn(["23. ANEXFOT"],anx,"campo");
+  if(modo==="fotos"){if(!paquete.length)throw new Error("Este punto no tiene fotos para los reportes.");const cnt={};const limpio=x=>String(x).replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim().slice(0,90);
+    const ents=paquete.map(p=>{const c=limpio(p.carpeta);cnt[c]=(cnt[c]||0)+1;return{name:`${c}/${String(cnt[c]).padStart(2,"0")} ${limpio(p.cap)}.${p.ext==="png"?"png":"jpg"}`,data:p.bytes}});
+    return new Blob([await zipEscribir(ents)],{type:"application/zip"})}
   const relsQuitar=new Set(),archivosQuitar=new Set();
   // ---- paginación por reporte (técnica): datos primero, luego fotos; páginas de fotos vacías fuera ----
   const esFoto=h=>/^\d+F\.|ANEXFOT/.test(h)||!!AREA_FOTOS[h]||/ F\d+$/.test(h);
@@ -2678,7 +2696,9 @@ async function generarReporte(r,modo){REP_PT=r;
   for(const f of Object.values(hoja)){const fn=`xl/worksheets/${f}.xml`;if(!visibles.has(idHoja[f])&&E[fn]){const x=nuevas[fn]??await txt(fn);if(/tabSelected="1"/.test(x))nuevas[fn]=x.replace(/\s+tabSelected="1"/,"")}}
   // el reporte se entrega desbloqueado (sin protección de hojas ni de libro) para que el coordinador lo revise
   for(const n of [...Object.keys(E),...Object.keys(nuevas)].filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n))){const x=nuevas[n]??await txt(n);
-    if(/<sheetProtection|<protectedRanges/.test(x))nuevas[n]=x.replace(/<sheetProtection[^>]*\/>/g,"").replace(/<protectedRanges>[\s\S]*?<\/protectedRanges>/g,"")}
+    // fórmulas con resultado de texto guardado sin t="str" (Excel lo marca como contenido dañado)
+    const y=x.replace(/<sheetProtection[^>]*\/>/g,"").replace(/<protectedRanges>[\s\S]*?<\/protectedRanges>/g,"").replace(/<c ((?:(?!t=)[^>])*?)><f>([^<]*)<\/f><v( xml:space="preserve")?>([^<]*)<\/v><\/c>/g,(m,at,f,sp,v)=>v.trim()!==""&&isFinite(+v)?m:`<c ${at} t="str"><f>${f}</f><v${sp||""}>${v}</v></c>`);
+    if(y!==x)nuevas[n]=y}
   nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<workbookProtection[^>]*\/>/g,"").replace(/<fileSharing[^>]*\/>/g,"");
   let ct=await txt("[Content_Types].xml");if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="xml"');if(!/Extension="png"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="png" ContentType="image/png"/><Default Extension="xml"');if(relsAdd.length){ct=ct.replace("</Types>",ctAdd.join("")+"</Types>").replace(/<Override [^>]*calcChain[^>]*\/>/,"");
     nuevas["xl/_rels/workbook.xml.rels"]=rels.replace(/<Relationship [^>]*calcChain[^>]*\/>/,"").replace("</Relationships>",relsAdd.join("")+"</Relationships>")}
@@ -2845,7 +2865,8 @@ async function guardar(filename,data,carpeta){filename=filename.normalize("NFD")
 async function accionReporte(r,modo,btn){
   if(modo==="final"){const f=revisarPunto(r);if(f.length&&!(await confirmarLista(f)))return}
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
-  try{const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":""}.xlsx`;
+  try{if(modo==="fotos"){const blob=await generarReporte(r,"fotos");const d=await guardar(`FOTOS_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}.zip`,blob,"Fotos");toast("Paquete de fotos listo"+d);return}
+    const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":""}.xlsx`;
     const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");toast((modo==="borrador"?"Borrador listo":"Reporte final listo")+d)}
   catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar: "+(e?.message||e))}}
   finally{btn.disabled=false;btn.textContent=t0}}
