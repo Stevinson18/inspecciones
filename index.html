@@ -1608,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v39";
+const LOCAL=!!window.__LOCAL;const APPV="v40";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2568,7 +2568,7 @@ async function generarReporte(r,modo){REP_PT=r;
     if(t==="Biseles")return rep.tipoCamisa==="cascota"?`Esquema 1. Identificación de biseles rectos de ${cas}`:"Esquema 1. Identificación de biseles inspeccionados";
     if(t==="Tubería nueva")return"Esquema 1. Zonas inspeccionadas de la tubería nueva";if(t==="Zona sana")return"Esquema 1. Identificación de las zonas sanas";
     const d=descCamisa(r,rep);return`Esquema 1. Identificación de soldaduras ${d.charAt(0).toUpperCase()+d.slice(1)}`};
-  async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);const a=ANCLAS_REP[h]||{};
+  async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);{const e=num(r.espesor);if(e!=null){if(/^(5\.1|12|13|15|16)\./.test(h))C(h,"AF13",e);else if(/^14\./.test(h))C(h,"AH13",e)}}const a=ANCLAS_REP[h]||{};
     if(a.realizo)C(h,a.realizo,realizoDe(it));if(/PT|MT/.test(h)&&!/PAUT|Scan/.test(h))ponMed(h,it);if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
@@ -2617,7 +2617,7 @@ async function generarReporte(r,modo){REP_PT=r;
         for(const h of hs){await cabecera(h,it,obsTxt(it,que("líquidos penetrantes")+(conBis?` y al bisel recto de ${nc>1?"las cascotas":"la cascota"}`:"")),true,conBis?{...rep,vista:"0H+B"}:rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9",conBis?"Bisel recto y soldaduras":"Soldaduras")}ponEq(h,EQ_PT,equipo(it,"PT"))}
         await fotosEn([sfx({h0:"13F.PT-CAM -4",h12:"13F.PT-CAM -4-12H"})],[...(conBis?fotDe(bisCas,"PT"):[]),...fot("PT")],"campo")}
       if(tec.includes("MT")){const hs=await tabla(sfx({h0:["14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3"],h12:["14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H"]}),js.map(j=>[...fila(j),"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
-        for(const h of hs){await cabecera(h,it,obsTxt(it,que("partículas magnéticas")),true,rep);C(h,"AH13",String(r.espesor||""));if(ilic){C(h,"H9","Cascotas");C(h,"T9","Soldaduras")}ponEq(h,EQ_MT,equipo(it,"MT"))}
+        for(const h of hs){await cabecera(h,it,obsTxt(it,que("partículas magnéticas")),true,rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9","Soldaduras")}ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([sfx({h0:"14F.MT-SOLD -4",h12:"14F.MT-SOLD -4 -12H"})],fot("MT"),"campo")}
       if(tec.includes("PAUT")){const imgs=fot("PAUTI");const cols=["A","G","K","O","Q","S","U","W","Y","Z","AE","AH"];const filaU=j=>[...fila(j),"-","-","-","-","-","-","-",resultado(it),"-"];
         const lg=js.filter(j=>j.tipo==="long"),cc=js.filter(j=>j.tipo==="circ");
