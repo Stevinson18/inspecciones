@@ -474,11 +474,12 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
 <div class="catp" id="catp" hidden role="dialog" aria-modal="true" aria-labelledby="catT">
   <div class="catbox">
     <div class="cathead"><h2 id="catT">Firmas, equipos, planes y esquemas</h2><button class="btn small" type="button" id="catClose">Cerrar</button></div>
-    <div class="tabs" role="tablist"><button type="button" role="tab" class="tab on" data-tab="firmas" aria-selected="true">Firmas</button><button type="button" role="tab" class="tab" data-tab="equipos" aria-selected="false">Equipos</button><button type="button" role="tab" class="tab" data-tab="planes" aria-selected="false">Planes de escaneo</button><button type="button" role="tab" class="tab" data-tab="esquemas" aria-selected="false">Esquemas de barrido</button></div>
+    <div class="tabs" role="tablist"><button type="button" role="tab" class="tab on" data-tab="firmas" aria-selected="true">Firmas</button><button type="button" role="tab" class="tab" data-tab="equipos" aria-selected="false">Equipos</button><button type="button" role="tab" class="tab" data-tab="planes" aria-selected="false">Planes de escaneo</button><button type="button" role="tab" class="tab" data-tab="esquemas" aria-selected="false">Esquemas de barrido</button><button type="button" role="tab" class="tab" data-tab="bases" aria-selected="false">Personal por base</button></div>
     <div id="catFirmas"></div>
     <div id="catEquipos" hidden></div>
     <div id="catPlanes" hidden></div>
     <div id="catEsq" hidden></div>
+    <div id="catBases" hidden></div>
   </div>
 </div>
 <div class="catp" id="revp" hidden role="dialog" aria-modal="true" aria-labelledby="revT">
@@ -1295,7 +1296,7 @@ const EQ_CAMPOS={
   PAUT:[["marca","Marca","OLYMPUS"],["modelo","Modelo","OMNI - SX"],["serie","Serie","QC-077617"],["modulo","Módulo","16/64"],["softAdq","Software adquisición","MXU-4.4 R3"],["softAna","Software análisis","OMNIPC 5.13.0"],["palpador","Palpador (referencia)","5L16 A10"],["zapata","Zapata","SA10-N55S"],["frecuencia","Frecuencia (MHz)","5"],["bloqueCal","Bloque calibración","IIW-V1"],["bloqueRef","Bloque referencia","API 1104"],["acoplante","Acoplante","Agua"]],
   UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración",""],["acoplante","Acoplante","Agua"]]};
 const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)"};
-let equipos=[], firmas={};
+let equipos=[], firmas={}, basesPer={};
 const tecsDe=it=>it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
 function eqHtml(it){const ts=tecsDe(it);if(!ts.length)return"";
   return`<span class="label">Equipos y consumibles usados</span>`+ts.map(t=>{const lst=equipos.filter(e=>e.tecnica===t);const sel=it.equipos?.[t]||"";
@@ -1314,13 +1315,32 @@ function catInit(){
   db.collection("planes").onSnapshot(sn=>{planes=sn.docs.map(d=>({id:d.id,...d.data()})).filter(p=>!p.borrado).sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||"","es"));
     if(!$("catp").hidden&&!$("catPlanes").hidden&&!$("catPlanes").contains(document.activeElement))renderPlanes();refreshAllPl()},()=>{});
   db.collection("esquemas").onSnapshot(sn=>{esquemas=sn.docs.map(d=>({id:d.id,...d.data()})).filter(e=>!e.borrado);if(!$("catp").hidden&&!$("catEsq").hidden&&!$("catEsq").contains(document.activeElement))renderEsq()},()=>{});
+  db.collection("bases").onSnapshot(sn=>{basesPer={};sn.docs.forEach(d=>{const v=d.data();if(!v.borrado)basesPer[d.id]=v});if(!$("catp").hidden&&!$("catBases").hidden&&!$("catBases").contains(document.activeElement))renderBases()},()=>{});
   db.collection("firmas").onSnapshot(sn=>{firmas={};sn.docs.forEach(d=>{const v=d.data();if(!v.borrado)firmas[d.id]=v});if(!$("catp").hidden)renderFirmas();refreshFir()},()=>{});
   $("btnCat").hidden=readOnly;$("btnCat").textContent="🖊 Firmas, equipos, planes y esquemas";
 }
 function abrirCat(tab){$("catp").hidden=false;setTab(tab||"firmas")}
 function setTab(t){document.querySelectorAll("#catp .tab").forEach(b=>{const on=b.dataset.tab===t;b.classList.toggle("on",on);b.setAttribute("aria-selected",on)});
-  $("catFirmas").hidden=t!=="firmas";$("catEquipos").hidden=t!=="equipos";$("catPlanes").hidden=t!=="planes";$("catEsq").hidden=t!=="esquemas";t==="firmas"?renderFirmas():t==="equipos"?renderEquipos():t==="planes"?renderPlanes():renderEsq()}
+  $("catFirmas").hidden=t!=="firmas";$("catEquipos").hidden=t!=="equipos";$("catPlanes").hidden=t!=="planes";$("catEsq").hidden=t!=="esquemas";$("catBases").hidden=t!=="bases";t==="firmas"?renderFirmas():t==="equipos"?renderEquipos():t==="planes"?renderPlanes():t==="bases"?renderBases():renderEsq()}
 $("btnCat").addEventListener("click",()=>abrirCat());
+// ---------- personal de ISMOCOL por base (firma 1 = QC, firma 2 = residente) ----------
+const PER_DEF={"puerto-boyaca":{base:"Puerto Boyacá",qc:"Jeisson Duitama",res:"Ramiro Ferreira"}};
+const perBase=b=>{const k=slug(b||"");return basesPer[k]||PER_DEF[k]||null};
+function renderBases(){
+  const extra=Object.values(basesPer).map(v=>v.base).filter(b=>b&&!BASES.some(x=>slug(x)===slug(b)));
+  const fila=b=>{const v=perBase(b)||{};return`<div class="eqcard" data-base="${esc(b)}"><span class="label" style="font-size:15px">${esc(b)}</span>
+    <div class="grid2"><label class="f"><span class="label">Firma 1 · QC contratista</span><input class="field" data-k="qc" value="${esc(v.qc||"")}" placeholder="Nombre del QC"${readOnly?" disabled":""}></label>
+    <label class="f"><span class="label">Firma 2 · Residente</span><input class="field" data-k="res" value="${esc(v.res||"")}" placeholder="Nombre del residente"${readOnly?" disabled":""}></label></div>
+    ${readOnly?"":`<div class="row-btns"><button class="btn small primary" type="button" data-bsave="1">Guardar</button></div>`}</div>`};
+  $("catBases").innerHTML=`<p class="note">El QC y el residente de ISMOCOL que firman el reporte según la base del punto. La app los pone sola en las casillas de firma de todas las hojas.</p>`+
+    [...BASES,...extra].map(fila).join("")+(readOnly?"":`<div class="eqcard"><span class="label">Otra base</span><div class="row-btns" style="justify-content:flex-start"><input class="field" id="bNueva" placeholder="Ej: Arauquita" style="flex:1"><button class="btn small" type="button" id="bAdd">+ Agregar</button></div></div>`);
+}
+$("catBases").addEventListener("click",async e=>{
+  if(e.target.id==="bAdd"){const n=$("bNueva").value.trim();if(!n)return;await db.collection("bases").doc(slug(n)).set({base:n,qc:"",res:"",modificado:Date.now()});basesPer[slug(n)]={base:n,qc:"",res:""};renderBases();return}
+  const b=e.target.closest("[data-bsave]");if(!b)return;const card=b.closest("[data-base]"),base=card.dataset.base;
+  const o={base,qc:card.querySelector("[data-k=qc]").value.trim(),res:card.querySelector("[data-k=res]").value.trim(),modificado:Date.now()};
+  await db.collection("bases").doc(slug(base)).set(o);basesPer[slug(base)]=o;b.textContent="✓ Guardado";setTimeout(()=>b.textContent="Guardar",1500)});
+
 // ---------- esquemas del barrido (imagen "Esquema 2" de PAUT, Scan C y Scan A) ----------
 const ES_TIPOS={TOPE:"PAUT · juntas a tope (longitudinales o circunferenciales a tope)",CIRC_DIR:"PAUT · circunferenciales camisa directa (LC/LT)",CIRC_ANI:"PAUT · circunferenciales con anillos, armadillo o seccionada (LC/LA/LT)",SCANC:"Scan C · barrido lineal 0° (zona sana)",SCANA:"Scan A · espesores con palpador dual"};
 let esquemas=[];
@@ -1588,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v38";
+const LOCAL=!!window.__LOCAL;const APPV="v39";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2512,6 +2532,7 @@ async function generarReporte(r,modo){REP_PT=r;
   const largoTot=repCam?num(repCam.longTotal)!=null?Math.round(num(repCam.longTotal)*(U2MM[repCam.longUnidad||"m"]||1000)):null:null;
   // Matriz1: lo que alimenta todas las hojas
   Object.entries({AI6:r.consecutivo,T7:r.sistema,X7:r.linea,AH7:r.pk,X8:num(r.diametro),AI8:num(r.nominal)??(r.items.length&&r.items.every(x=>esTN(x.act))?num(r.espesor):null),H9:r.tipoReparacion,AH9:serial(r.fecha),H10:r.base,T10:lugar,H13:largoTot,AF13:num(r.espesor),I14:num(r.diametro),AG14:"API 5L",AI14:r.materialTub,AG15:"API 5L",AI15:r.material,D60:realizoDe(primero)}).forEach(([k,v])=>C("Matriz1",k,v));
+  {const pb=perBase(r.base);C("Matriz1","R60",pb?.qc||"",true);C("Matriz1","AD60",pb?.res||"",true)}
   const obsTxt=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo, por lo tanto se encuentran aceptadas bajo el código de construcción API 1104"}.${it.observaciones?" "+it.observaciones:""}`;
   const resultado=it=>it.novedad?"Ver obs.":"OK";
   // llena una tabla repartiendo filas en las hojas disponibles (cada hoja tiene ~14 filas)
@@ -2927,7 +2948,7 @@ const utf8b64=str=>btoa(unescape(encodeURIComponent(str)));
 const fotoIds=d=>{const out=[];const w=o=>{if(!o||typeof o!=="object")return;if(Array.isArray(o)){o.forEach(w);return}
   for(const[k,v]of Object.entries(o)){if(k==="id"&&typeof v==="string"&&/^[0-9a-f]{32}$/.test(v))out.push(v);else w(v)}};w(d);return out};
 // colecciones que se sincronizan y su carpeta en el repositorio
-const COLS={trabajos:"puntos",equipos:"equipos",firmas:"firmas",planes:"planes",esquemas:"esquemas"};
+const COLS={trabajos:"puntos",equipos:"equipos",firmas:"firmas",planes:"planes",esquemas:"esquemas",bases:"bases"};
 const keyOf=(col,id)=>col==="trabajos"?id:col+"/"+id;
 const tipoImg=buf=>{const b=new Uint8Array(buf.slice(0,4));return b[0]===0x89&&b[1]===0x50?"image/png":"image/jpeg"};
 const modOf=d=>d?.modificado||d?.creado||0;
