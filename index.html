@@ -1288,6 +1288,7 @@ function h0Html(it){const tec=it.tecnicas||[];
     <div class="h0calc"><p class="note">Franjas por tubo: 2 × ${String(ext).replace(".",",")} mm (extremos, todo el perímetro) + ${String(cen).replace(".",",")} mm (centro) = ${(2*ext+cen).toLocaleString("es-CO")} mm.${od?` Perímetro ${Math.round(od*25.4*Math.PI).toLocaleString("es-CO")} mm → longitud inspeccionada por tubo: ${((2*ext+cen)/100).toLocaleString("es-CO")} × ${Math.round(od*25.4*Math.PI).toLocaleString("es-CO")} = <b>${longTN(rp,$("iDiam").value).toLocaleString("es-CO")} mm</b>.`:" Ponga el diámetro para calcular la longitud."} Tubos: ${esc(tubosDe(rp).join(", "))}. Las medidas e identificación se cambian en el esquema.</p></div>`}
   return`<span class="label">Técnicas de inspección ${it.act==="12H"?"12":"0"} horas</span>
   <div class="picks">${TECNICAS.map(t=>`<label class="pick"><input type="checkbox" data-tec="${t}"${tec.includes(t)?" checked":""}><span>${t}</span></label>`).join("")}</div>
+  ${tec.includes("PAUT")?`<span class="label">PAUT a las soldaduras</span><div class="picks">${[["LONG","Longitudinales"],["CIRC","Circunferenciales"]].map(([k,l])=>`<label class="pick"><input type="checkbox" data-pautt="${k}"${(it.pautSin||{})[k]?"":" checked"}${readOnly?" disabled":""}><span>${l}</span></label>`).join("")}</div>`:""}
   <div class="h0calc">${h0CalcHtml(it)}</div>`}
 // ---------- equipos y consumibles (catálogo reutilizable) ----------
 const EQ_CAMPOS={
@@ -1402,7 +1403,7 @@ function planCard(p,eqP){const cs=plCampos(p.tipo);const ins=[...new Set([...INS
     <span class="label">Parámetros</span>
     <div class="grid2">${cs.map(([k,l,ph])=>`<label class="f"><span class="label">${esc(l)}</span><input class="field" data-c="${k}" value="${esc(p.campos?.[k]||"")}" placeholder="${esc(ph)}"></label>`).join("")}</div>
     ${plCalc(p).length?`<p class="note">${esc(plCalc(p).join(" · "))}</p>`:""}
-    ${readOnly?"":`<div class="row-btns"><button class="btn small ghost" type="button" data-pldel="1">Eliminar</button><button class="btn small" type="button" data-pldup="1">Duplicar</button><button class="btn small primary" type="button" data-plsave="1">Guardar</button></div>`}</div>`}
+    ${readOnly?"":`<div class="row-btns" style="justify-content:flex-start"><button class="btn small" type="button" data-plimp="1">📄 Llenar desde reporte del equipo (PDF o foto)</button></div><div class="row-btns"><button class="btn small ghost" type="button" data-pldel="1">Eliminar</button><button class="btn small" type="button" data-pldup="1">Duplicar</button><button class="btn small primary" type="button" data-plsave="1">Guardar</button></div>`}</div>`}
 let plPara=null;
 async function nuevoPlan(t,base){const id=rid20();const it=plPara&&formItems[plPara.i];
   await db.collection("planes").doc(id).set({tipo:t,nombre:"",campos:{},inspector:it?inspList(it.inspectores)[0]||"":"",equipo:it?.equipos?.PAUT||"",...(base||{}),modificado:Date.now()});
@@ -1413,13 +1414,65 @@ $("catPlanes").addEventListener("click",async e=>{
   const leer=()=>{const o={campos:{}};card.querySelectorAll("[data-k]").forEach(i=>o[i.dataset.k]=i.value.trim());card.querySelectorAll("[data-c]").forEach(i=>o.campos[i.dataset.c]=i.value.trim());return o};
   if(e.target.closest("[data-plsave]")){const o=leer();await db.collection("planes").doc(id).set({tipo:cur.tipo,...o,nombre:o.nombre||PL_TIPOS[cur.tipo],modificado:Date.now()});toast("Plan guardado");renderPlanes();
     if(plPara?.id===id&&formItems[plPara.i]){const it=formItems[plPara.i];it.planes={...(it.planes||{}),[plPara.t]:id};store.set("ultimoPlan_"+plPara.t,id);refreshPl(plPara.i);scheduleDraft();plPara=null;$("catp").hidden=true}}
+  else if(e.target.closest("[data-plimp]")){plImpCard=card;$("plFile").value="";$("plFile").click()}
   else if(e.target.closest("[data-pldup]")){const o=leer();await nuevoPlan(cur.tipo,{...o,nombre:(o.nombre||"Plan")+" (copia)"})}
   else if(e.target.closest("[data-pldel]")){const b=e.target.closest("[data-pldel]");if(!b.dataset.ok){b.dataset.ok="1";b.textContent="¿Eliminar? Toca otra vez";return}await db.collection("planes").doc(id).delete();renderPlanes()}
 });
+// ---------- llenar el plan desde el reporte del equipo (PDF de OmniScan u otro, o foto/captura) ----------
+let plImpCard=null;
+{const fi=document.createElement("input");fi.type="file";fi.id="plFile";fi.accept=".pdf,application/pdf,image/*";fi.hidden=true;document.body.appendChild(fi);
+ fi.addEventListener("change",async()=>{const f=fi.files?.[0],card=plImpCard;if(!f||!card)return;const id=card.dataset.plid,cur=planes.find(x=>x.id===id)||{};
+  toast("Leyendo el reporte del equipo…");
+  try{const tx=/pdf$/i.test(f.type)||/\.pdf$/i.test(f.name)?await textoPDF(f):await textoImagen(f);
+    const v=planDeTexto(tx,cur.tipo);const ks=Object.keys(v).filter(k=>k!=="_esp");
+    if(!ks.length){toast("No se reconocieron parámetros en ese archivo.");return}
+    ks.forEach(k=>{const inp=card.querySelector(`[data-c="${k}"]`);if(inp){inp.value=v[k];inp.classList.add("leido")}});
+    const nm=card.querySelector("[data-k=nombre]");if(nm&&!nm.value.trim())nm.value=f.name.replace(/\.[^.]+$/,"").replace(/[_]+/g," ");
+    {const m=f.name.match(/(\d{1,2})\s*[_ -]?\s*(?:IN|PULG|")/i);if(m)["diaMin","diaMax"].forEach(k=>{const x=card.querySelector(`[data-k=${k}]`);if(x&&!x.value)x.value=m[1]})}
+    if(v._esp){const a=card.querySelector("[data-k=espMin]"),b=card.querySelector("[data-k=espMax]");if(a&&!a.value)a.value=v._esp;if(b&&!b.value)b.value=v._esp}
+    toast(`Se llenaron ${ks.length} datos del reporte. Revísalos y toca Guardar.`)}
+  catch(e){console.error(e);toast("No se pudo leer el archivo"+(LOCAL?" (la primera vez necesita internet).":"."))}})}
+const cargarJS=src=>new Promise((ok,no)=>{const sc=document.createElement("script");sc.src=src;sc.onload=ok;sc.onerror=no;document.head.appendChild(sc)});
+async function textoPDF(f){
+  if(!window.pdfjsLib){if(LOCAL)await cargarJS("ocr/pdf.min.js");else await cargarJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+    pdfjsLib.GlobalWorkerOptions.workerSrc=LOCAL?"ocr/pdf.worker.min.js":"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}
+  const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;let out="";
+  for(let i=1;i<=pdf.numPages;i++){const pg=await pdf.getPage(i);const tc=await pg.getTextContent();
+    // se arma por renglones (misma altura) para que cada etiqueta quede junto a su valor
+    const filas=new Map();tc.items.forEach(t=>{const y=Math.round(t.transform[5]/3);if(!filas.has(y))filas.set(y,[]);filas.get(y).push(t)});
+    [...filas.entries()].sort((a,b)=>b[0]-a[0]).forEach(([,ts])=>{ts.sort((a,b)=>a.transform[4]-b.transform[4]);let ln="",fin=null;ts.forEach(t=>{const x=t.transform[4];ln+=(fin!=null&&x-fin>Math.max(1.5,(t.height||8)*0.25)?" ":"")+t.str;fin=x+(t.width||0)});out+=ln+"\n"})}
+  return out}
+async function textoImagen(f){
+  if(LOCAL){const w=await ocrWorker();const bm=await createImageBitmap(f);const k=Math.min(3,Math.max(1,2200/bm.width));const c=document.createElement("canvas");c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);
+    const g=c.getContext("2d");g.filter="grayscale(1) contrast(1.4)";g.drawImage(bm,0,0,c.width,c.height);return(await w.recognize(c)).data.text||""}
+  const sm=await sampleP();if(!sm)throw new Error("sin lector");let img=f;const lim=await sm.limits().catch(()=>null);if(lim?.images?.maxBytes&&img.size>lim.images.maxBytes)img=await achicarBlob(img,2000);
+  const r=await sm.text("Transcribe todo el texto de esta imagen (reporte o pantalla de un equipo de ultrasonido), renglón por renglón, conservando cada etiqueta junto a su valor y unidad. Solo el texto, sin comentarios.",{images:[img],modelTier:"quick"});
+  return typeof r==="string"?r:(r?.text||"")}
+function planDeTexto(tx,tipo){const t=tx.replace(/\r/g,"").replace(/[ \t]+/g," ");const v={};
+  const g=(re)=>{const m=t.match(re);return m?m[1]:null};const nf=x=>{if(x==null)return null;const n=parseFloat(String(x).replace(",","."));return isFinite(n)?String(+n.toFixed(2)).replace(".",","):null};
+  const put=(k,x)=>{if(x!=null&&x!=="")v[k]=x};
+  put("palpador",g(/Probe Model\s+([A-Z0-9][\w.\-]*)/i)?.replace(/-/g," "));
+  put("zapata",g(/Wedge Model\s+([A-Z0-9][\w.\-]*)/i));
+  {const a=nf(g(/Wedge Angle\s+([\d.,]+)/i));if(a!=null)put("angRef",a+"°")}
+  put("frecuencia",nf(g(/(?<!Digit\.\s?)Frequency\s+([\d.,]+)\s*MHz/i)));
+  put("pitch",nf(g(/Pitch\s*(?:\(mm\))?\s+([\d.,]+)/i)));
+  put("elemLey",g(/Element Qty Used\s+(\d+)/i)||g(/Probe Aperture\s+(\d+)/i)||g(/Aperture\s+(\d+)/i));
+  put("elem1",g(/First Element\s+(\d+)\b(?![.,]\d)/i));
+  put("elemUlt",g(/Last Element\s+(\d+)\b(?![.,]\d)/i));
+  put(tipo==="SCANC"?"paso":"pasoAng",nf(tipo==="SCANC"?g(/Element Step\s+([\d.,]+)/i):g(/Angle Resolution\s+([\d.,]+)/i)));
+  if(tipo!=="SCANC"&&tipo!=="SCANA"){put("angIni",nf(g(/Start Angle\s+([\d.,]+)/i)));put("angFin",nf(g(/Stop Angle\s+([\d.,]+)/i)))}
+  {const f=nf(g(/Focus Depth\s+([\d.,]+)\s*mm/i));if(f!=null)put("profFocal",f+" mm")}
+  put("ganancia",nf(g(/\bGain\s+([\d.,]+)\s*dB/i)));
+  {const ve=parseFloat(String(g(/Velocity\s+([\d.,]+)\s*m\/s/i)||"").replace(",","."));if(isFinite(ve))put("vRef",Math.round(ve)+" m/s")}
+  const esp=parseFloat(String(g(/Thickness\s+([\d.,]+)\s*mm/i)||"").replace(",","."));
+  const rng=parseFloat(String(g(/Range True Depth\s+([\d.,]+)\s*mm/i)||"").replace(",","."));
+  if(isFinite(esp)&&esp>0){v._esp=(esp/25.4).toFixed(3).replace(".",",");if(isFinite(rng))put("rangoBarrido",String(Math.ceil(rng/esp*2)/2).replace(".",",")+"T")}
+  if(tipo==="SCANA"){delete v.zapata;delete v.angRef;delete v.elemLey;delete v.elem1;delete v.elemUlt;delete v.pasoAng;delete v.profFocal}
+  return v}
 // en la actividad: qué planes aplican y cuál cuadra mejor con el punto
 const plTiposDe=(it,tipoA)=>{if(it.act==="Zona sana")return[it.zsTec==="SCANA"?"SCANA":"SCANC"];if(esTN(it.act))return(it.tecnicas||[]).includes("SCANC")?["SCANC"]:[];if(!(conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")))return[];
   if(!it.reparacion?.tipo)return["LONG","CIRC"];let ta=tipoA;if(ta===undefined){try{ta=tipoAForm()}catch(e){ta=false}}
-  const js=juntasDe(it.reparacion,ta);return[js.some(j=>j.tipo==="long")&&"LONG",js.some(j=>j.tipo==="circ")&&"CIRC"].filter(Boolean)};
+  const js=juntasDe(it.reparacion,ta,it);return[js.some(j=>j.tipo==="long")&&pautOk(it,"LONG")&&"LONG",js.some(j=>j.tipo==="circ")&&pautOk(it,"CIRC")&&"CIRC"].filter(Boolean)};
 function plEncaje(p,it){const esp=numIn(p.tipo==="SCANC"||p.tipo==="SCANA"?$("iNom").value:$("iEsp").value), dia=numIn($("iDiam").value), ins=inspList(it.inspectores);
   const enR=(v,a,b)=>v==null?null:((numIn(a)==null||v>=numIn(a)-1e-6)&&(numIn(b)==null||v<=numIn(b)+1e-6));
   const r={esp:enR(esp,p.espMin,p.espMax),dia:enR(dia,p.diaMin,p.diaMax),ins:!p.inspector||ins.includes(p.inspector),eq:!p.equipo||!it.equipos?.PAUT||p.equipo===it.equipos.PAUT};
@@ -1544,7 +1597,8 @@ const FOTO_SUG=["Medición de la temperatura","Medición de intensidad de luz","
 setTimeout(()=>{if(!document.getElementById("fcapSug"))document.body.insertAdjacentHTML("beforeend",`<datalist id="fcapSug">${FOTO_SUG.map(x=>`<option value="${esc(x)}">`).join("")}</datalist>`)},0);
 const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
 // juntas del esquema: longitudinales (lados superior / inferior) y circunferenciales (lados según qué unen)
-function juntasDe(rep,tipoA){
+function juntasDe(rep,tipoA,it){
+  if(it?.sinAnillos&&/anillos/.test(rep?.tipo||""))return juntasDe(rep,tipoA).filter(j=>!/^A\d /.test(j.id)&&j.lados[0]!=="Lado anillo");
   const out=[];const t=rep?.tipo;
   const L=pre=>[`${pre}L1`,`${pre}L2`].forEach(id=>out.push({id,tipo:"long",lados:["Lado superior","Lado inferior"]}));
   const C=(id,a,b)=>out.push({id,tipo:"circ",lados:[a,b]});
@@ -1560,7 +1614,8 @@ function juntasDe(rep,tipoA){
   else if(t==="Ilícita"){for(let i=1;i<=nInt(rep.cascotas,3,1,12);i++)C(`Cascota #${i}`,"Lado cascota","Lado tubo")}
   return out;
 }
-const juntasPAUT=(rep,tipoA)=>juntasDe(rep,tipoA).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
+const pautOk=(it,t)=>!(it?.pautSin||{})[t];
+const juntasPAUT=(rep,tipoA,it)=>juntasDe(rep,tipoA,it).filter(j=>pautOk(it,j.tipo==="long"?"LONG":"CIRC")).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
 // ---------- soldadores por junta (se anotan una vez y sirven para PT, MT y PAUT) ----------
 const SOLDADORES_BASE={"Puerto Boyacá":["CCT","ETC","DPA","JFG"]};
 function soldLista(){const b=$("iBase").value;const base=SOLDADORES_BASE[b]||[...new Set(Object.values(SOLDADORES_BASE).flat())];
@@ -1569,11 +1624,12 @@ function soldLista(){const b=$("iBase").value;const base=SOLDADORES_BASE[b]||[..
   return[...new Set([...base,...usados])]}
 function soldSel(val,attrs){const l=soldLista();return`<select class="field sold" ${attrs}${readOnly?" disabled":""}><option value="">—</option>${l.map(x=>`<option${x===val?" selected":""}>${esc(x)}</option>`).join("")}${val&&!l.includes(val)?`<option selected>${esc(val)}</option>`:""}<option value="__otro">Otro…</option></select>`}
 function soldHtml(it){
-  if(!conTec(it.act))return"";const js=juntasDe(it.reparacion,tipoAForm());if(!js.length)return"";
+  if(!conTec(it.act))return"";const js=juntasDe(it.reparacion,tipoAForm(),it);if(!js.length)return"";
   const v=it.soldadores||{};const lg=js.filter(j=>j.tipo==="long"),cc=js.filter(j=>j.tipo==="circ");
   const fila=j=>{const p=String(v[j.id]||"").split("/").map(x=>x.trim());
     return`<div class="sfila"><span class="sid">${esc(j.id)}</span>${soldSel(p[0]||"",`data-sj="${esc(j.id)}" data-sp="0" aria-label="Soldador ${esc(j.id)}"`)}${j.tipo==="circ"?soldSel(p[1]||"",`data-sj="${esc(j.id)}" data-sp="1" aria-label="Segundo soldador ${esc(j.id)}"`):""}</div>`};
-  return`<span class="label">Soldadores por junta</span><p class="note">Se anotan una vez y salen en PT, MT y PAUT. Longitudinales: un soldador; circunferenciales: dos.</p>
+  const anTxt=/anillos/.test(it.reparacion?.tipo||"")&&it.act!=="0H"?`<label class="chk" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px"><input type="checkbox" data-sinanillos${it.sinAnillos?" checked":""}${readOnly?" disabled":""}><span>Sin inspección de los anillos en esta actividad (quedaron muy cortos bajo la sobrecamisa). Se quitan sus juntas del reporte.</span></label>`:"";
+  return`${anTxt}<span class="label">Soldadores por junta</span><p class="note">Se anotan una vez y salen en PT, MT y PAUT. Longitudinales: un soldador; circunferenciales: dos.</p>
     ${lg.length?`<div class="sfila todas"><span class="sid">Todas long.</span>${soldSel("",`data-sall="long" aria-label="Mismo soldador para todas las longitudinales"`)}</div>`:""}
     <div class="sgrid">${lg.map(fila).join("")}</div>${cc.length?`<div class="sgrid">${cc.map(fila).join("")}</div>`:""}`}
 function refreshSold(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
@@ -1584,7 +1640,7 @@ const soldDe=(it,id)=>String(it.soldadores?.[id]||"").split("/").map(x=>x.trim()
 function fotoGrupos(it,tipoA=tipoAForm()){
   const g=[];
   if(it.act==="Zona sana"&&it.reparacion?.tipo){const a=zsAreas(it.reparacion);g.push({k:"ZSI",t:"Imágenes de inspección zona sana",caps:a,min:a.length,fixed:true,byCap:true,sinEstampe:true})}
-  if(conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")){const j=juntasPAUT(it.reparacion,tipoA);
+  if(conTec(it.act)&&(it.tecnicas||[]).includes("PAUT")){const j=juntasPAUT(it.reparacion,tipoA,it);
     if(j.length)g.push({k:"PAUTI",t:"Imágenes PAUT por junta",caps:j,min:j.length,fixed:true,byCap:true,sinEstampe:true});
     else g.push({k:"PAUTI",t:"Imágenes PAUT por junta",caps:[],min:0,fixed:true,byCap:true,sinEstampe:true,nota:"Escoge el esquema de la camisa para ver sus juntas."})}
   if(it.act==="__punto")return[
@@ -1608,7 +1664,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v46";
+const LOCAL=!!window.__LOCAL;const APPV="v47";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1764,7 +1820,7 @@ fileIn.addEventListener("change",async()=>{
     {const cap=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.cap;const m=MEDIDA(cap);if(m&&t.i!=="P")leerMedida(blob,t.i,m)}
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
-      if(LOCAL)gpsA(campo);else leerCoordVision(blob,campo,t.k)}
+      if(LOCAL)leerCoordOCR(blob,campo,t.k);else leerCoordVision(blob,campo,t.k)}
   }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":e?.code==="too_large"?"La foto es demasiado grande.":"No se pudo subir la foto. Revisa la señal e inténtalo otra vez.")}
   finally{subiendo.delete(key);refreshFotos(t.i)}
 });
@@ -1798,12 +1854,38 @@ async function leerCoordVision(blob,campo,k){
   }catch(e){toast(e?.code==="not_granted"?"Sin permiso para leer la foto. Escriba la coordenada a mano.":"No se pudo leer la coordenada de la foto. Escríbala a mano.")}
   finally{box.placeholder=campo==="iCoordPatio"?"Se llena con la foto de patio":"Se llena con la foto de campo";updLeerBtns()}
 }
+// coordenadas escritas en texto (estampado de Timestamp Camera u otra app): DMS, grados-minutos o decimales
+function coordDeTexto(tx){const t=tx.replace(/[’‘`´]/g,"'").replace(/[”“]/g,'"').replace(/º/g,"°").replace(/(\d)\s*[*]\s*(\d)/g,"$1°$2");const n=x=>+String(x).replace(",",".");
+  const ok=(la,lo)=>isFinite(la)&&isFinite(lo)&&Math.abs(la)<=90&&Math.abs(lo)<=180&&(la||lo)?{lat:la,lon:lo}:null;
+  let m=t.match(/(\d{1,2})\s*°\s*(\d{1,2})\s*['°]+\s*(\d{1,2}(?:[.,]\d+)?)\s*["'°]*\s*([NS])[^0-9A-Z]{0,6}(\d{1,3})\s*°+\s*(\d{1,2})\s*['°]+\s*(\d{1,2}(?:[.,]\d+)?)\s*["'°]*\s*([EWO])/i);
+  if(m){let la=+m[1]+m[2]/60+n(m[3])/3600,lo=+m[5]+m[6]/60+n(m[7])/3600;if(/S/i.test(m[4]))la=-la;if(/[WO]/i.test(m[8]))lo=-lo;return ok(la,lo)}
+  m=t.match(/([NS])\s*(\d{1,2})\s*°\s*(\d{1,2}[.,]\d+)\s*'?[^0-9A-Z]{0,6}([EWO])\s*(\d{1,3})\s*°\s*(\d{1,2}[.,]\d+)/i);
+  if(m){let la=+m[2]+n(m[3])/60,lo=+m[5]+n(m[6])/60;if(/S/i.test(m[1]))la=-la;if(/[WO]/i.test(m[4]))lo=-lo;return ok(la,lo)}
+  m=t.match(/(-?\d{1,2}[.,]\d{4,})\s*°?\s*([NS])?[\s,;]+(-?\d{1,3}[.,]\d{4,})\s*°?\s*([EWO])?/i);
+  if(m){let la=n(m[1]),lo=n(m[3]);if(m[2]&&/S/i.test(m[2]))la=-Math.abs(la);if(m[4]&&/[WO]/i.test(m[4]))lo=-Math.abs(lo);return ok(la,lo)}
+  return null}
+// lee con OCR (en el teléfono, sin internet después de la primera vez) el texto estampado en la foto
+let ocrW=null;
+async function ocrWorker(){if(ocrW)return ocrW;if(!window.Tesseract)await new Promise((ok,no)=>{const sc=document.createElement("script");sc.src="ocr/tesseract.min.js";sc.onload=ok;sc.onerror=no;document.head.appendChild(sc)});
+  ocrW=await Tesseract.createWorker("eng",1,{workerPath:"ocr/worker.min.js",corePath:"ocr/",langPath:"ocr/",gzip:true});return ocrW}
+async function prepOCR(blob,modo){const bm=await createImageBitmap(blob);const W=bm.width,H=bm.height,y0=Math.round(H*(modo===2?0.4:0.55)),h=H-y0,k=Math.min(2.5,Math.max(1,1600/W));
+  const c=document.createElement("canvas");c.width=Math.round(W*k);c.height=Math.round(h*k);const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(bm,0,y0,W,h,0,0,c.width,c.height);
+  const d=g.getImageData(0,0,c.width,c.height),q=d.data;for(let i=0;i<q.length;i+=4){const r=q[i],gg=q[i+1],b=q[i+2];
+    const txt=modo===0?(r>150&&gg>150&&r-b>70&&Math.abs(r-gg)<70):modo===1?(r>200&&gg>200&&b>200)||(r>150&&gg>150&&r-b>70):(r+gg+b)/3>170;q[i]=q[i+1]=q[i+2]=txt?0:255}
+  g.putImageData(d,0,0);return c}
+async function leerCoordOCR(blob,campo,k){const box=$(campo);box.placeholder="Leyendo coordenada de la foto…";
+  try{const w=await ocrWorker();let pos=null;
+    for(const modo of [0,1,2]){const r=await w.recognize(await prepOCR(blob,modo));pos=coordDeTexto(r.data.text||"");if(pos)break}
+    if(pos){box.value=`${pos.lat.toFixed(6)}, ${pos.lon.toFixed(6)}`;if(k){setFoto("P",k,0,{noStamp:true});refreshFotos("P")}scheduleDraft();refreshAllFotos();toast("Coordenada leída del texto de la foto. Revísela.")}
+    else toast("La foto no trae GPS ni coordenadas legibles. Escríbala a mano o use «Tomar coordenada aquí» si está en el sitio.")}
+  catch(e){console.error(e);toast("No se pudo leer la foto (la primera vez necesita internet). Escriba la coordenada a mano.")}
+  finally{box.placeholder=campo==="iCoordPatio"?"Se llena con la foto de patio":"Se llena con la foto de campo";updLeerBtns()}}
 async function achicarBlob(b,max){const bm=await createImageBitmap(b);const k=Math.min(1,max/Math.max(bm.width,bm.height));const c=document.createElement("canvas");c.width=Math.round(bm.width*k);c.height=Math.round(bm.height*k);c.getContext("2d").drawImage(bm,0,0,c.width,c.height);return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.85))}
 // botón para leer la coordenada de una foto de ubicación ya tomada
-function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLeerP"]].forEach(([k,f,b])=>{const id=(puntoF.fotos?.[k]||[])[0]?.id;$(b).hidden=LOCAL||readOnly||!id||!!$(f).value.trim()})}
+function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLeerP"]].forEach(([k,f,b])=>{const id=(puntoF.fotos?.[k]||[])[0]?.id;$(b).hidden=readOnly||!id||!!$(f).value.trim()})}
 [["btnLeerC","UBC","iCoord"],["btnLeerP","UBP","iCoordPatio"]].forEach(([b,k,f])=>$(b).addEventListener("click",async()=>{
   const id=(puntoF.fotos?.[k]||[])[0]?.id;if(!id)return;$(b).disabled=true;
-  try{const bl=await (await fetch(fotoSrc(id))).blob();await leerCoordVision(bl,f,k)}catch(e){toast("No se pudo abrir la foto.")}finally{$(b).disabled=false}}));
+  try{const bl=await (await fetch(fotoSrc(id))).blob();await (LOCAL?leerCoordOCR:leerCoordVision)(bl,f,k)}catch(e){toast("No se pudo abrir la foto.")}finally{$(b).disabled=false}}));
 ["iCoord","iCoordPatio"].forEach(id=>$(id).addEventListener("input",updLeerBtns));
 // visor de foto
 let fvT=null;
@@ -2117,11 +2199,13 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
   if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
+  if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);scheduleDraft();return}
+  if(e.target.dataset.sinanillos!=null){const it=formItems[i];it.sinAnillos=e.target.checked;refreshSold(i);refreshFotos(i);refreshPl?.(i);scheduleDraft();return}
   if(e.target.dataset.sj!=null||e.target.dataset.sall){const it=formItems[i];let v=e.target.value;
     if(v==="__otro"){const n=(prompt("Iniciales del soldador")||"").trim().toUpperCase();if(!n){e.target.value="";return}v=n}
     it.soldadores={...(it.soldadores||{})};
     const put=(id,pos,val)=>{const p=String(it.soldadores[id]||"").split("/").map(x=>x.trim());p[pos]=val;it.soldadores[id]=p.filter((x,k)=>k<2).map(x=>x||"").join("/").replace(/\/$/,"")};
-    if(e.target.dataset.sall)juntasDe(it.reparacion,tipoAForm()).filter(j=>j.tipo==="long").forEach(j=>put(j.id,0,v));else put(e.target.dataset.sj,+e.target.dataset.sp,v);
+    if(e.target.dataset.sall)juntasDe(it.reparacion,tipoAForm(),it).filter(j=>j.tipo==="long").forEach(j=>put(j.id,0,v));else put(e.target.dataset.sj,+e.target.dataset.sp,v);
     refreshSold(i);scheduleDraft();return}
   if(e.target.dataset.pl){const it=formItems[i];it.planes={...(it.planes||{}),[e.target.dataset.pl]:e.target.value};if(e.target.value)store.set("ultimoPlan_"+e.target.dataset.pl,e.target.value);refreshPl(i)}
 });
@@ -2483,7 +2567,7 @@ function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo 
     tecsDe(it).forEach(t=>{const e=equipos.find(x=>x.id===it.equipos?.[t]);if(!e)f.push(`${n}: equipo ${t}`);else{const vac=(EQ_CAMPOS[t]||[]).filter(([k])=>/^lote/.test(k)&&!e.campos?.[k]);if(vac.length)f.push(`${n}: lotes del equipo ${t}`)}});
     plTiposDe(it,tipoA).forEach(t=>{const et=t==="LONG"?"TOPE":t==="CIRC"?esqCirc(it.reparacion):t;if(!esqDe(et))f.push(`Esquema del barrido: ${ES_TIPOS[et]}`)});
     plTiposDe(it,tipoA).forEach(t=>{if(!planes.find(p=>p.id===it.planes?.[t]))f.push(`${n}: plan de escaneo ${t==="LONG"?"longitudinales":t==="CIRC"?"circunferenciales":t==="SCANA"?"Scan A":"Scan C"}`)});
-    if(conTec(it.act)){if(!it.reparacion?.tipo)f.push(`${n}: esquema de la camisa`);else juntasDe(it.reparacion,tipoA).forEach(j=>{const s=String(it.soldadores?.[j.id]||"").split("/").filter(x=>x.trim());if(s.length<(j.tipo==="circ"?2:1))f.push(`${n}: soldador de ${j.id}`)})}});
+    if(conTec(it.act)){if(!it.reparacion?.tipo)f.push(`${n}: esquema de la camisa`);else juntasDe(it.reparacion,tipoA,it).forEach(j=>{const s=String(it.soldadores?.[j.id]||"").split("/").filter(x=>x.trim());if(s.length<(j.tipo==="circ"?2:1))f.push(`${n}: soldador de ${j.id}`)})}});
   const anx=(r.fotosPunto?.ANX||[]).filter(x=>x?.id).length,am=anxMinDe(r.items,r.anexoMin);if(anx<am)f.push(`Anexo fotográfico (${anx} de ${am})`);
   return[...new Set(f)]}
 // --- armado del reporte ---
@@ -2611,7 +2695,7 @@ async function generarReporte(r,modo){REP_PT=r;
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filas,["A","G","K","O","R","U","Z","AD"],()=>{});
       for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes a los biseles de la ${descCamisa(r,repCam||rep)}${it.novedad?"":", en los cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
       await fotosEn(["12F.PT-BIS-CAM 2","12F.PT-BIS-CAM 6","12F.PT-BIS-CAM 7"],fot("PT"),lugarIt)}
-    if(conTec(it.act)&&it.reparacion?.tipo){const H12=it.act==="12H";const sfx=s=>H12?s.h12:s.h0;const rep=it.reparacion;const js=juntasDe(rep,tipoA);const tec=it.tecnicas||[];
+    if(conTec(it.act)&&it.reparacion?.tipo){const H12=it.act==="12H";const sfx=s=>H12?s.h12:s.h0;const rep=it.reparacion;const js=juntasDe(rep,tipoA,it);const tec=it.tecnicas||[];
       const fila=j=>[j.id,soldDe(it,j.id)||"-",largoJunta(rep,j,r.diametro,r.espesor)??"-"];const momento=H12?"12 horas":"0 horas";const ilic=rep.tipo==="Ilícita",nc=nCas(it);
       const que=t=>ilic?`Inspección ''${momento}'' por ${t} a las soldaduras de filete de ${nc>1?"las cascotas instaladas":"la cascota instalada"} sobre la zona afectada por la válvula ilícita`:`Inspección ''${momento}'' por ${t} a las soldaduras de la ${descCamisa(r,rep)}`;
       const conBis=!!bisCas&&!!ptCas&&!H12&&(it.tecnicas||[]).includes("PT");
@@ -2622,7 +2706,7 @@ async function generarReporte(r,modo){REP_PT=r;
         for(const h of hs){await cabecera(h,it,obsTxt(it,que("partículas magnéticas")),true,rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9","Soldaduras")}ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([sfx({h0:"14F.MT-SOLD -4",h12:"14F.MT-SOLD -4 -12H"})],fot("MT"),"campo")}
       if(tec.includes("PAUT")){const imgs=fot("PAUTI");const cols=["A","G","K","O","Q","S","U","W","Y","Z","AE","AH"];const filaU=j=>[...fila(j),"-","-","-","-","-","-","-",resultado(it),"-"];
-        const lg=js.filter(j=>j.tipo==="long"),cc=js.filter(j=>j.tipo==="circ");
+        const lg=pautOk(it,"LONG")?js.filter(j=>j.tipo==="long"):[],cc=pautOk(it,"CIRC")?js.filter(j=>j.tipo==="circ"):[];
         if(lg.length){const hs=await tabla(sfx({h0:["16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3"],h12:["16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H"]}),lg.map(filaU),cols,()=>{});
           for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (longitudinales)"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"LONG");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,"TOPE")}
           await fotosEn(sfx({h0:["16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6"],h12:["16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H"]}),[...imgs.filter(x=>/L\d/.test(x.cap)),...fot("PAUT")],"campo",true)}
@@ -2974,8 +3058,8 @@ async function generarInforme(r){REP_PT=r;
     setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes");llenar(K[87],1,tb.map(t=>({c:[t,"-",tec(tn).includes("MT")?"X":"-",ok(tn)]})))}
   else quitar(80,88);
   if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
-  const resH=(x,ip,it_,lab)=>{if(!x||!js.length){quitar(ip,ip+3);return}const t=tec(x);setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);
-    llenar(K[it_],2,js.map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")?"X":"-",ok(x)]})))};
+  const resH=(x,ip,it_,lab)=>{const js=x&&repCam?juntasDe(repCam,tipoA,x):[];if(!x||!js.length){quitar(ip,ip+3);return}const t=tec(x);setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);
+    llenar(K[it_],2,js.map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",ok(x)]})))};
   resH(h0,93,95,"0 Horas");resH(h12,97,99,"12 Horas");
   // ---- conclusiones ----
   const conc=[[104,zs&&`En la inspección mediante ultrasonido ${scanTxt} de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de las soldaduras.`],
