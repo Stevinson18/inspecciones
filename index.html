@@ -1608,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v43";
+const LOCAL=!!window.__LOCAL;const APPV="v44";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2830,8 +2830,8 @@ async function generarInforme(r){REP_PT=r;
     gc.slice(3,3+n).forEach(g=>{const w=+(g.getAttribute("w:w")||0);g.setAttribute("w:w",String(Math.round(w+libre/n)))});
     f.forEach((tr,ri)=>{const cs=celdasDe(tr);const ini=ri===1?2:3;if(ri===0){const gs=cs[2].getElementsByTagNameNS(WNS,"gridSpan")[0];if(gs)gs.setAttribute("w:val",String(n+1));celda(cs[2],tn&&!desc?"Tubería nueva":elem.charAt(0).toUpperCase()+elem.slice(1));return}
       cs.slice(ini+n,ini+11).forEach(c=>c.remove());const w=cs[ini]&&cs[ini].getElementsByTagNameNS(WNS,"tcW")[0];
-      const val=k=>ri===1?secs[k][0]:ri===2?(r.diametro||"-"):ri===3?(secs[k][1]!=null?(secs[k][1]/1000).toFixed(3).replace(".",","):"-"):ri===4?(r.espesor||"-"):(r.material||"-");
-      for(let k=0;k<n;k++)celda(cs[ini+k],val(k))});
+      const val=k=>ri===1?secs[k][0]:ri===2?(r.diametro||"-"):ri===3?(secs[k][1]!=null?(secs[k][1]/1000).toFixed(3).replace(".",","):"-"):ri===4?(r.espesor||"-"):"API 5L";
+      for(let k=0;k<n;k++)celda(cs[ini+k],val(k));if(ri===5&&cs[ini+11])celda(cs[ini+11],r.material||"-")});
     {const v=celdasDe(f[2]),e=celdasDe(f[4]),m=celdasDe(f[5]);celda(v[1],r.diametro||"-");celda(e[1],r.nominal||"-");celda(m[2],r.materialTub||"-")}}
   {const lt=repCam?num(repCam.longTotal):null;const ltmm=lt!=null?Math.round(lt*(U2MM[repCam.longUnidad||"m"]||1000)):null;
     if(desc&&ltmm)setT(K[22],`En la zona de las anomalías se instaló la ${elem} con una longitud total de ${ltmm} mm.`);
