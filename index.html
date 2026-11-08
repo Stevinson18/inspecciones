@@ -1608,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v42";
+const LOCAL=!!window.__LOCAL;const APPV="v43";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2780,7 +2780,7 @@ async function generarInforme(r){REP_PT=r;
   const fechas=fechasTxt(A.map(x=>x.inspFecha||r.fecha).concat(A.length?[]:[r.fecha]));
   const insp=[...new Set(A.flatMap(x=>inspList(x.inspectores)))];const realizo=realizoDe(A[0]||{})||insp[0]||"";
   const tec=x=>x?.tecnicas||[];const usaH=t=>[h0,h12].some(x=>tec(x).includes(t));
-  const scanA=zs?.zsTec==="SCANA",scanC=(zs&&!scanA)||tec(tn).includes("SCANC"),mt=!!zs||usaH("MT")||tec(tn).includes("MT"),pt=!!bis||usaH("PT"),paut=usaH("PAUT");
+  const scanA=zs?.zsTec==="SCANA",scanC=(zs&&!scanA)||tec(tn).includes("SCANC"),mt=usaH("MT")||tec(tn).includes("MT")||A.some(x=>x.act==="Ilícitas"&&tec(x).includes("MT")),pt=!!bis||usaH("PT"),paut=usaH("PAUT");
   const hoy=new Date(),p2=n=>String(n).padStart(2,"0"),hoyTxt=`${p2(hoy.getDate())}/${p2(hoy.getMonth()+1)}/${hoy.getFullYear()}`;
   // ---- portada ----
   const cov=filasDe(K[0]);const cp=r_=>[...cov[r_].getElementsByTagNameNS(WNS,"p")];
@@ -2792,7 +2792,7 @@ async function generarInforme(r){REP_PT=r;
   {const f=filasDe(K[3]);celda(celdasDe(f[1])[0],`Ing. ${realizo}`);celda(celdasDe(f[3])[0],hoyTxt);celda(celdasDe(f[3])[2],hoyTxt)}
   // ---- datos generales ----
   {const f=filasDe(K[5]),v=i=>celdasDe(f[i])[1];celda(v(0),r.consecutivo||"");celda(v(8),r.pk||"");celda(v(10),lin);
-    const ps=kids(v(13),"p"),nombres=[[scanC,"Ultrasonido Scan C"],[pt,"Líquidos penetrantes"],[mt,tn&&!zs&&!usaH("MT")?"Partículas Magnéticas fluorescentes":"Partículas Magnéticas"],[paut,"Ultrasonido phased array"]];
+    const ps=kids(v(13),"p"),nombres=[[scanC,"Ultrasonido Scan C"],[pt,"Líquidos penetrantes"],[mt,tn&&!usaH("MT")?"Partículas Magnéticas fluorescentes":"Partículas Magnéticas"],[paut,"Ultrasonido phased array"]];
     ps.forEach((p,k)=>{const n=nombres[k];if(!n||!n[0])p.remove();else setT(p,n[1])});
     if(scanA){const q=ps[0].cloneNode(true);setT(q,"Ultrasonido medición de espesores (Scan A)");v(13).insertBefore(q,v(13).firstChild)}
     celda(v(14),elem.charAt(0).toUpperCase()+elem.slice(1));
@@ -2804,7 +2804,7 @@ async function generarInforme(r){REP_PT=r;
     const hor=["0H","6H","9H","12H"].map(h=>A.find(x=>x.act===h));const repA=[...hor,A.find(x=>x.act==="Ilícitas")].filter(Boolean);
     const tR=t=>repA.some(x=>tec(x).includes(t))||(t==="PT"&&!!bis);
     const ilic=r.tipoReparacion==="Ilícita"||A.some(x=>x.act==="Ilícitas");
-    const tTub={ESP:scanA,SCANC:(zs&&!scanA)||tec(tn).includes("SCANC"),PAUT:false,MT:(!!zs&&!scanA)||tec(tn).includes("MT"),PT:false,PE:false};
+    const tTub={ESP:scanA,SCANC:(zs&&!scanA)||tec(tn).includes("SCANC"),PAUT:false,MT:tec(tn).includes("MT"),PT:false,PE:false};
     const hayTub=zs||tn;
     mk(3,6,scanA||tTub.SCANC);mk(3,8,!!zs);mk(5,7,!!hayTub);mk(6,7,false);mk(9,7,ilic);
     ["ESP","SCANC","PAUT","MT","PT","PE"].forEach((k,i)=>mk(4+i,1,tTub[k]));[6,7,8,9].forEach(ri=>mk(ri,9,false));
@@ -2839,7 +2839,7 @@ async function generarInforme(r){REP_PT=r;
     else K[22].remove()}
   // ---- procedimiento ----
   const scanTxt=scanA?"medición de espesores (Scan A)":"Scan C";
-  if(zs)setT(K[39],`Inspección por medio de ultrasonido ${scanTxt} y partículas magnéticas de las zonas donde se realizarán las soldaduras de filete de la ${elem} ${enPK}.`);
+  if(zs)setT(K[39],`Inspección por medio de ultrasonido ${scanTxt} de las zonas donde se realizarán las soldaduras de filete de la ${elem} ${enPK}.`);
   else if(tn)setT(K[39],`Inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} al metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}.`);
   else K[39].remove();
   if(bis)setT(K[40],`Inspección mediante líquidos penetrantes a los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}.`);else K[40].remove();
@@ -2861,7 +2861,7 @@ async function generarInforme(r){REP_PT=r;
   const ok=x=>x?.novedad?"Ver obs.":"OK";const mmTxt=v=>v==null?"-":`${v.toFixed(2).replace(".",",")} mm`;
   if(zs){setT(K[81],`Resultados de la inspección de las áreas sanas para la realización de las soldaduras de filete de la ${elem} ${enPK}`);setT(K[83],`Resultados de la inspección por ultrasonido ${scanTxt}`);
     const nomMm=num(r.nominal)!=null?num(r.nominal)*25.4:null;llenar(K[84],1,areas.map(a=>{const v=num(zs.zsMin?.[a]);return{c:[a,mmTxt(nomMm),mmTxt(v!=null?v*25.4:null)]}}));
-    llenar(K[87],1,areas.map(a=>({c:[a,"-","X",ok(zs)]})))}
+    K[86].remove();K[87].remove();if(K[88]?.localName==="p"&&!tx(K[88]).trim())K[88].remove()}
   else if(tn){const tb=tubosDe(tn.reparacion||{});setT(K[81],`Resultados de la inspección del metal base de la tubería nueva ${enPK}`);
     if(tec(tn).includes("SCANC")){setT(K[83],"Resultados de la inspección por ultrasonido Scan C");llenar(K[84],1,tb.map(t=>({c:[t,mmTxt(num(r.espesor)!=null?num(r.espesor)*25.4:null),"-"]})))}else{K[83].remove();K[84].remove();K[85]?.remove()}
     setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes");llenar(K[87],1,tb.map(t=>({c:[t,"-",tec(tn).includes("MT")?"X":"-",ok(tn)]})))}
@@ -2872,7 +2872,7 @@ async function generarInforme(r){REP_PT=r;
   resH(h0,93,95,"0 Horas");resH(h12,97,99,"12 Horas");
   // ---- conclusiones ----
   const conc=[[104,zs&&`En la inspección mediante ultrasonido ${scanTxt} de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de las soldaduras.`],
-    [106,zs?`En la inspección mediante partículas magnéticas de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones relevantes.`:tn&&`En la inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} del metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}, no se identificaron indicaciones relevantes.`],
+    [106,tn&&`En la inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} del metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}, no se identificaron indicaciones relevantes.`],
     [108,bis&&`En la inspección mediante líquidos penetrantes de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}, no se identificaron indicaciones relevantes causales de rechazo.`],
     [110,h0&&js.length&&`En la inspección “0 Horas” mediante ${tecsTxt(h0)} de las soldaduras ${tipoJ} de la ${elem} ${enPK} no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`],
     [112,h12&&js.length&&`En la inspección “12 Horas” mediante ${tecsTxt(h12)} de las soldaduras ${tipoJ} de la ${elem} ${enPK} no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`]];
