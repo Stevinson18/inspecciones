@@ -1597,8 +1597,11 @@ const FOTO_SUG=["Medición de la temperatura","Medición de intensidad de luz","
 setTimeout(()=>{if(!document.getElementById("fcapSug"))document.body.insertAdjacentHTML("beforeend",`<datalist id="fcapSug">${FOTO_SUG.map(x=>`<option value="${esc(x)}">`).join("")}</datalist>`)},0);
 const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
 // juntas del esquema: longitudinales (lados superior / inferior) y circunferenciales (lados según qué unen)
+// juntas que NO se inspeccionaron en esta actividad (p. ej. otro inspector las hizo otro día)
+const esAnillo=j=>/^A\d /.test(j.id)||j.lados[0]==="Lado anillo";
+function juntasNo(it,rep){if(Array.isArray(it.juntasNo))return new Set(it.juntasNo);if(it.sinAnillos&&/anillos/.test(rep?.tipo||""))return new Set(juntasDe(rep,false).filter(esAnillo).map(j=>j.id));return new Set()}
 function juntasDe(rep,tipoA,it){
-  if(it?.sinAnillos&&/anillos/.test(rep?.tipo||""))return juntasDe(rep,tipoA).filter(j=>!/^A\d /.test(j.id)&&j.lados[0]!=="Lado anillo");
+  if(it){const no=juntasNo(it,rep);if(no.size)return juntasDe(rep,tipoA).filter(j=>!no.has(j.id))}
   const out=[];const t=rep?.tipo;
   const L=pre=>[`${pre}L1`,`${pre}L2`].forEach(id=>out.push({id,tipo:"long",lados:["Lado superior","Lado inferior"]}));
   const C=(id,a,b)=>out.push({id,tipo:"circ",lados:[a,b]});
@@ -1624,11 +1627,14 @@ function soldLista(){const b=$("iBase").value;const base=SOLDADORES_BASE[b]||[..
   return[...new Set([...base,...usados])]}
 function soldSel(val,attrs){const l=soldLista();return`<select class="field sold" ${attrs}${readOnly?" disabled":""}><option value="">—</option>${l.map(x=>`<option${x===val?" selected":""}>${esc(x)}</option>`).join("")}${val&&!l.includes(val)?`<option selected>${esc(val)}</option>`:""}<option value="__otro">Otro…</option></select>`}
 function soldHtml(it){
-  if(!conTec(it.act))return"";const js=juntasDe(it.reparacion,tipoAForm(),it);if(!js.length)return"";
+  if(!conTec(it.act))return"";const js=juntasDe(it.reparacion,tipoAForm());if(!js.length)return"";const no=juntasNo(it,it.reparacion);
   const v=it.soldadores||{};const lg=js.filter(j=>j.tipo==="long"),cc=js.filter(j=>j.tipo==="circ");
-  const fila=j=>{const p=String(v[j.id]||"").split("/").map(x=>x.trim());
+  const fila=j=>{if(no.has(j.id))return"";const p=String(v[j.id]||"").split("/").map(x=>x.trim());
     return`<div class="sfila"><span class="sid">${esc(j.id)}</span>${soldSel(p[0]||"",`data-sj="${esc(j.id)}" data-sp="0" aria-label="Soldador ${esc(j.id)}"`)}${j.tipo==="circ"?soldSel(p[1]||"",`data-sj="${esc(j.id)}" data-sp="1" aria-label="Segundo soldador ${esc(j.id)}"`):""}</div>`};
-  const anTxt=/anillos/.test(it.reparacion?.tipo||"")&&it.act!=="0H"?`<label class="chk" style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px"><input type="checkbox" data-sinanillos${it.sinAnillos?" checked":""}${readOnly?" disabled":""}><span>Sin inspección de los anillos en esta actividad (quedaron muy cortos bajo la sobrecamisa). Se quitan sus juntas del reporte.</span></label>`:"";
+  const an=/anillos/.test(it.reparacion?.tipo||"");const ro=readOnly?" disabled":"";
+  const anTxt=`<span class="label">Juntas inspeccionadas en esta actividad</span><p class="note">Desmarca las que no se hicieron en esta actividad (las hizo otro inspector otro día o no se pudieron inspeccionar). Para la otra parte, agrega otra actividad del mismo momento con su fecha e inspector.</p>
+    <div class="picks">${js.map(j=>`<label class="pick"><input type="checkbox" data-jon="${esc(j.id)}"${no.has(j.id)?"":" checked"}${ro}><span>${esc(j.id)}</span></label>`).join("")}</div>
+    ${readOnly?"":`<div class="row-btns" style="justify-content:flex-start;flex-wrap:wrap">${an?`<button class="btn small" type="button" data-jset="anillos">Solo anillos (+C anillo-tubo)</button><button class="btn small" type="button" data-jset="sobre">Solo sobrecamisa</button>`:""}<button class="btn small" type="button" data-jset="todas">Todas</button></div>`}`;
   return`${anTxt}<span class="label">Soldadores por junta</span><p class="note">Se anotan una vez y salen en PT, MT y PAUT. Longitudinales: un soldador; circunferenciales: dos.</p>
     ${lg.length?`<div class="sfila todas"><span class="sid">Todas long.</span>${soldSel("",`data-sall="long" aria-label="Mismo soldador para todas las longitudinales"`)}</div>`:""}
     <div class="sgrid">${lg.map(fila).join("")}</div>${cc.length?`<div class="sgrid">${cc.map(fila).join("")}</div>`:""}`}
@@ -1664,7 +1670,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v47";
+const LOCAL=!!window.__LOCAL;const APPV="v48";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2178,6 +2184,9 @@ $("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refres
 // al tocar una descripción sugerida se selecciona toda, para escribir encima
 $("form").addEventListener("focusin",e=>{const t=e.target;if(t.dataset?.fcap!=null&&t.value){const def=t.defaultValue;if(t.value===def)setTimeout(()=>{try{t.select()}catch(_){}},0)}});
 $("form").addEventListener("input",e=>{if(e.target.dataset.medida){const it=own(+e.target.dataset.mi);if(it){it[e.target.dataset.medida]=e.target.value.trim();scheduleDraft()}return}if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,e.target.dataset.bycap?{desc:e.target.value}:{cap:e.target.value})}});
+$("itemsBox").addEventListener("click",e=>{const b=e.target.closest("[data-jset]");if(!b||readOnly)return;const card=b.closest(".itcard");const i=+card.dataset.i,it=formItems[i];if(!it)return;
+  const js=juntasDe(it.reparacion,tipoAForm()),m=b.dataset.jset;it.juntasNo=m==="todas"?[]:js.filter(j=>m==="anillos"?!esAnillo(j):esAnillo(j)).map(j=>j.id);delete it.sinAnillos;
+  refreshSold(i);refreshFotos(i);refreshPl(i);scheduleDraft()});
 $("itemsBox").addEventListener("click",e=>{
   const rb=e.target.closest("[data-rep]");
   if(rb){e.preventDefault();setActive(+rb.dataset.rep);return}
@@ -2200,7 +2209,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
   if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);scheduleDraft();return}
-  if(e.target.dataset.sinanillos!=null){const it=formItems[i];it.sinAnillos=e.target.checked;refreshSold(i);refreshFotos(i);refreshPl?.(i);scheduleDraft();return}
+  if(e.target.dataset.jon!=null){const it=formItems[i];const no=juntasNo(it,it.reparacion);if(e.target.checked)no.delete(e.target.dataset.jon);else no.add(e.target.dataset.jon);it.juntasNo=[...no];delete it.sinAnillos;refreshSold(i);refreshFotos(i);refreshPl(i);refreshH0?.(i);scheduleDraft();return}
   if(e.target.dataset.sj!=null||e.target.dataset.sall){const it=formItems[i];let v=e.target.value;
     if(v==="__otro"){const n=(prompt("Iniciales del soldador")||"").trim().toUpperCase();if(!n){e.target.value="";return}v=n}
     it.soldadores={...(it.soldadores||{})};
@@ -2685,6 +2694,8 @@ async function generarReporte(r,modo){REP_PT=r;
   const fotDe=(x,k)=>fotoSlots(x=x===bisCas?bisCas0:x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:x.inspFecha||r.fecha}));
   const filasBisCas=()=>bisRows(bisCas.reparacion).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(bisCas),"-"]);
   const nCas=x=>nInt(x?.reparacion?.cascotas??x?.reparacion?.nCas,1,1,12);
+  const HOJAS_H={h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3","13F.PT-CAM -4","14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3","14F.MT-SOLD -4","16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3","16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6","15.PAUT-CIRC-CAM -1","15F.PAUT-CIRC-CAM -2"],
+    h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H","13F.PT-CAM -4-12H","14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H","14F.MT-SOLD -4 -12H","16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H","16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H","15.PAUT-CIRC-CAM -1 12H","15F.PAUT-CIRC-CAM -2 -12H"]};
   for(let it of r.items){
     const lugarIt=it.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:it.inspFecha||r.fecha}));
     if(it===bisCas0&&it.act==="Ilícitas"&&!ptCas)it=bisCas;
@@ -2695,10 +2706,15 @@ async function generarReporte(r,modo){REP_PT=r;
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filas,["A","G","K","O","R","U","Z","AD"],()=>{});
       for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes a los biseles de la ${descCamisa(r,repCam||rep)}${it.novedad?"":", en los cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
       await fotosEn(["12F.PT-BIS-CAM 2","12F.PT-BIS-CAM 6","12F.PT-BIS-CAM 7"],fot("PT"),lugarIt)}
-    if(conTec(it.act)&&it.reparacion?.tipo){const H12=it.act==="12H";const sfx=s=>H12?s.h12:s.h0;const rep=it.reparacion;const js=juntasDe(rep,tipoA,it);const tec=it.tecnicas||[];
+    if(conTec(it.act)&&it.reparacion?.tipo){const H12=it.act==="12H";const dupN=r.items.slice(0,r.items.indexOf(it)).filter(x=>x.act===it.act&&x.reparacion?.tipo).length;const suf=dupN?` #${dupN+1}`:"";
+      if(suf){// otra actividad del mismo momento (p. ej. dos 0 H en días distintos): sus hojas son copias aparte, con su propio encabezado y firmas
+        const bases=(H12?HOJAS_H.h12:HOJAS_H.h0).filter(h=>hoja[h]&&!hoja[h+suf]);
+        for(const h of bases){await clonarHoja(h,h+suf);if(AREA_FOTOS[h])AREA_FOTOS[h+suf]=AREA_FOTOS[h]}
+        for(const h of bases){const fn=`xl/worksheets/${hoja[h+suf]}.xml`;let x=extra[fn];for(const b of (H12?HOJAS_H.h12:HOJAS_H.h0))if(hoja[b+suf])x=x.split(`'${xe(b)}'!`).join(`'${xe(b+suf)}'!`);extra[fn]=x}}
+      const sfx=s=>{const v=H12?s.h12:s.h0;const m=n=>suf&&hoja[n+suf]?n+suf:n;return Array.isArray(v)?v.map(m):m(v)};const rep=it.reparacion;const js=juntasDe(rep,tipoA,it);const tec=it.tecnicas||[];
       const fila=j=>[j.id,soldDe(it,j.id)||"-",largoJunta(rep,j,r.diametro,r.espesor)??"-"];const momento=H12?"12 horas":"0 horas";const ilic=rep.tipo==="Ilícita",nc=nCas(it);
       const que=t=>ilic?`Inspección ''${momento}'' por ${t} a las soldaduras de filete de ${nc>1?"las cascotas instaladas":"la cascota instalada"} sobre la zona afectada por la válvula ilícita`:`Inspección ''${momento}'' por ${t} a las soldaduras de la ${descCamisa(r,rep)}`;
-      const conBis=!!bisCas&&!!ptCas&&!H12&&(it.tecnicas||[]).includes("PT");
+      const conBis=!!bisCas&&!!ptCas&&!H12&&!dupN&&(it.tecnicas||[]).includes("PT");
       if(tec.includes("PT")){const hs=await tabla(sfx({h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H"]}),[...(conBis?filasBisCas():[]),...js.map(j=>[...fila(j),"-","-","-",resultado(it),"-"])],["A","G","K","O","R","U","Z","AD"],()=>{});
         for(const h of hs){await cabecera(h,it,obsTxt(it,que("líquidos penetrantes")+(conBis?` y al bisel recto de ${nc>1?"las cascotas":"la cascota"}`:"")),true,conBis?{...rep,vista:"0H+B"}:rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9",conBis?"Bisel recto y soldaduras":"Soldaduras")}ponEq(h,EQ_PT,equipo(it,"PT"))}
         await fotosEn([sfx({h0:"13F.PT-CAM -4",h12:"13F.PT-CAM -4-12H"})],[...(conBis?fotDe(bisCas,"PT"):[]),...fot("PT")],"campo")}
@@ -2757,9 +2773,9 @@ async function generarReporte(r,modo){REP_PT=r;
     return new Blob([await zipEscribir(ents)],{type:"application/zip"})}
   const relsQuitar=new Set(),archivosQuitar=new Set();
   // ---- paginación por reporte (técnica): datos primero, luego fotos; páginas de fotos vacías fuera ----
-  const esFoto=h=>/^\d+F\.|ANEXFOT/.test(h)||!!AREA_FOTOS[h]||/ F\d+$/.test(h);
-  const grupoDe=h=>{const m=h.match(/^(\d+)F?\.\s*([A-Za-z]+)/);return m?m[1]+m[2]+(/12H|-12\b|1-12/.test(h)?"-12H":""):h};
-  const baseDe=h=>PAGS_REP[h]?h:Object.keys(PAGS_REP).find(b=>h.startsWith(b.slice(0,22))&&/ F\d+$|\(\d+\)$/.test(h))||h;
+  const grupoBase=g=>g.replace(/#\d+$/,"");const esFoto=h=>/^\d+F\.|ANEXFOT/.test(h)||!!AREA_FOTOS[h]||/ F\d+$/.test(h);
+  const grupoDe=h=>{const m=h.match(/^(\d+)F?\.\s*([A-Za-z]+)/);return m?m[1]+m[2]+(/12H|-12\b|1-12/.test(h)?"-12H":"")+((h.match(/ (#\d+)(?: F\d+)?$/)||[])[1]||""):h};
+  const baseDe=h=>{if(PAGS_REP[h])return h;const sin=h.replace(/ #\d+(?= F\d+$|$)/,"");if(PAGS_REP[sin])return sin;return Object.keys(PAGS_REP).find(b=>sin.startsWith(b.slice(0,22))&&/ F\d+$|\(\d+\)$/.test(sin))||h};
   const nomOrden=[...wbxM.matchAll(/<sheet [^>]*name="([^"]+)"[^>]*\/>/g)].map(m=>m[1].replace(/&amp;/g,"&").replace(/&apos;/g,"'"));
   const areaDe=h=>{const i=nomOrden.indexOf(h);const m=wbxM.match(new RegExp(`<definedName name="_xlnm.Print_Area" localSheetId="${i}"[^>]*>[^<]*?!\\$[A-Z]+\\$(\\d+):\\$([A-Z]+)\\$(\\d+)</definedName>`));return m?{ini:+m[1],col:m[2],fin:+m[3],i}:null};
   const ponArea=(a,fin)=>{wbxM=wbxM.replace(new RegExp(`(<definedName name="_xlnm.Print_Area" localSheetId="${a.i}"[^>]*>[^<]*?!\\$[A-Z]+\\$\\d+:\\$[A-Z]+\\$)\\d+(</definedName>)`),`$1${fin}$2`)};
@@ -2803,7 +2819,8 @@ async function generarReporte(r,modo){REP_PT=r;
     const usados=Object.values(nuevas).filter(v=>typeof v==="string").join("")+(await Promise.all(Object.keys(E).filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n)&&!nuevas[n]).map(n=>txt(n)))).join("");
     const quitar=new Set(tags.map(nom).filter(h=>!visibles.has(h)&&esFoto(h)&&!usados.includes(`'${h}'!`)&&!usados.includes(`${h}!`)));
     let orden=tags.map((t,i)=>({t,i,h:nom(t)}));
-    for(const ord of Object.values(ordenFinal)){const pos=orden.map((o,k)=>ord.includes(o.h)?k:-1).filter(k=>k>=0).sort((a,b)=>a-b);const objs=ord.map(h=>orden.find(o=>o.h===h));pos.forEach((k,j)=>{orden[k]=objs[j]})}
+    const juntos={};for(const[g,ord]of Object.entries(ordenFinal).sort((a,b)=>a[0].localeCompare(b[0],"es",{numeric:true})))(juntos[grupoBase(g)]??=[]).push(...ord);
+    for(const ord of Object.values(juntos)){const pos=orden.map((o,k)=>ord.includes(o.h)?k:-1).filter(k=>k>=0).sort((a,b)=>a-b);const objs=ord.map(h=>orden.find(o=>o.h===h));pos.forEach((k,j)=>{orden[k]=objs[j]})}
     orden=orden.filter(o=>!quitar.has(o.h));const nuevo={};orden.forEach((o,k)=>nuevo[o.i]=k);
     let w=wbxM.replace(/<sheets>[\s\S]*?<\/sheets>/,"<sheets>"+orden.map(o=>o.t).join("")+"</sheets>");
     w=w.replace(/<definedName [^>]*localSheetId="(\d+)"[^>]*>[^<]*<\/definedName>/g,(m,id)=>nuevo[+id]==null?"":m.replace(/localSheetId="\d+"/,`localSheetId="${nuevo[+id]}"`));
@@ -2961,7 +2978,8 @@ async function generarInforme(r){REP_PT=r;
       tbl.appendChild(nr)}}
   // ---- datos del punto ----
   const tipoA=r.tipoReparacion==="Camisa Tipo A";const A=r.items;
-  const zs=A.find(x=>x.act==="Zona sana"),bis=A.find(x=>x.act==="Biseles"),h0=A.find(x=>x.act==="0H"),h12=A.find(x=>x.act==="12H"),tn=A.find(x=>esTN(x.act));
+  const unir=xs=>xs.length?{...xs[0],tecnicas:[...new Set(xs.flatMap(x=>x.tecnicas||[]))],novedad:xs.some(x=>x.novedad)}:undefined;
+  const zs=A.find(x=>x.act==="Zona sana"),bis=A.find(x=>x.act==="Biseles"),h0=unir(A.filter(x=>x.act==="0H")),h12=unir(A.filter(x=>x.act==="12H")),tn=A.find(x=>esTN(x.act));
   const repCam=[h0,h12].find(x=>x?.reparacion?.tipo)?.reparacion||null;
   const desc=repCam?descCamisa(r,repCam):bis?descCamisa(r,{tipo:bis.reparacion?.tipoCamisa==="anillos"?"Camisa sobre anillos":bis.reparacion?.tipoCamisa==="directa"?"Camisa directa":"Camisa armadillo"}):"";
   const elem=desc||(tn?"tubería nueva (metal base)":r.tipoReparacion==="Ilícita"?"reparación de la válvula ilícita":r.tipoReparacion==="C&E"?"corte y empalme":"reparación");
@@ -2992,7 +3010,7 @@ async function generarInforme(r){REP_PT=r;
   // ---- matriz de alcance (X según lo que de verdad se hizo) ----
   {const T=K.find(n=>n.localName==="tbl"&&/Integridad/.test(tx(n))&&/Reparaci/.test(tx(n)));
    if(T){const F=filasDe(T),mk=(ri,ci,on)=>{const c=F[ri]&&celdasDe(F[ri])[ci];if(c)celda(c,on?"X":"-")};
-    const hor=["0H","6H","9H","12H"].map(h=>A.find(x=>x.act===h));const repA=[...hor,A.find(x=>x.act==="Ilícitas")].filter(Boolean);
+    const hor=["0H","6H","9H","12H"].map(h=>A.find(x=>x.act===h));const repA=A.filter(x=>["0H","6H","9H","12H","Ilícitas"].includes(x.act));
     const tR=t=>repA.some(x=>tec(x).includes(t))||(t==="PT"&&!!bis);
     const ilic=r.tipoReparacion==="Ilícita"||A.some(x=>x.act==="Ilícitas");
     const tTub={ESP:scanA,SCANC:(zs&&!scanA)||tec(tn).includes("SCANC"),PAUT:false,MT:tec(tn).includes("MT"),PT:false,PE:false};
@@ -3058,9 +3076,10 @@ async function generarInforme(r){REP_PT=r;
     setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes");llenar(K[87],1,tb.map(t=>({c:[t,"-",tec(tn).includes("MT")?"X":"-",ok(tn)]})))}
   else quitar(80,88);
   if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
-  const resH=(x,ip,it_,lab)=>{const js=x&&repCam?juntasDe(repCam,tipoA,x):[];if(!x||!js.length){quitar(ip,ip+3);return}const t=tec(x);setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);
-    llenar(K[it_],2,js.map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",ok(x)]})))};
-  resH(h0,93,95,"0 Horas");resH(h12,97,99,"12 Horas");
+  // todas las actividades del mismo momento (p. ej. dos 0 H en días distintos) van en una sola tabla, cada junta con lo que se le hizo
+  const resH=(act,ip,it_,lab)=>{const xs=A.filter(x=>x.act===act);const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(repCam,tipoA,x).map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",ok(x)]}))}):[];
+    if(!filas.length){quitar(ip,ip+3);return}setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);llenar(K[it_],2,filas)};
+  resH("0H",93,95,"0 Horas");resH("12H",97,99,"12 Horas");
   // ---- conclusiones ----
   const conc=[[104,zs&&`En la inspección mediante ultrasonido ${scanTxt} de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de las soldaduras.`],
     [106,tn&&`En la inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} del metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}, no se identificaron indicaciones relevantes.`],
