@@ -1221,7 +1221,7 @@ function refreshZs(i,force){
   const card=$("itemsBox").querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
   const box=card.querySelector(".zsbox"); box.hidden=it.act!=="Zona sana"; if(box.hidden)return;
   const key=zsAreas(it.reparacion).join("|")+"#"+(it.zsTec||"SCANC");
-  if(force||box.dataset.k!==key){zsSync(card,i);box.innerHTML=zsHtml(it);box.dataset.k=key;box.querySelectorAll("input,select").forEach(el=>el.disabled=readOnly)}
+  if(force||box.dataset.k!==key){zsSync(card,i);box.innerHTML=zsHtml(it);box.dataset.k=key;box.querySelectorAll("input,select").forEach(el=>el.disabled=readOnly);refreshEq(i)}
 }
 // ---- 0 horas: técnicas y longitud inspeccionada PT/MT ----
 const TECNICAS=["PAUT","MT","PT","UTME"];
@@ -1294,17 +1294,17 @@ const EQ_CAMPOS={
   PT:[["marcaKit","Marca kit penetrante","Met-L-Chek"],["tipoPen","Tipo de penetrante","Tipo II - Visibles"],["metodo","Método de examinación","C - Removible con solvente"],["limpiador","Limpiador","E-59A"],["loteLimp","Lote limpiador","35881"],["revelador","Revelador","D-70"],["loteRev","Lote revelador","37233"],["penetrante","Penetrante","VP-31A"],["lotePen","Lote penetrante","18394"],["tPen","Tiempo penetración","10 min"],["tRev","Tiempo revelado","10 min"]],
   MT:[["tipoPart","Tipo de partículas","Fluorescentes"],["tecnica","Técnica de magnetización","Yoke"],["tipoYoke","Tipo de yoke","Electroimán"],["metodo","Método de magnetización","Continuo"],["corriente","Corriente del yoke","AC"],["marcaYoke","Marca del yoke","Magnaflux"],["serieYoke","Serie del yoke","43530"],["marcaKit","Marca kit partículas","Met-L-Chek"],["limpiador","Limpiador","E-59A"],["loteLimp","Lote limpiador","32831"],["particulas","Partículas","MPI-1400B"],["lotePart","Lote partículas","32451"],["contraste","Contraste / lote","N/A"]],
   PAUT:[["marca","Marca","OLYMPUS"],["modelo","Modelo","OMNI - SX"],["serie","Serie","QC-077617"],["modulo","Módulo","16/64"],["softAdq","Software adquisición","MXU-4.4 R3"],["softAna","Software análisis","OMNIPC 5.13.0"],["palpador","Palpador (referencia)","5L16 A10"],["zapata","Zapata","SA10-N55S"],["frecuencia","Frecuencia (MHz)","5"],["bloqueCal","Bloque calibración","IIW-V1"],["bloqueRef","Bloque referencia","API 1104"],["acoplante","Acoplante","Agua"]],
-  UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración",""],["acoplante","Acoplante","Agua"]]};
+  UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración","Escalerilla"],["serieBloque","Serie bloque calibración","60986"],["acoplante","Acoplante","Metilcelulosa"]]};
 const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)"};
 let equipos=[], firmas={}, basesPer={};
-const tecsDe=it=>it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
+const tecsDe=it=>it.act==="Zona sana"?(it.zsTec==="SCANA"?["UTME"]:["PAUT"]):it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
 function eqHtml(it){const ts=tecsDe(it);if(!ts.length)return"";
   return`<span class="label">Equipos y consumibles usados</span>`+ts.map(t=>{const lst=equipos.filter(e=>e.tecnica===t);const sel=it.equipos?.[t]||"";
     return`<div class="eqsel"><span class="sub2" style="font-weight:600">${t}</span><div class="eqrow"><select class="field" data-eq="${t}" aria-label="Equipo ${t}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el equipo…":"Sin equipos registrados"}</option>${lst.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-eqadd="${t}">+ Nuevo</button>`}</div></div>`}).join("");}
 // al marcar una técnica se propone el último equipo usado para esa técnica
 function eqDefaults(it){const ts=tecsDe(it);let ch=false;it.equipos={...(it.equipos||{})};
   ts.forEach(t=>{if(!it.equipos[t]){const u=store.get("ultimoEq_"+t);const lst=equipos.filter(e=>e.tecnica===t);const pick=lst.find(e=>e.id===u)||(lst.length===1?lst[0]:null);if(pick){it.equipos[t]=pick.id;ch=true}}});return ch}
-function refreshEq(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;eqDefaults(it);const b=card.querySelector(".eqbox");if(b)b.innerHTML=eqHtml(it)}
+function refreshEq(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;eqDefaults(it);const b=card.querySelector(".eqbox:not(.soldbox):not(.plbox)");if(b)b.innerHTML=eqHtml(it)}
 // ---------- panel: firmas de inspectores y catálogo de equipos ----------
 const slug=t=>String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 const rid20=()=>{const a=new Uint8Array(10);crypto.getRandomValues(a);return[...a].map(b=>b.toString(16).padStart(2,"0")).join("")};
@@ -1608,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v41";
+const LOCAL=!!window.__LOCAL;const APPV="v42";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2573,7 +2573,9 @@ async function generarReporte(r,modo){REP_PT=r;
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
   const equipo=(it,t)=>equipos.find(e=>e.id===it.equipos?.[t])?.campos||{};const plan=(it,t)=>planes.find(p=>p.id===it.planes?.[t])?.campos||{};
-  const ponEq=(h,mapa,src)=>Object.entries(mapa).forEach(([cel,k])=>{const v=src[k];if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v)});
+  const ponEq=(h,mapa,src)=>{const todo=mapa===EQ_UT&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
+  // equipo de la actividad; si no lo tiene, el que se usó para esa técnica en otra actividad del punto
+  const eqDe=(it,ts)=>{for(const x of [it,...r.items.filter(y=>y!==it)])for(const t of ts){const e=equipos.find(q=>q.id===x.equipos?.[t]);if(e)return e.campos||{}}return{}};
   const EQ_PT={H20:"tipoPen",V20:"metodo",H23:"marcaKit",E24:"limpiador",K24:"loteLimp",R24:"revelador",W24:"loteRev",AD24:"penetrante",AI24:"lotePen",AI22:"tPen",AI23:"tRev"};
   const EQ_MT={I20:"tipoPart",I22:"tecnica",G23:"tipoYoke",I24:"metodo",W24:"corriente",W25:"marcaYoke",AI25:"serieYoke",H25:"marcaKit",K26:"loteLimp",AI26:"lotePart"};
   const EQ_UT={E21:"marca",E22:"modelo",E23:"serie",O21:"modulo",O22:"softAdq",O23:"softAna"};
@@ -2639,10 +2641,10 @@ async function generarReporte(r,modo){REP_PT=r;
         ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"SCANC");ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC")}}}
     else if(it.act==="Zona sana"&&it.zsTec==="SCANA"){const base="4.Scan A-CAS";if(hoja[base]){const areas=zsAreas(it.reparacion),hs=[base];
         for(let k=1;k<areas.length;k++)hs.push(await clonarHoja(base,`4.Scan A-CAS (${k+1})`));
-        const pl=plan(it,"SCANA"),eq=equipo(it,"PAUT"),ilic=it.reparacion?.tipo==="Ilícita",imgs=fot("ZSI");
+        const pl=plan(it,"SCANA"),eq=eqDe(it,["UTME","PAUT"]),ilic=it.reparacion?.tipo==="Ilícita",imgs=fot("ZSI");
         for(let k=0;k<hs.length;k++){const h=hs[k],a=areas[k],an=ANCLAS_REP[h];visibles.add(h);await cabecera(h,it,"",true,it.reparacion);
           C(h,"H9","Tubería");C(h,"T9","Material base - zona sana");C(h,"AH10",k+1);C(h,"AJ10",hs.length);
-          C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);ponEq(h,EQ_UT,eq);ponEq(h,PL_SA,pl);altura(h,pl);
+          C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);ponEq(h,EQ_UT,eq);ponEq(h,PL_SA,pl);{const bc=String(eq.bloqueCal||"").trim(),sb=String(eq.serieBloque||"").trim()||(/^\d+$/.test(bc)?bc:"");if(bc&&!/^\d+$/.test(bc))C(h,"H25",bc);if(sb)C(h,"H26",num(sb)??sb);if(eq.palpador)C(h,"AC20",eq.palpador);if(eq.acoplante&&!/\//.test(eq.acoplante))C(h,"O27",eq.acoplante)}altura(h,pl);
           const lab=/zona sana/i.test(a)?a.replace(/^zona sana/i,"Zona Sana"):`Zona Sana ${a}`;C(h,"F31",lab);
           const v=it.zsLect?.[a]||[];for(let q=0;q<12;q++){C(h,"D"+(34+q),num(v[q])??"",true);C(h,"F"+(34+q),"",true);C(h,"H"+(34+q),"",true)}
           nominalCache(h);calcEsp(h,"D46","D47","D48","D34:I45",v.map(num));
@@ -2659,7 +2661,7 @@ async function generarReporte(r,modo){REP_PT=r;
         for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=areas.slice(2*p,2*p+2);
           const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
           await cabecera(h,it,obsSC,false,null);C(h,"A50",obsSC);
-          ponEq(h,EQ_UT,equipo(it,"PAUT"));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);
+          ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(it.zsLect?.[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
             const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[2*p+s_]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_]),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}
@@ -2726,7 +2728,7 @@ async function generarReporte(r,modo){REP_PT=r;
   // el reporte se entrega desbloqueado (sin protección de hojas ni de libro) para que el coordinador lo revise
   for(const n of [...Object.keys(E),...Object.keys(nuevas)].filter(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n))){const x=nuevas[n]??await txt(n);
     // fórmulas con resultado de texto guardado sin t="str" (Excel lo marca como contenido dañado)
-    const y=x.replace(/<sheetProtection[^>]*\/>/g,"").replace(/<protectedRanges>[\s\S]*?<\/protectedRanges>/g,"").replace(/<c ((?:(?!t=)[^>])*?)><f>([^<]*)<\/f><v( xml:space="preserve")?>([^<]*)<\/v><\/c>/g,(m,at,f,sp,v)=>v.trim()!==""&&isFinite(+v)?m:`<c ${at} t="str"><f>${f}</f><v${sp||""}>${v}</v></c>`);
+    const y=x.replace(/<sheetProtection[^>]*\/>/g,"").replace(/showErrorMessage="(1|true)"/g,'showErrorMessage="0"').replace(/<protectedRanges>[\s\S]*?<\/protectedRanges>/g,"").replace(/<c ((?:(?!t=)[^>])*?)><f>([^<]*)<\/f><v( xml:space="preserve")?>([^<]*)<\/v><\/c>/g,(m,at,f,sp,v)=>v.trim()!==""&&isFinite(+v)?m:`<c ${at} t="str"><f>${f}</f><v${sp||""}>${v}</v></c>`);
     if(y!==x)nuevas[n]=y}
   nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<workbookProtection[^>]*\/>/g,"").replace(/<fileSharing[^>]*\/>/g,"");
   let ct=await txt("[Content_Types].xml");if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="xml"');if(!/Extension="png"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="png" ContentType="image/png"/><Default Extension="xml"');if(relsAdd.length){ct=ct.replace("</Types>",ctAdd.join("")+"</Types>").replace(/<Override [^>]*calcChain[^>]*\/>/,"");
