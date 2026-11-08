@@ -1608,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v40";
+const LOCAL=!!window.__LOCAL;const APPV="v41";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2796,6 +2796,23 @@ async function generarInforme(r){REP_PT=r;
     celda(v(14),elem.charAt(0).toUpperCase()+elem.slice(1));
     const partes=[(zs||tn)&&"material base",bis&&"biseles",(h0||h12)&&"soldaduras"].filter(Boolean);celda(v(16),(partes.length>1?partes.slice(0,-1).join(", ")+" y "+partes.at(-1):partes[0]||"").replace(/^./,c=>c.toUpperCase()));
     celda(v(18),insp.join(", "));const c21=celdasDe(f[21])[1];if(c21)celda(c21,"");celda(v(22),r.base||"");celda(v(24),fechas)}
+  // ---- matriz de alcance (X según lo que de verdad se hizo) ----
+  {const T=K.find(n=>n.localName==="tbl"&&/Integridad/.test(tx(n))&&/Reparaci/.test(tx(n)));
+   if(T){const F=filasDe(T),mk=(ri,ci,on)=>{const c=F[ri]&&celdasDe(F[ri])[ci];if(c)celda(c,on?"X":"-")};
+    const hor=["0H","6H","9H","12H"].map(h=>A.find(x=>x.act===h));const repA=[...hor,A.find(x=>x.act==="Ilícitas")].filter(Boolean);
+    const tR=t=>repA.some(x=>tec(x).includes(t))||(t==="PT"&&!!bis);
+    const ilic=r.tipoReparacion==="Ilícita"||A.some(x=>x.act==="Ilícitas");
+    const tTub={ESP:scanA,SCANC:(zs&&!scanA)||tec(tn).includes("SCANC"),PAUT:false,MT:(!!zs&&!scanA)||tec(tn).includes("MT"),PT:false,PE:false};
+    const hayTub=zs||tn;
+    mk(3,6,scanA||tTub.SCANC);mk(3,8,!!zs);mk(5,7,!!hayTub);mk(6,7,false);mk(9,7,ilic);
+    ["ESP","SCANC","PAUT","MT","PT","PE"].forEach((k,i)=>mk(4+i,1,tTub[k]));[6,7,8,9].forEach(ri=>mk(ri,9,false));
+    const tp=(repCam?.tipo||r.tipoReparacion||"").toLowerCase();const col=[/capuch/.test(tp),ilic||/cascota/.test(tp),/anillo/.test(tp)];
+    const nom=ilic?"Válvula ilícita (cascota)":(desc?desc.charAt(0).toUpperCase()+desc.slice(1):r.tipoReparacion||"-");
+    if(repA.length||bis){const c0=celdasDe(F[11])[0];if(c0)celda(c0,nom)}
+    [["VT",12],["PT",13],["PAUT",14],["MT",15],["PE",16]].forEach(([t,ri])=>{const on=t!=="VT"&&t!=="PE"&&tR(t);mk(ri,1,on);[3,4,5].forEach((ci,j)=>mk(ri,ci,on&&col[j]))});
+    mk(12,7,!!bis||ilic&&tR("PT"));mk(13,7,hor.some(Boolean));hor.forEach((h,j)=>mk(13+j,9,!!h));
+    for(let ri=18;ri<=20;ri++){mk(ri,1,false);[3,4,5].forEach(ci=>mk(ri,ci,false))}mk(18,7,false);mk(19,7,false);mk(18,9,false);mk(19,9,false);mk(20,9,false);
+    for(let ri=23;ri<=25;ri++){mk(ri,1,false);[3,4,5].forEach(ci=>mk(ri,ci,false))}mk(23,7,false);mk(24,7,false);mk(22,6,false);mk(22,8,false);mk(23,9,false)}}
   // ---- alcance y dimensiones ----
   setT(K[14],`Aplicación de END ${tn&&!desc?"al metal base de la tubería nueva":`en instalación de la ${elem}`} ${enPK}, así:`);
   {const t=K[20],f=filasDe(t);const u=repCam?.unidad||"cm",mmv=v=>{const n=num(v);return n==null?null:n*(U2MM[u]||10)};const lg=repCam?.largos||{};let secs=[];const tt=repCam?.tipo;
@@ -2803,6 +2820,7 @@ async function generarInforme(r){REP_PT=r;
     else if(tt==="Camisa armadillo"){const d=nInt(repCam.directas,3,1,12);for(let i=0;i<d;i++)secs.push([`S#${i+1}`,mmv(lg.dir?.[i])]);for(let i=0;i<d-1;i++)secs.push([`S#${d+i+1}`,mmv(lg.sob?.[i])])}
     else if(/anillos/.test(tt||""))secs=[["A1",mmv(lg.an?.[0])],["A2",mmv(lg.an?.[0])],["SC",mmv(lg.sc?.[0])]];
     else if(tt==="Camisa puenteada")secs=[["SC",mmv(lg.pu?.[0])]];
+    else if(tt==="Ilícita"||lg.cas){const nc=nInt(repCam.cascotas,1,1,12);for(let i=0;i<nc;i++)secs.push([nc>1?`Cascota #${i+1}`:"Cascota",mmv(lg.cas?.[i]??lg.cas?.[0])])}
     else if(tn){const rp=tn.reparacion||{};secs=tubosDe(rp).map(x=>[x.replace("Tubo ",""),num(rp.largoTubo)!=null?num(rp.largoTubo)*1000:null])}
     if(!secs.length)secs=[["-",null]];secs=secs.slice(0,11);const n=secs.length,quita=11-n;
     // columnas sobrantes fuera (y el ancho se reparte entre las que quedan)
@@ -2870,6 +2888,14 @@ async function generarInforme(r){REP_PT=r;
   const medios={};const pon=async(id,fn)=>{const e=ext(id),t=target(id);if(!e||!t)return;try{const b=await fn(e);if(b)medios[t]=b}catch(err){console.warn("imagen",id,err)}};
   const ubc=(r.fotosPunto?.UBC||[]).find(x=>x?.id)||(r.fotosPunto?.ANX||[]).find(x=>x?.id);
   const vacia=async(e,tipo)=>{const c=lienzo(e.cx,e.cy,1);const g=c.getContext("2d");if(tipo==="image/jpeg"){g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height)}return aBytes(await new Promise(ok=>c.toBlob(ok,tipo)))};
+  {// portada: la foto ocupa todo el alto de su recuadro (fila de alto fijo) en 4:3, centrada y sin espacios que la corten
+    const bl=[...doc.getElementsByTagNameNS("*","blip")].find(x=>x.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","embed")==="rId8");
+    let n=bl;while(n&&n.localName!=="inline"&&n.localName!=="anchor")n=n.parentNode;let p=n;while(p&&p.localName!=="p")p=p.parentNode;let tr=p;while(tr&&tr.localName!=="tr")tr=tr.parentNode;
+    const th=tr&&[...tr.getElementsByTagNameNS(WNS,"trHeight")][0];const alto=th?+(th.getAttributeNS(WNS,"val")||th.getAttribute("w:val")):0;
+    if(n&&alto){const cy=Math.round((alto-100)*635),cx=Math.round(cy*4/3);
+      [...n.getElementsByTagNameNS("*","extent")].concat([...n.getElementsByTagNameNS("*","ext")].filter(x=>x.parentNode.localName==="xfrm")).forEach(x=>{x.setAttribute("cx",cx);x.setAttribute("cy",cy)});
+      const ef=[...n.children].find(c=>c.localName==="effectExtent");if(ef)["l","t","r","b"].forEach(k=>ef.setAttribute(k,"0"));
+      let pPr=[...p.children].find(c=>c.localName==="pPr");if(pPr){[...pPr.children].filter(c=>c.localName==="spacing").forEach(c=>c.remove());const sp=doc.createElementNS(WNS,"w:spacing");sp.setAttributeNS(WNS,"w:before","0");sp.setAttributeNS(WNS,"w:after","0");sp.setAttributeNS(WNS,"w:line","240");sp.setAttributeNS(WNS,"w:lineRule","auto");pPr.insertBefore(sp,[...pPr.children].find(c=>c.localName==="jc")||null)}}}
   await pon("rId8",async e=>ubc?await fotoRep(ubc,"campo",e):await vacia(e,"image/jpeg"));
   if(zs?.reparacion?.tipo)await pon("rId9",e=>esquemaRep({...zs.reparacion,diametro:r.diametro},{pk:r.pk,linea:r.linea,consecutivo:r.consecutivo,tipoReparacion:r.tipoReparacion},e));
   if(bis?.reparacion?.tipo)await pon("rId10",e=>esquemaRep({...bis.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
