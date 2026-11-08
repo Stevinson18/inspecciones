@@ -1052,7 +1052,7 @@ function rowHtml(r){
     <div class="cell"><span class="k label">Lugar · Ciudad</span>${esc(r.lugar||"—")}${r.ciudad?`<span class="sub2">${esc(r.ciudad)}</span>`:""}</div>
     <div class="cell"><span class="k label">Base · Reparación</span>${esc(r.base||"—")}${r.tipoReparacion?`<span class="sub2">${esc(r.tipoReparacion)}</span>`:""}</div>
     <div class="cell state"><span class="k label">Estado del punto</span>${puntoHtml(r)}</div>
-    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
+    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Reporte final sin fórmulas ni vínculos, para que otra persona agregue las hojas a su libro">🔗 Final sin vínculos</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
     <div class="acts">${acts||`<p class="note" style="padding:8px 0">Sin actividades registradas.</p>`}</div>
   </div>`;
 }
@@ -1200,7 +1200,7 @@ function zsHtml(it){
   const sel=`<label class="f"><span class="label">Técnica de la zona sana</span><select class="field" data-zstec>${opt}</select></label>`;
   const HORAS=["12:00","1:00","2:00","3:00","4:00","5:00","6:00","7:00","8:00","9:00","10:00","11:00"];
   return sel+`<span class="label">Espesores medidos (mm) · ${NPOS} ${tec==="SCANA"?"posiciones":"posiciones horarias"} por área</span>
-  ${tec==="SCANA"?`<div class="grid2"><label class="f"><span class="label">Barrido axial (mm)</span><input class="field mono" data-zsd="axial" value="${esc(D.axial??"200")}" inputmode="decimal"></label><label class="f"><span class="label">Barrido perimetral (mm)</span><input class="field mono" data-zsd="perim" value="${esc(D.perim??"200")}" inputmode="decimal"></label></div>`:""}
+  ${tec==="SCANA"||tec==="SCANC"?`<div class="grid2"><label class="f"><span class="label">Barrido axial (mm)</span><input class="field mono" data-zsd="axial" value="${esc(D.axial??"200")}" inputmode="decimal"></label><label class="f"><span class="label">Barrido perimetral (mm)</span><input class="field mono" data-zsd="perim" value="${esc(D.perim??"200")}" inputmode="decimal"></label></div>`:""}
   ${areas.map(a=>{const v=L[a]||[];const ns=v.map(mmNum).filter(x=>x!=null);const mn=ns.length?Math.min(...ns):null;
     return`<div class="zsA"><span class="label">${esc(a)}${mn!=null?` · mín ${String(mn).replace(".",",")} mm (${(mn/25.4).toFixed(3).replace(".",",")}")`:""}</span>
     <div class="grid4">${[...Array(NPOS)].map((_,k)=>`<label class="f"><span class="label">${tec==="SCANA"?k+1:HORAS[k]}</span><input class="field mono" data-zsl="${esc(a)}" data-k="${k}" value="${esc(v[k]||"")}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>`).join("")}</div></div>`}).join("")}`;
@@ -1608,7 +1608,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v45";
+const LOCAL=!!window.__LOCAL;const APPV="v46";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -2499,7 +2499,7 @@ async function generarReporte(r,modo){REP_PT=r;
   // copias de hojas de la plantilla (p. ej. una página de Scan A por cada área)
   let wbxM=wbx;const extra={},relsAdd=[],ctAdd=[],nClon={};let ridN=0;
   let sheetN=Math.max(...Object.values(hoja).filter(Boolean).map(f=>+f.replace("sheet",""))),drawN=Math.max(0,...Object.keys(E).map(n=>+((n.match(/^xl\/drawings\/drawing(\d+)\.xml$/)||[])[1]||0))),sheetIdMax=Math.max(...[...wbx.matchAll(/sheetId="(\d+)"/g)].map(m=>+m[1]));
-  async function clonarHoja(h,nuevo,area){const f=hoja[h],nf="sheet"+(++sheetN);
+  const origenClon={};async function clonarHoja(h,nuevo,area){origenClon[nuevo]=h;const f=hoja[h],nf="sheet"+(++sheetN);
     extra[`xl/worksheets/${nf}.xml`]=(await txt(`xl/worksheets/${f}.xml`)).replace(/\s+tabSelected="1"/,"").replace(/<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1").replace(/<legacyDrawing[^>]*\/>/,"");
     const rl=E[`xl/worksheets/_rels/${f}.xml.rels`]?await txt(`xl/worksheets/_rels/${f}.xml.rels`):"";const dm=rl.match(/<Relationship [^>]*Target="\.\.\/drawings\/(drawing\d+\.xml)"[^>]*\/>/);
     let r2='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
@@ -2529,9 +2529,9 @@ async function generarReporte(r,modo){REP_PT=r;
   const tipoA=r.tipoReparacion==="Camisa Tipo A";const meta={pk:r.pk,linea:r.linea,consecutivo:r.consecutivo,tipoReparacion:r.tipoReparacion,espesor:r.espesor,material:r.material,diametro:r.diametro};
   const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} - ${DEPTO[r.ciudad]}`:r.ciudad):"";
   const primero=r.items[0]||{};const repCam=r.items.find(it=>conTec(it.act)&&it.reparacion?.tipo)?.reparacion;
-  const largoTot=repCam?num(repCam.longTotal)!=null?Math.round(num(repCam.longTotal)*(U2MM[repCam.longUnidad||"m"]||1000)):null:null;
+  const largoTot=(()=>{if(r.tipoReparacion==="Ilícita"||r.items.some(x=>x.act==="Ilícitas"))return null;for(const rp of [repCam,...r.items.map(x=>x.reparacion)].filter(Boolean)){const v=num(rp.longTotal);if(v!=null&&v>0)return Math.round(v*(U2MM[rp.longUnidad||"m"]||1000))}return null})();
   // Matriz1: lo que alimenta todas las hojas
-  Object.entries({AI6:r.consecutivo,T7:r.sistema,X7:r.linea,AH7:r.pk,X8:num(r.diametro),AI8:num(r.nominal)??(r.items.length&&r.items.every(x=>esTN(x.act))?num(r.espesor):null),H9:r.tipoReparacion,AH9:serial(r.fecha),H10:r.base,T10:lugar,H13:largoTot,AF13:num(r.espesor),I14:num(r.diametro),AG14:"API 5L",AI14:r.materialTub,AG15:"API 5L",AI15:r.material,D60:realizoDe(primero)}).forEach(([k,v])=>C("Matriz1",k,v));
+  Object.entries({AI6:r.consecutivo,T7:r.sistema,X7:r.linea,AH7:r.pk,X8:num(r.diametro),AI8:num(r.nominal)??(r.items.length&&r.items.every(x=>esTN(x.act))?num(r.espesor):null),H9:r.tipoReparacion,AH9:serial(r.fecha),H10:r.base,T10:lugar,H13:largoTot??"-",AF13:num(r.espesor),I14:num(r.diametro),AG14:"API 5L",AI14:r.materialTub,AG15:"API 5L",AI15:r.material,D60:realizoDe(primero)}).forEach(([k,v])=>C("Matriz1",k,v));
   {const pb=perBase(r.base);C("Matriz1","R60",pb?.qc||"",true);C("Matriz1","AD60",pb?.res||"",true)}
   const obsTxt=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo, por lo tanto se encuentran aceptadas bajo el código de construcción API 1104"}.${it.observaciones?" "+it.observaciones:""}`;
   const resultado=it=>it.novedad?"Ver obs.":"OK";
@@ -2562,7 +2562,7 @@ async function generarReporte(r,modo){REP_PT=r;
   // pie del esquema según lo que se dibuja
   // temperatura e intensidad de luz: las de la actividad; si no tiene, las del mismo punto (misma jornada)
   const medDe=(it,k)=>it[k]||r.items.find(x=>x[k]&&x.inspFecha===it.inspFecha)?.[k]||r.items.find(x=>x[k])?.[k]||"";
-  const ponMed=(h,it)=>{const t=medDe(it,"tSup"),l=medDe(it,"luz");if(t)C(h,"AI20",`${t} °C`);if(l)C(h,"AI21",`${l} lux`)};
+  const ponMed=(h,it)=>{const t=medDe(it,"tSup"),l=medDe(it,"luz");C(h,"AI20",t?`${t} °C`:"-");if(l)C(h,"AI21",`${l} lux`)};
   const capEsq=(it,rep)=>{const t=rep.tipo,v=rep.vista||it.act,nc=nInt(rep.cascotas??rep.nCas,1,1,12),cas=nc>1?"las cascotas":"la cascota";
     if(t==="Ilícita")return v==="Zona sana"?`Esquema 1. Zonas sanas de ${cas}`:v==="0H+B"?`Esquema 1. Identificación de ${cas}: bisel recto y soldadura de filete`:`Esquema 1. Identificación de soldaduras de ${cas}`;
     if(t==="Biseles")return rep.tipoCamisa==="cascota"?`Esquema 1. Identificación de biseles rectos de ${cas}`:"Esquema 1. Identificación de biseles inspeccionados";
@@ -2573,7 +2573,7 @@ async function generarReporte(r,modo){REP_PT=r;
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
   const equipo=(it,t)=>equipos.find(e=>e.id===it.equipos?.[t])?.campos||{};const plan=(it,t)=>planes.find(p=>p.id===it.planes?.[t])?.campos||{};
-  const ponEq=(h,mapa,src)=>{const todo=mapa===EQ_UT&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
+  const ponEq=(h,mapa,src)=>{const todo=(mapa===EQ_UT||mapa===EQ_PT||mapa===EQ_MT)&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
   // equipo de la actividad; si no lo tiene, el que se usó para esa técnica en otra actividad del punto
   const eqDe=(it,ts)=>{for(const x of [it,...r.items.filter(y=>y!==it)])for(const t of ts){const e=equipos.find(q=>q.id===x.equipos?.[t]);if(e)return e.campos||{}}return{}};
   const EQ_PT={H20:"tipoPen",V20:"metodo",H23:"marcaKit",E24:"limpiador",K24:"loteLimp",R24:"revelador",W24:"loteRev",AD24:"penetrante",AI24:"lotePen",AI22:"tPen",AI23:"tRev"};
@@ -2661,7 +2661,7 @@ async function generarReporte(r,modo){REP_PT=r;
         for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=areas.slice(2*p,2*p+2);
           const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
           await cabecera(h,it,obsSC,false,null);C(h,"A50",obsSC);
-          ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);
+          ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(it.zsLect?.[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
             const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[2*p+s_]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_]),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}
@@ -2692,6 +2692,12 @@ async function generarReporte(r,modo){REP_PT=r;
   for(const[g,hs]of Object.entries(grupos)){const ord=[...hs.filter(h=>!esFoto(h)),...hs.filter(esFoto)];ordenFinal[g]=ord;
     const pgs=ord.map(h=>[h,paginas(h)]);const tot=pgs.reduce((n,[,q])=>n+q.length,0);let n=0;
     for(const[h,q]of pgs)for(const pa of q){n++;if(pa.celda){C(h,pa.celda[1]+pa.celda[0],n);C(h,pa.celda[2]+pa.celda[0],tot)}}}
+  // hojas de fotos: elemento y fecha iguales a los de su hoja de datos (la plantilla deja algunas vacías)
+  // copias de una hoja (páginas extra): el encabezado que falte se toma de la hoja original
+  for(const[cl,org]of Object.entries(origenClon)){if(!visibles.has(cl)||!/ F\d+$| \(\d+\)$/.test(cl))continue;let o=org;while(origenClon[o])o=origenClon[o];const cs=celdas[o]||{};
+    for(const[k,v]of Object.entries(cs)){const m=k.match(/^([A-Z]+)(\d+)$/);if(m&&+m[2]<=30&&colN(m[1])<=37&&(celdas[cl]||{})[k]===undefined)C(cl,k,v,true)}}
+  for(const hs of Object.values(ordenFinal)){const dat=hs.find(h=>!esFoto(h));for(const h of hs.filter(esFoto)){const cs=celdas[h]||{};
+    if(cs.H9==null)C(h,"H9",(dat&&celdas[dat]?.H9)??r.tipoReparacion);if(cs.AH9==null)C(h,"AH9",(dat&&celdas[dat]?.AH9)??serial(r.items.map(x=>x.inspFecha).filter(Boolean).sort().at(-1)||r.fecha))}}
   if(modo==="borrador"){const mb=await marcaBorrador();for(const h of visibles){P(h,{fr:"<xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>11</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>",to:"<xdr:to><xdr:col>36</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>45</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>",cx:6300000,cy:3500000},mb,"png")}}
   // escribir: hojas con celdas nuevas, dibujos con imágenes nuevas, visibilidad de hojas
   const hojaDibujo={};for(const[h,f]of Object.entries(hoja)){const rn=`xl/worksheets/_rels/${f}.xml.rels`;if(E[rn]||extra[rn]){const m=(extra[rn]??await txt(rn)).match(/Target="\.\.\/drawings\/(drawing\d+\.xml)"/);if(m)hojaDibujo[h]=m[1]}}
@@ -2736,10 +2742,111 @@ async function generarReporte(r,modo){REP_PT=r;
   if(archivosQuitar.size){for(const a of archivosQuitar)ct=ct.replace(new RegExp(`<Override PartName="/${a.replace(/\./g,"\\.")}"[^>]*/>`),"");ct=ct.replace(/<Override [^>]*calcChain[^>]*\/>/,"");
     const wr=nuevas["xl/_rels/workbook.xml.rels"]??rels;nuevas["xl/_rels/workbook.xml.rels"]=wr.replace(/<Relationship [^>]*\/>/g,m=>{const id=(m.match(/Id="([^"]+)"/)||[])[1];return relsQuitar.has(id)||/calcChain/.test(m)?"":m})}
   nuevas["[Content_Types].xml"]=ct;
+  if(modo==="valores"){// sin vínculos: fórmulas → valores, sin enlaces a otros libros ni cadena de cálculo
+    const nombres=[...new Set([...ents.map(e=>e.name),...Object.keys(nuevas)])].filter(n=>!archivosQuitar.has(n));
+    await sinVinculos(n=>nuevas[n]??txt(n),(n,x)=>{nuevas[n]=x},nombres);
+    const fuera=nombres.filter(n=>/^xl\/externalLinks\//.test(n)||n==="xl/calcChain.xml");fuera.forEach(n=>archivosQuitar.add(n));
+    nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<externalReferences>[\s\S]*?<\/externalReferences>/,"").replace(/<definedName [^>]*>[^<]*\[\d+\][^<]*<\/definedName>/g,"").replace(/<definedName [^>]*>[^<]*#REF![^<]*<\/definedName>/g,"").replace(/<definedNames>\s*<\/definedNames>/,"").replace(/<calcPr ([^>]*?)\/>/,(m,a)=>`<calcPr ${a.replace(/\s*fullCalcOnLoad="[^"]*"/,"")}/>`);
+    const wr=nuevas["xl/_rels/workbook.xml.rels"]??rels;nuevas["xl/_rels/workbook.xml.rels"]=wr.replace(/<Relationship [^>]*(externalLink|calcChain)[^>]*\/>/g,"");
+    nuevas["[Content_Types].xml"]=nuevas["[Content_Types].xml"].replace(/<Override PartName="\/xl\/(externalLinks\/[^"]+|calcChain\.xml)"[^>]*\/>/g,"")}
   const enc=new TextEncoder();const salida=ents.filter(e=>!((relsAdd.length||archivosQuitar.size)&&e.name==="xl/calcChain.xml")&&!archivosQuitar.has(e.name)).map(e=>nuevas[e.name]!=null?{name:e.name,data:enc.encode(nuevas[e.name])}:{name:e.name,raw:e});
   Object.keys(nuevas).filter(k=>!E[k]).forEach(k=>salida.push({name:k,data:enc.encode(nuevas[k])}));
   medios.forEach(([m,b])=>salida.push({name:"xl/media/"+m,data:b}));
   return zipEscribir(salida);
+}
+// ---------- romper vínculos: cada fórmula se cambia por su valor (para que otro la pegue en su libro sin enlaces) ----------
+async function sinVinculos(leer,escribir,nombres){
+  const wb=await leer("xl/workbook.xml"),rels=await leer("xl/_rels/workbook.xml.rels");
+  const relT={};for(const m of rels.matchAll(/<Relationship [^>]*\/>/g)){const id=(m[0].match(/Id="([^"]+)"/)||[])[1],t=(m[0].match(/Target="([^"]+)"/)||[])[1];if(id&&t)relT[id]="xl/"+t.replace(/^\/?xl\//,"").replace(/^\.\.\//,"")}
+  const des=s=>s.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&");
+  const enc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const hojas={};for(const m of wb.matchAll(/<sheet [^>]*\/>/g)){const n=des((m[0].match(/name="([^"]+)"/)||[])[1]||""),id=(m[0].match(/r:id="([^"]+)"/)||[])[1];if(relT[id]&&nombres.includes(relT[id]))hojas[n.toUpperCase()]={n,f:relT[id]}}
+  let sst=[];if(nombres.includes("xl/sharedStrings.xml")){const x=await leer("xl/sharedStrings.xml");sst=[...x.matchAll(/<si>([\s\S]*?)<\/si>/g)].map(m=>des([...m[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(t=>t[1]).join("")))}
+  const colN=c=>[...c].reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0),colL=n=>{let s="";while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26}return s};
+  // tablas de Excel (para referencias tipo Tabla1[...])
+  const tablas={};for(const h of Object.values(hojas)){const rn=h.f.replace(/worksheets\/(sheet\d+\.xml)$/,"worksheets/_rels/$1.rels");if(!nombres.includes(rn))continue;
+    for(const m of (await leer(rn)).matchAll(/Target="\.\.\/tables\/(table\d+\.xml)"/g)){const tn="xl/tables/"+m[1];if(!nombres.includes(tn))continue;const x=await leer(tn);
+      const nm=(x.match(/displayName="([^"]+)"/)||[])[1],ref=(x.match(/ ref="([A-Z]+\d+):([A-Z]+\d+)"/)||[]),hr=+((x.match(/headerRowCount="(\d)"/)||[])[1]??1);
+      if(nm&&ref[1])tablas[nm.toUpperCase()]={h:h.n.toUpperCase(),a:ref[1],b:ref[2],hr,cols:[...x.matchAll(/<tableColumn [^>]*name="([^"]+)"/g)].map(q=>des(q[1]).toUpperCase())}}}
+  // celdas de cada hoja
+  const datos={};
+  for(const h of Object.values(hojas)){const x=await leer(h.f);const cs={};
+    for(const m of x.matchAll(/<c r="([A-Z]+\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){const at=m[2],inn=m[3]||"";const t=(at.match(/\st="([^"]+)"/)||[])[1]||"n";
+      const fm=inn.match(/<f([^>]*)>([^<]*)<\/f>|<f([^>]*)\/>/);const v=(inn.match(/<v[^>]*>([^<]*)<\/v>/)||[])[1];const is=inn.match(/<is>([\s\S]*?)<\/is>/);
+      let val=null;if(t==="s")val=sst[+v]??"";else if(t==="inlineStr")val=is?des([...is[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)].map(q=>q[1]).join("")):"";else if(t==="str")val=v!=null?des(v):"";else if(t==="b")val=v==="1";else if(t==="e")val={err:v||"#N/A"};else if(v!=null)val=+v;
+      cs[m[1]]={val,f:fm?des(fm[2]??""):null,fat:fm?(fm[1]??fm[3]??""):"",hecho:!fm}}
+    // fórmulas compartidas: la maestra se copia desplazando sus referencias relativas
+    const maestras={};for(const[ref,c]of Object.entries(cs)){const si=(c.fat.match(/si="(\d+)"/)||[])[1];if(si!=null&&c.f)maestras[si]={ref,f:c.f}}
+    for(const[ref,c]of Object.entries(cs)){const si=(c.fat.match(/si="(\d+)"/)||[])[1];if(si!=null&&!c.f&&maestras[si]){const[,mc,mr]=maestras[si].ref.match(/([A-Z]+)(\d+)/),[,cc,cr]=ref.match(/([A-Z]+)(\d+)/);const dc=colN(cc)-colN(mc),dr=+cr-+mr;
+      c.f=maestras[si].f.replace(/('[^']*'|[A-Za-z0-9_.]+!)?(\$?)([A-Z]{1,3})(\$?)(\d+)(?![\d(A-Za-z])/g,(q,sh,dc_,col,drw,row)=>(sh||"")+dc_+(dc_?col:colL(colN(col)+dc))+drw+(drw?row:(+row+dr)))}}
+    datos[h.n.toUpperCase()]=cs}
+  const ERR=e=>({err:e}),esErr=v=>v&&typeof v==="object"&&!Array.isArray(v)&&v.err;
+  const celda=(hj,ref)=>{const cs=datos[hj];if(!cs)return ERR("#REF!");const c=cs[ref];if(!c)return null;if(c.hecho)return c.val;
+    if(c.calc)return c.val;c.calc=1;try{const v=evalua(c.f,hj,+ref.match(/\d+$/)[0]);c.val=Array.isArray(v)?v[0]?.[0]??null:v}catch(e){if(esErr(e))c.val=e;/* si no se sabe calcular, queda el último valor guardado */}c.hecho=true;return c.val};
+  const rango=(hj,a,b)=>{const[,c1,r1]=a.match(/([A-Z]+)(\d+)/),[,c2,r2]=b.match(/([A-Z]+)(\d+)/);const out=[];for(let r=Math.min(+r1,+r2);r<=Math.max(+r1,+r2);r++){const fila=[];for(let c=Math.min(colN(c1),colN(c2));c<=Math.max(colN(c1),colN(c2));c++)fila.push(celda(hj,colL(c)+r));out.push(fila)}return out};
+  const toks=(f,aqui)=>{f=f.replace(/([A-Za-z_][A-Za-z0-9_.]*)\[((?:\[[^\]]*\]|[^\[\]])*)\](?::(\$?[A-Z]{1,3}\$?\d+))?/g,(m,nm,inn,fin)=>{const T=tablas[nm.toUpperCase()];if(!T)return m;const[,ca,ra]=T.a.match(/([A-Z]+)(\d+)/),[,cb,rb]=T.b.match(/([A-Z]+)(\d+)/);const r0=+ra+T.hr;let c0=ca,c1=cb,f0=r0,f1=+rb;const partes=[...inn.matchAll(/\[([^\]]*)\]/g)].map(q=>q[1]);if(!partes.length&&inn)partes.push(inn);for(const pz of partes){if(/^#This Row$/i.test(pz)){f0=f1=aqui}else if(/^#All$/i.test(pz)){f0=+ra}else if(/^#Headers$/i.test(pz)){f0=f1=+ra}else if(/^#Data$/i.test(pz)){}else if(pz){const k=T.cols.indexOf(pz.replace(/'(.)/g,"$1").toUpperCase());if(k<0)return m;c0=c1=colL(colN(ca)+k)}}let a=c0+f0,b=c1+f1;if(fin){const[,cf,rf]=fin.replace(/\$/g,"").match(/([A-Z]+)(\d+)/);a=colL(Math.min(colN(c0),colN(cf)))+Math.min(f0,+rf);b=colL(Math.max(colN(c1),colN(cf)))+Math.max(f1,+rf)}return`'${T.h.replace(/'/g,"''")}'!${a}:${b}`});const re=/\s*(?:("(?:[^"]|"")*")|((?:'(?:[^']|'')+'|[A-Za-z0-9_.]+)!)?(\$?[A-Z]{1,3}\$?\d+)(?::(\$?[A-Z]{1,3}\$?\d+))?(?![A-Za-z0-9_(])|(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|([A-Za-z_][A-Za-z0-9_.]*)\s*\(|(TRUE|FALSE)\b|(<>|<=|>=|[-+*/^&=<>(),%]))/gy;const t=[];let m;
+    while(re.lastIndex<f.length&&(m=re.exec(f))){if(m[1])t.push({k:"s",v:m[1].slice(1,-1).replace(/""/g,'"')});else if(m[3])t.push({k:"r",h:m[2]?m[2].slice(0,-1).replace(/^'|'$/g,"").replace(/''/g,"'"):null,a:m[3].replace(/\$/g,""),b:m[4]?.replace(/\$/g,"")});else if(m[5])t.push({k:"n",v:+m[5]});else if(m[6])t.push({k:"f",v:m[6].toUpperCase()});else if(m[7])t.push({k:"b",v:m[7]==="TRUE"});else if(m[8])t.push({k:"o",v:m[8]})}
+    if(re.lastIndex<f.trim().length&&f.slice(re.lastIndex).trim())throw new Error("token");return t};
+  const num_=v=>{if(Array.isArray(v))v=v[0]?.[0];if(esErr(v))throw v;if(v==null||v==="")return 0;if(typeof v==="boolean")return v?1:0;if(typeof v==="number")return v;const n=+String(v).replace(",",".");if(isNaN(n))throw ERR("#VALUE!");return n};
+  const str_=v=>{if(Array.isArray(v))v=v[0]?.[0];if(esErr(v))throw v;if(v==null)return"";if(typeof v==="boolean")return v?"TRUE":"FALSE";return String(v)};
+  const plano=a=>Array.isArray(a)?a.flat():[a];
+  function evalua(f,hj,aqui){const t=toks(f.replace(/^=/,""),aqui);let i=0;const pk=()=>t[i],op=v=>t[i]&&t[i].k==="o"&&t[i].v===v;
+    const esc=v=>Array.isArray(v)?v[0]?.[0]??null:v;
+    const cmp=()=>{let a=cat();while(t[i]&&t[i].k==="o"&&["=","<>","<",">","<=",">="].includes(t[i].v)){const o=t[i++].v,b=cat();let x=esc(a),y=esc(b);if(esErr(x))return x;if(esErr(y))return y;
+      if(x==null)x=typeof y==="string"?"":0;if(y==null)y=typeof x==="string"?"":0;let r;if(typeof x==="string"||typeof y==="string"){x=String(x).toLowerCase();y=String(y).toLowerCase()}
+      r={"=":x===y,"<>":x!==y,"<":x<y,">":x>y,"<=":x<=y,">=":x>=y}[o];a=r}return a};
+    const cat=()=>{let a=add();while(op("&")){i++;a=str_(a)+str_(add())}return a};
+    const add=()=>{let a=mul();while(op("+")||op("-")){const o=t[i++].v,b=mul();a=o==="+"?num_(a)+num_(b):num_(a)-num_(b)}return a};
+    const mul=()=>{let a=pot();while(op("*")||op("/")){const o=t[i++].v,b=pot();if(o==="*")a=num_(a)*num_(b);else{const d=num_(b);if(!d)throw ERR("#DIV/0!");a=num_(a)/d}}return a};
+    const pot=()=>{let a=un();while(op("^")){i++;a=Math.pow(num_(a),num_(un()))}return a};
+    const un=()=>{if(op("+")){i++;return esc(un())}if(op("-")){i++;return-num_(un())}let v=pri();if(op("%")){i++;v=num_(v)/100}return v};
+    const args=()=>{const a=[];if(op(")")){i++;return a}for(;;){a.push(op(",")||op(")")?null:cmp());if(op(",")){i++;continue}if(op(")")){i++;return a}throw new Error("args")}};
+    const pri=()=>{const x=t[i++];if(!x)throw new Error("fin");
+      if(x.k==="n"||x.k==="s"||x.k==="b")return x.v;
+      if(x.k==="r"){const h=x.h?x.h.toUpperCase():hj;if(!datos[h])throw ERR("#REF!");return x.b?rango(h,x.a,x.b):celda(h,x.a)}
+      if(x.k==="o"&&x.v==="("){const v=cmp();if(!op(")"))throw new Error(")");i++;return v}
+      if(x.k==="f"){const n=x.v;
+        const a=args();
+        const nums=()=>a.flatMap(plano).filter(v=>typeof v==="number");
+        switch(n){
+          case"IF":{const c=esc(a[0]);if(esErr(c))return c;return(typeof c==="string"?c!=="":!!c)?(a[1]??0):(a.length>2?(a[2]??0):false)}
+          case"IFERROR":return esErr(esc(a[0]))?a[1]:a[0];
+          case"TRIM":return str_(a[0]).trim().replace(/\s+/g," ");
+          case"UPPER":return str_(a[0]).toUpperCase();case"LOWER":return str_(a[0]).toLowerCase();
+          case"LEN":return str_(a[0]).length;
+          case"CONCATENATE":case"CONCAT":return a.map(str_).join("");
+          case"SUM":return nums().reduce((s,v)=>s+v,0);
+          case"MIN":{const v=nums();return v.length?Math.min(...v):0}
+          case"MAX":{const v=nums();return v.length?Math.max(...v):0}
+          case"AVERAGE":{const v=nums();if(!v.length)throw ERR("#DIV/0!");return v.reduce((s,q)=>s+q,0)/v.length}
+          case"COUNT":return nums().length;
+          case"COUNTA":return a.flatMap(plano).filter(v=>v!=null&&v!=="").length;
+          case"ROUND":{const p=10**num_(a[1]??0);return Math.round(num_(a[0])*p)/p}
+          case"ROUNDUP":{const p=10**num_(a[1]??0);const x=num_(a[0]);return Math.sign(x)*Math.ceil(Math.abs(x)*p)/p}
+          case"ROUNDDOWN":{const p=10**num_(a[1]??0);const x=num_(a[0]);return Math.sign(x)*Math.floor(Math.abs(x)*p)/p}
+          case"ABS":return Math.abs(num_(a[0]));
+          case"AND":return a.flatMap(plano).every(v=>!!v);case"OR":return a.flatMap(plano).some(v=>!!v);case"NOT":return!esc(a[0]);
+          case"VLOOKUP":{const k=esc(a[0]);if(k==null||k==="")return ERR("#N/A");const tb=a[1],c=num_(a[2]),ex=a.length>3?!!esc(a[3])===false:false;if(!Array.isArray(tb))throw ERR("#N/A");
+            const ig=(x,y)=>typeof x==="string"||typeof y==="string"?String(x??"").toLowerCase()===String(y??"").toLowerCase():x===y;
+            let fila=tb.find(r=>ig(r[0],k));if(!fila&&!ex){let mej=null;for(const r of tb)if(r[0]!=null&&r[0]<=k)mej=r;fila=mej}if(!fila)return ERR("#N/A");return fila[c-1]??0}
+          default:throw new Error("fn "+n)}}
+      throw new Error("tok")};
+    const v=cmp();if(i<t.length)throw new Error("resto");return v}
+  // escribir: cada celda con fórmula queda con su valor
+  for(const h of Object.values(hojas)){const cs=datos[h.n.toUpperCase()];let x=await leer(h.f);let cambio=false;
+    x=x.replace(/<c r="([A-Z]+\d+)"([^>]*?)(?<!\/)>([\s\S]*?)<\/c>/g,(m,ref,at,inn)=>{if(!/<f[\s>/]/.test(inn))return m;cambio=true;let v=celda(h.n.toUpperCase(),ref);if(Array.isArray(v))v=v[0]?.[0]??null;
+      const a=at.replace(/\s+t="[^"]*"/,"");
+      if(v==null||v==="")return`<c r="${ref}"${a}/>`;
+      if(esErr(v))return`<c r="${ref}"${a} t="e"><v>${enc(v.err)}</v></c>`;
+      if(typeof v==="boolean")return`<c r="${ref}"${a} t="b"><v>${v?1:0}</v></c>`;
+      if(typeof v==="number"&&isFinite(v))return`<c r="${ref}"${a}><v>${v}</v></c>`;
+      return`<c r="${ref}"${a} t="inlineStr"><is><t xml:space="preserve">${enc(v)}</t></is></c>`});
+    // listas desplegables y formatos condicionales que miran otras hojas: se quitan para que no queden enlaces al copiar la hoja
+    x=x.replace(/<dataValidation [^>]*>[\s\S]*?<\/dataValidation>/g,m=>/!/.test(m)?"":m).replace(/<dataValidations count="\d+">\s*<\/dataValidations>/,"");
+    x=x.replace(/<dataValidations count="\d+">([\s\S]*?)<\/dataValidations>/,(m,inn)=>`<dataValidations count="${(inn.match(/<dataValidation /g)||[]).length}">${inn}</dataValidations>`).replace(/<dataValidations count="0">\s*<\/dataValidations>/,"");
+    x=x.replace(/<conditionalFormatting [^>]*>[\s\S]*?<\/conditionalFormatting>/g,m=>/<formula>[^<]*!/.test(m)?"":m);
+    x=x.replace(/<extLst>[\s\S]*?<\/extLst>/g,m=>/!/.test(m)?"":m);
+    escribir(h.f,x)}
 }
 // ---------- informe general en Word (plantilla INFORME GENERAL, se llena por posición) ----------
 const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -2920,11 +3027,11 @@ async function accionInforme(r,btn){const t0=btn.textContent;btn.disabled=true;b
 // guarda en la carpeta "Control de informes" (PC) o descarga normal; devuelve " en …" para el aviso
 async function guardar(filename,data,carpeta){filename=filename.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.+()#-]+/g,"_");const r=await downloads.save(LOCAL?{filename,data,carpeta}:{filename,data});return r?.donde?` en ${r.donde}`:""}
 async function accionReporte(r,modo,btn){
-  if(modo==="final"){const f=revisarPunto(r);if(f.length&&!(await confirmarLista(f)))return}
+  if(modo==="final"||modo==="valores"){const f=revisarPunto(r);if(f.length&&!(await confirmarLista(f)))return}
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{if(modo==="fotos"){const blob=await generarReporte(r,"fotos");const d=await guardar(`FOTOS_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}.zip`,blob,"Fotos");toast("Paquete de fotos listo"+d);return}
-    const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":""}.xlsx`;
-    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");toast((modo==="borrador"?"Borrador listo":"Reporte final listo")+d)}
+    const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":modo==="valores"?"-SIN_VINCULOS":""}.xlsx`;
+    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Reporte final sin vínculos listo":"Reporte final listo")+d)}
   catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar: "+(e?.message||e))}}
   finally{btn.disabled=false;btn.textContent=t0}}
 function confirmarLista(f){return new Promise(ok=>{const d=$("revp");$("revLista").innerHTML=f.map(x=>`<li>${esc(x)}</li>`).join("");d.hidden=false;
