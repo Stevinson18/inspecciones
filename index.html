@@ -1638,6 +1638,29 @@ function soldHtml(it){
   return`${anTxt}<span class="label">Soldadores por junta</span><p class="note">Se anotan una vez y salen en PT, MT y PAUT. Longitudinales: un soldador; circunferenciales: dos.</p>
     ${lg.length?`<div class="sfila todas"><span class="sid">Todas long.</span>${soldSel("",`data-sall="long" aria-label="Mismo soldador para todas las longitudinales"`)}</div>`:""}
     <div class="sgrid">${lg.map(fila).join("")}</div>${cc.length?`<div class="sgrid">${cc.map(fila).join("")}</div>`:""}`}
+// ---------- indicaciones encontradas (PT, MT, PAUT) ----------
+const IND_CAMPOS={PT:[["ini","Inicio (mm)"],["lon","Longitud (mm)"]],MT:[["ini","Inicio (mm)"],["lon","Longitud (mm)"]],
+  PAUT:[["ini","Inicio (mm)"],["lon","Long (mm)"],["prof","Prof (mm)"],["alt","Alt (mm)"],["idx","Index (mm)"],["tcg","% TCG"]]};
+const IND_TIPOS=["Lineal","Redondeada","Porosidad","Falta de fusión","Falta de penetración","Grieta","Socavado","Escoria","Concavidad","Laminación"];
+function indHtml(it){if(!conTec(it.act)||!it.reparacion?.tipo)return"";const tecs=(it.tecnicas||[]).filter(t=>IND_CAMPOS[t]);if(!tecs.length)return"";
+  const js=juntasDe(it.reparacion,tipoAForm(),it),L=it.ind||[],ro=readOnly?" disabled":"";
+  const sel=(k,v,ops,n)=>`<select class="field" data-ind="${n}" data-ik="${k}"${ro}>${ops.map(o=>`<option${o===v?" selected":""}>${esc(o)}</option>`).join("")}${v&&!ops.includes(v)?`<option selected>${esc(v)}</option>`:""}</select>`;
+  return`<span class="label">Indicaciones encontradas</span><p class="note">Si una junta tiene indicación, agrégala aquí: sale en su fila del reporte con sus medidas y resultado. Las demás juntas quedan "OK".</p>
+  ${L.map((d,n)=>`<div class="eqcard" style="padding:10px">
+    <div class="grid2"><label class="f"><span class="label">Técnica</span>${sel("tec",d.tec,tecs,n)}</label><label class="f"><span class="label">Junta</span>${sel("j",d.j,js.map(j=>j.id),n)}</label></div>
+    <div class="grid2">${(IND_CAMPOS[d.tec]||IND_CAMPOS.PT).map(([k,l])=>`<label class="f"><span class="label">${l}</span><input class="field mono" data-ind="${n}" data-ik="${k}" value="${esc(d[k]??"")}" inputmode="decimal"${ro}></label>`).join("")}</div>
+    <div class="grid2"><label class="f"><span class="label">Interpretación</span><input class="field" list="indTipos" data-ind="${n}" data-ik="interp" value="${esc(d.interp||"")}"${ro}></label>
+      <label class="f"><span class="label">Resultado</span>${sel("res",d.res||"Aceptable",["Aceptable","Rechazo"],n)}</label></div>
+    ${d.tec==="PAUT"?`<label class="f"><span class="label">Lado de la inspección</span>${sel("lado",d.lado||"-",["-","LT","LA","LT y LA"],n)}</label>`:""}
+    <label class="f"><span class="label">Observación</span><input class="field" data-ind="${n}" data-ik="obs" value="${esc(d.obs||"")}"${ro}></label>
+    ${readOnly?"":`<div class="row-btns"><button class="btn small ghost" type="button" data-inddel="${n}">Quitar</button></div>`}</div>`).join("")}
+  ${readOnly?"":`<button class="btn small" type="button" data-indadd="1">+ Agregar indicación</button>`}<datalist id="indTipos">${IND_TIPOS.map(t=>`<option value="${t}">`).join("")}</datalist>`}
+function refreshInd(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`),it=formItems[i];if(!card||!it)return;const b=card.querySelector(".indbox");if(b)b.innerHTML=indHtml(it)}
+$("itemsBox").addEventListener("click",e=>{const a=e.target.closest("[data-indadd],[data-inddel]");if(!a||readOnly)return;const i=+a.closest(".itcard").dataset.i,it=formItems[i];if(!it)return;
+  if(a.dataset.indadd){const tecs=(it.tecnicas||[]).filter(t=>IND_CAMPOS[t]);const js=juntasDe(it.reparacion,tipoAForm(),it);it.ind=[...(it.ind||[]),{tec:tecs[0],j:js[0]?.id||"",res:"Aceptable"}]}
+  else it.ind=(it.ind||[]).filter((_,n)=>n!==+a.dataset.inddel);refreshInd(i);scheduleDraft()});
+["input","change"].forEach(ev=>$("itemsBox").addEventListener(ev,e=>{const n=e.target.dataset?.ind;if(n==null)return;const i=+e.target.closest(".itcard").dataset.i,it=formItems[i];if(!it?.ind?.[n])return;
+  it.ind[n]={...it.ind[n],[e.target.dataset.ik]:e.target.value};if(ev==="change"&&e.target.dataset.ik==="tec")refreshInd(i);scheduleDraft()}));
 function refreshSold(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
   // si otra actividad del punto ya tiene soldadores para las mismas juntas, se copian
   if(conTec(it.act)&&!Object.keys(it.soldadores||{}).length){const o=formItems.find(x=>x!==it&&Object.keys(x.soldadores||{}).length);if(o)it.soldadores={...o.soldadores}}
@@ -1670,7 +1693,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v48";
+const LOCAL=!!window.__LOCAL;const APPV="v49";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -1965,7 +1988,7 @@ function itemHtml(it,i){it=it||{};
   <label class="check"><input type="checkbox" data-f="novedad"${it.novedad?" checked":""}> Tiene novedad (bloquea el informe)</label>
   <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
   <div class="h0box repbox"${conTecUI(it.act)?"":" hidden"}>${conTecUI(it.act)?h0Html(it):""}</div>
-  <div class="eqbox soldbox repbox">${soldHtml(it)}</div>
+  <div class="eqbox soldbox repbox">${soldHtml(it)}</div><div class="eqbox indbox">${indHtml(it)}</div>
   <div class="eqbox repbox">${eqHtml(it)}</div>
   <div class="eqbox plbox repbox">${plHtml(it)}</div>
   <div class="fotobox repbox">${fotosHtml(it,i)}</div>
@@ -2206,7 +2229,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(e.target.dataset.zstec!=null){syncCards();refreshZs(i,true);refreshPl(i);scheduleDraft();return}
   if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshFotos("P");refreshEq(i);refreshPl(i);refreshSold(i)}
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
-  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i)}
+  if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i);refreshInd(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
   if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);scheduleDraft();return}
   if(e.target.dataset.jon!=null){const it=formItems[i];const no=juntasNo(it,it.reparacion);if(e.target.checked)no.delete(e.target.dataset.jon);else no.add(e.target.dataset.jon);it.juntasNo=[...no];delete it.sinAnillos;refreshSold(i);refreshFotos(i);refreshPl(i);refreshH0?.(i);scheduleDraft();return}
@@ -2626,7 +2649,10 @@ async function generarReporte(r,modo){REP_PT=r;
   // Matriz1: lo que alimenta todas las hojas
   Object.entries({AI6:r.consecutivo,T7:r.sistema,X7:r.linea,AH7:r.pk,X8:num(r.diametro),AI8:num(r.nominal)??(r.items.length&&r.items.every(x=>esTN(x.act))?num(r.espesor):null),H9:r.tipoReparacion,AH9:serial(r.fecha),H10:r.base,T10:lugar,H13:largoTot??"-",AF13:num(r.espesor),I14:num(r.diametro),AG14:"API 5L",AI14:r.materialTub,AG15:"API 5L",AI15:r.material,D60:realizoDe(primero)}).forEach(([k,v])=>C("Matriz1",k,v));
   {const pb=perBase(r.base);C("Matriz1","R60",pb?.qc||"",true);C("Matriz1","AD60",pb?.res||"",true)}
-  const obsTxt=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo, por lo tanto se encuentran aceptadas bajo el código de construcción API 1104"}.${it.observaciones?" "+it.observaciones:""}`;
+  const obsTxt=(it,que,tq)=>{const ds=(it.ind||[]).filter(d=>!tq||d.tec===tq),rz=ds.filter(d=>d.res==="Rechazo");
+  if(ds.length)return`Observaciones: ${que}, en las cuales ${ds.length>1?`se identificaron ${ds.length} indicaciones`:"se identificó 1 indicación"} (${[...new Set(ds.map(d=>d.j))].join(", ")})${rz.length?`; ${rz.length>1?`${rz.length} son causa de rechazo`:"1 es causa de rechazo"} (${[...new Set(rz.map(d=>d.j))].join(", ")})`:`, ${ds.length>1?"aceptables":"aceptable"} bajo el código de construcción API 1104`}; las demás soldaduras se encuentran aceptadas.${it.observaciones?" "+it.observaciones:""}`;
+  return obsTxt0(it,que)};
+const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo, por lo tanto se encuentran aceptadas bajo el código de construcción API 1104"}.${it.observaciones?" "+it.observaciones:""}`;
   const resultado=it=>it.novedad?"Ver obs.":"OK";
   // llena una tabla repartiendo filas en las hojas disponibles (cada hoja tiene ~14 filas)
   async function tabla(nombres,filas,cols,cab){const usadas=[];let i=0;
@@ -2712,22 +2738,24 @@ async function generarReporte(r,modo){REP_PT=r;
         for(const h of bases){await clonarHoja(h,h+suf);if(AREA_FOTOS[h])AREA_FOTOS[h+suf]=AREA_FOTOS[h]}
         for(const h of bases){const fn=`xl/worksheets/${hoja[h+suf]}.xml`;let x=extra[fn];for(const b of (H12?HOJAS_H.h12:HOJAS_H.h0))if(hoja[b+suf])x=x.split(`'${xe(b)}'!`).join(`'${xe(b+suf)}'!`);extra[fn]=x}}
       const sfx=s=>{const v=H12?s.h12:s.h0;const m=n=>suf&&hoja[n+suf]?n+suf:n;return Array.isArray(v)?v.map(m):m(v)};const rep=it.reparacion;const js=juntasDe(rep,tipoA,it);const tec=it.tecnicas||[];
-      const fila=j=>[j.id,soldDe(it,j.id)||"-",largoJunta(rep,j,r.diametro,r.espesor)??"-"];const momento=H12?"12 horas":"0 horas";const ilic=rep.tipo==="Ilícita",nc=nCas(it);
+      const fila=j=>[j.id,soldDe(it,j.id)||"-",largoJunta(rep,j,r.diametro,r.espesor)??"-"];
+      const nv=v=>{const n=num(v);return n!=null?n:(String(v??"").trim()||"-")};const indDe=(t,id)=>(it.ind||[]).filter(d=>d.tec===t&&d.j===id),resInd=d=>d.res==="Rechazo"?"RECHAZO":"OK";
+      const filaPM=(t,j)=>{const ds=indDe(t,j.id);return ds.length?ds.map((d,k)=>[j.id,k?"":fila(j)[1],k?"":fila(j)[2],nv(d.ini),nv(d.lon),d.interp||"-",resInd(d),d.obs||"-"]):[[...fila(j),"-","-","-",resultado(it),"-"]]};const momento=H12?"12 horas":"0 horas";const ilic=rep.tipo==="Ilícita",nc=nCas(it);
       const que=t=>ilic?`Inspección ''${momento}'' por ${t} a las soldaduras de filete de ${nc>1?"las cascotas instaladas":"la cascota instalada"} sobre la zona afectada por la válvula ilícita`:`Inspección ''${momento}'' por ${t} a las soldaduras de la ${descCamisa(r,rep)}`;
       const conBis=!!bisCas&&!!ptCas&&!H12&&!dupN&&(it.tecnicas||[]).includes("PT");
-      if(tec.includes("PT")){const hs=await tabla(sfx({h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H"]}),[...(conBis?filasBisCas():[]),...js.map(j=>[...fila(j),"-","-","-",resultado(it),"-"])],["A","G","K","O","R","U","Z","AD"],()=>{});
-        for(const h of hs){await cabecera(h,it,obsTxt(it,que("líquidos penetrantes")+(conBis?` y al bisel recto de ${nc>1?"las cascotas":"la cascota"}`:"")),true,conBis?{...rep,vista:"0H+B"}:rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9",conBis?"Bisel recto y soldaduras":"Soldaduras")}ponEq(h,EQ_PT,equipo(it,"PT"))}
+      if(tec.includes("PT")){const hs=await tabla(sfx({h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H"]}),[...(conBis?filasBisCas():[]),...js.flatMap(j=>filaPM("PT",j))],["A","G","K","O","R","U","Z","AD"],()=>{});
+        for(const h of hs){await cabecera(h,it,obsTxt(it,que("líquidos penetrantes")+(conBis?` y al bisel recto de ${nc>1?"las cascotas":"la cascota"}`:""),"PT"),true,conBis?{...rep,vista:"0H+B"}:rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9",conBis?"Bisel recto y soldaduras":"Soldaduras")}ponEq(h,EQ_PT,equipo(it,"PT"))}
         await fotosEn([sfx({h0:"13F.PT-CAM -4",h12:"13F.PT-CAM -4-12H"})],[...(conBis?fotDe(bisCas,"PT"):[]),...fot("PT")],"campo")}
-      if(tec.includes("MT")){const hs=await tabla(sfx({h0:["14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3"],h12:["14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H"]}),js.map(j=>[...fila(j),"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
-        for(const h of hs){await cabecera(h,it,obsTxt(it,que("partículas magnéticas")),true,rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9","Soldaduras")}ponEq(h,EQ_MT,equipo(it,"MT"))}
+      if(tec.includes("MT")){const hs=await tabla(sfx({h0:["14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3"],h12:["14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H"]}),js.flatMap(j=>filaPM("MT",j)),["A","G","K","O","R","U","Z","AD"],()=>{});
+        for(const h of hs){await cabecera(h,it,obsTxt(it,que("partículas magnéticas"),"MT"),true,rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9","Soldaduras")}ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([sfx({h0:"14F.MT-SOLD -4",h12:"14F.MT-SOLD -4 -12H"})],fot("MT"),"campo")}
-      if(tec.includes("PAUT")){const imgs=fot("PAUTI");const cols=["A","G","K","O","Q","S","U","W","Y","Z","AE","AH"];const filaU=j=>[...fila(j),"-","-","-","-","-","-","-",resultado(it),"-"];
+      if(tec.includes("PAUT")){const imgs=fot("PAUTI");const cols=["A","G","K","O","Q","S","U","W","Y","Z","AE","AH"];const filaU=j=>{const ds=indDe("PAUT",j.id);return ds.length?ds.map((d,k)=>[k?j.id:fila(j)[0],...(k?["",""]:fila(j).slice(1)),nv(d.ini),nv(d.lon),nv(d.prof),nv(d.alt),nv(d.idx),nv(d.tcg),d.interp||"-",resInd(d),[d.lado&&d.lado!=="-"?"Lado "+d.lado:"",d.obs].filter(Boolean).join(". ")||"-"]):[[...fila(j),"-","-","-","-","-","-","-",resultado(it),"-"]]};
         const lg=pautOk(it,"LONG")?js.filter(j=>j.tipo==="long"):[],cc=pautOk(it,"CIRC")?js.filter(j=>j.tipo==="circ"):[];
-        if(lg.length){const hs=await tabla(sfx({h0:["16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3"],h12:["16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H"]}),lg.map(filaU),cols,()=>{});
-          for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (longitudinales)"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"LONG");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,"TOPE")}
+        if(lg.length){const hs=await tabla(sfx({h0:["16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3"],h12:["16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H"]}),lg.flatMap(filaU),cols,()=>{});
+          for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (longitudinales)","PAUT"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"LONG");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,"TOPE")}
           await fotosEn(sfx({h0:["16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6"],h12:["16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H"]}),[...imgs.filter(x=>/L\d/.test(x.cap)),...fot("PAUT")],"campo",true)}
-        if(cc.length){const hs=await tabla([sfx({h0:"15.PAUT-CIRC-CAM -1",h12:"15.PAUT-CIRC-CAM -1 12H"})],cc.map(filaU),cols,()=>{});
-          for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (circunferenciales)"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"CIRC");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,esqCirc(rep))}
+        if(cc.length){const hs=await tabla([sfx({h0:"15.PAUT-CIRC-CAM -1",h12:"15.PAUT-CIRC-CAM -1 12H"})],cc.flatMap(filaU),cols,()=>{});
+          for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (circunferenciales)","PAUT"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"CIRC");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,esqCirc(rep))}
           await fotosEn([sfx({h0:"15F.PAUT-CIRC-CAM -2",h12:"15F.PAUT-CIRC-CAM -2 -12H"})],imgs.filter(x=>/^C\d/.test(x.cap)),"campo",true)}}}
     if(esTN(it.act)&&it.reparacion?.tipo==="Tubería nueva"){const rp=it.reparacion,tec=it.tecnicas||[],tb=tubosDe(rp),L=longTN(rp,r.diametro),ext=num(rp.extremo)??110,cen=num(rp.centro)??3000,fm=v=>String(v).replace(".",",");
       const desc=`al metal base de la tubería nueva, ${tb.join(" y ")} (${fm(ext)} mm en cada extremo en todo el perímetro y ${fm(cen)} mm en el centro)`;
@@ -3077,7 +3105,7 @@ async function generarInforme(r){REP_PT=r;
   else quitar(80,88);
   if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
   // todas las actividades del mismo momento (p. ej. dos 0 H en días distintos) van en una sola tabla, cada junta con lo que se le hizo
-  const resH=(act,ip,it_,lab)=>{const xs=A.filter(x=>x.act===act);const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(repCam,tipoA,x).map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",ok(x)]}))}):[];
+  const resH=(act,ip,it_,lab)=>{const xs=A.filter(x=>x.act===act);const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(repCam,tipoA,x).map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",(x.ind||[]).some(d=>d.j===j.id&&d.res==="Rechazo")?"Rechazo":(x.ind||[]).some(d=>d.j===j.id)?"OK (ver ind.)":ok(x)]}))}):[];
     if(!filas.length){quitar(ip,ip+3);return}setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);llenar(K[it_],2,filas)};
   resH("0H",93,95,"0 Horas");resH("12H",97,99,"12 Horas");
   // ---- conclusiones ----
