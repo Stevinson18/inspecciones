@@ -1693,7 +1693,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v49";
+const LOCAL=!!window.__LOCAL;const APPV="v50";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
@@ -3109,11 +3109,25 @@ async function generarInforme(r){REP_PT=r;
     if(!filas.length){quitar(ip,ip+3);return}setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);llenar(K[it_],2,filas)};
   resH("0H",93,95,"0 Horas");resH("12H",97,99,"12 Horas");
   // ---- conclusiones ----
+  // rechazos: si una junta rechazada se reinspeccionó después (otra actividad del mismo momento, más tarde, sin rechazo) queda "reparada"; si no, queda pendiente
+  const yL=a=>a.length>1?a.slice(0,-1).join(", ")+" y "+a.at(-1):a[0]||"";const fTxt=d=>d?d.split("-").reverse().join("/"):"";const TEC_N={PT:"líquidos penetrantes",MT:"partículas magnéticas",PAUT:"ultrasonido phased array"};
+  const concH=(act,lab,u)=>{const xs=A.filter(x=>x.act===act).map((x,k)=>({x,k,f:x.inspFecha||r.fecha||""}));const base=`En la inspección “${lab}” mediante ${tecsTxt(u)} de las soldaduras ${tipoJ} de la ${elem} ${enPK}`;
+    const rech=[];xs.forEach(o=>(o.x.ind||[]).filter(d=>d.res==="Rechazo").forEach(d=>{
+      const re=xs.find(q=>(q.f>o.f||(q.f===o.f&&q.k>o.k))&&tec(q.x).includes(d.tec)&&juntasDe(repCam,tipoA,q.x).some(j=>j.id===d.j)&&!(q.x.ind||[]).some(e=>e.j===d.j&&e.tec===d.tec&&e.res==="Rechazo"));
+      rech.push({d,o,re})}));
+    const acep=xs.flatMap(o=>(o.x.ind||[]).filter(d=>d.res!=="Rechazo"));
+    if(!rech.length)return`${base} ${acep.length?`se identificaron indicaciones no relevantes (${[...new Set(acep.map(d=>d.j))].join(", ")}) que no son causa de rechazo`:"no se identificaron indicaciones relevantes causales de rechazo"}, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`;
+    const desc=l=>l.map(({d})=>`${d.j} (${TEC_N[d.tec]||d.tec}${d.interp?": "+d.interp.toLowerCase():""})`).filter((v,i,a)=>a.indexOf(v)===i);
+    const pen=rech.filter(q=>!q.re),rep_=rech.filter(q=>q.re);const pj=[...new Set(pen.map(q=>q.d.j))];
+    let t=`${base} se identificaron indicaciones causales de rechazo en ${yL(desc(rech))}.`;
+    if(rep_.length)t+=` ${[...new Set(rep_.map(q=>q.d.j))].length>1?"Las soldaduras":"La soldadura"} ${yL([...new Set(rep_.map(q=>q.d.j))])} ${[...new Set(rep_.map(q=>q.d.j))].length>1?"fueron reparadas y reinspeccionadas":"fue reparada y reinspeccionada"} el ${yL([...new Set(rep_.map(q=>fTxt(q.re.f)))])} sin indicaciones causales de rechazo, por lo tanto, se ${[...new Set(rep_.map(q=>q.d.j))].length>1?"encuentran aceptadas":"encuentra aceptada"} bajo el código de construcción API 1104.`;
+    if(pj.length)t+=` A la fecha de este informe ${pj.length>1?"las soldaduras":"la soldadura"} ${yL(pj)} no ${pj.length>1?"han sido reparadas ni reinspeccionadas, por lo tanto, se encuentran rechazadas":"ha sido reparada ni reinspeccionada, por lo tanto, se encuentra rechazada"} bajo el código de construcción API 1104 hasta su reparación y nueva inspección.`;
+    t+=` Las demás soldaduras se encuentran aceptadas bajo el código de construcción API 1104.`;return t};
   const conc=[[104,zs&&`En la inspección mediante ultrasonido ${scanTxt} de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de las soldaduras.`],
     [106,tn&&`En la inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} del metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}, no se identificaron indicaciones relevantes.`],
     [108,bis&&`En la inspección mediante líquidos penetrantes de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}, no se identificaron indicaciones relevantes causales de rechazo.`],
-    [110,h0&&js.length&&`En la inspección “0 Horas” mediante ${tecsTxt(h0)} de las soldaduras ${tipoJ} de la ${elem} ${enPK} no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`],
-    [112,h12&&js.length&&`En la inspección “12 Horas” mediante ${tecsTxt(h12)} de las soldaduras ${tipoJ} de la ${elem} ${enPK} no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`]];
+    [110,h0&&js.length&&concH("0H","0 Horas",h0)],
+    [112,h12&&js.length&&concH("12H","12 Horas",h12)]];
   conc.forEach(([i,t])=>{if(t)setT(K[i],t);else{K[i].remove();K[i+1]?.localName==="p"&&!tx(K[i+1]).trim()&&K[i+1].remove()}});
   // novedades escritas en las actividades
   const obs=A.filter(x=>x.observaciones).map(x=>`${x.act}: ${x.observaciones}`);if(obs.length){const q=K[116].cloneNode(true);setT(q,obs.join(" · "));K[116].after(q)}
