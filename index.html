@@ -1728,7 +1728,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v54";
+const LOCAL=!!window.__LOCAL;const APPV="v55";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2807,7 +2807,11 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
         if(lg.length){const hs=await tabla(sfx({h0:["16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3"],h12:["16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H"]}),lg.flatMap(filaU),cols,()=>{});
           for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (longitudinales)","PAUT"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"LONG");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,"TOPE")}
           await fotosEn(sfx({h0:["16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6"],h12:["16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H"]}),[...imgs.filter(x=>/L\d/.test(x.cap)),...fot("PAUT")],"campo",true)}
-        if(cc.length){const hs=await tabla([sfx({h0:"15.PAUT-CIRC-CAM -1",h12:"15.PAUT-CIRC-CAM -1 12H"})],cc.flatMap(filaU),cols,()=>{});
+        if(cc.length){// circunferenciales: en vez de observaciones va el lado de la inspección (p. ej. LT X LA X), primero el lado aguas arriba
+          const AB={"Lado tubo":"LT","Lado anillo":"LA","Lado camisa":"LC","Lado sobre camisa":"LC","Lado sobrecamisa":"LSC","Lado camisa existente":"LCE","Lado cascota":"LCA"};
+          const ladosC=j=>{const n=+(String(j.id).match(/C(\d+)\s*$/)||[])[1]||1;const l=n%2?[j.lados[1],j.lados[0]]:[j.lados[0],j.lados[1]];return[AB[l[0]]||"-","X",AB[l[1]]||"-","X"]};
+          const filaC=j=>filaU(j).map(f=>[...f.slice(0,11),...ladosC(j)]);
+          const hs=await tabla([sfx({h0:"15.PAUT-CIRC-CAM -1",h12:"15.PAUT-CIRC-CAM -1 12H"})],cc.flatMap(filaC),[...cols.slice(0,11),"AH","AI","AJ","AK"],h=>C(h,"AH30","LADO DE LA INSPECCIÓN"));
           for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (circunferenciales)","PAUT"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"CIRC");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,esqCirc(rep))}
           await fotosEn([sfx({h0:"15F.PAUT-CIRC-CAM -2",h12:"15F.PAUT-CIRC-CAM -2 -12H"})],imgs.filter(x=>/^C\d/.test(x.cap)),"campo",true)}}}
     if(esTN(it.act)&&it.reparacion?.tipo==="Tubería nueva"){const rp=it.reparacion,tec=it.tecnicas||[],tb=tubosDe(rp),L=longTN(rp,r.diametro),ext=num(rp.extremo)??110,cen=num(rp.centro)??3000,fm=v=>String(v).replace(".",",");
