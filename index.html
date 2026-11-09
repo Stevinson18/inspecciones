@@ -1730,7 +1730,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v57";
+const LOCAL=!!window.__LOCAL;const APPV="v58";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3080,7 +3080,8 @@ async function generarInforme(r){REP_PT=r;
   const desc=repCam?descCamisa(r,repCam):bis?descCamisa(r,{tipo:bis.reparacion?.tipoCamisa==="anillos"?"Camisa sobre anillos":bis.reparacion?.tipoCamisa==="directa"?"Camisa directa":"Camisa armadillo"}):"";
   const elem=desc||(tn?"tubería nueva (metal base)":r.tipoReparacion==="Ilícita"?"reparación de la válvula ilícita":r.tipoReparacion==="C&E"?"corte y empalme":"reparación");
   const lin=`${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in`.replace(/\s+/g," ").trim();
-  const enPK=`en el PK ${r.pk||""}${r.dr?` (DR ${r.dr})`:""} del ${lin}`;
+  const drN=String(r.dr||"").replace(/^\s*DR\s*[:.]?\s*/i,"").trim(),pkTxt=`PK ${r.pk||""}${drN?` (DR ${drN})`:""}`;
+  const enPK=`en el ${pkTxt} del ${lin}`;
   const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} – ${DEPTO[r.ciudad]}`:r.ciudad):"";
   const fechas=fechasTxt(A.flatMap(x=>[x.inspFecha||r.fecha,...(x.fechasExtra||[])]).concat(A.length?[]:[r.fecha]));
   const insp=[...new Set(A.flatMap(x=>inspList(x.inspectores)))];const realizo=realizoDe(A[0]||{})||insp[0]||"";
@@ -3090,13 +3091,13 @@ async function generarInforme(r){REP_PT=r;
   // ---- portada ----
   const cov=filasDe(K[0]);const cp=r_=>[...cov[r_].getElementsByTagNameNS(WNS,"p")];
   {const ps=cp(1);if(tn&&!desc){setT(ps[0],"INSPECCIÓN E.N.D. A");setT(ps[1],"TUBERÍA NUEVA (METAL BASE)")}else setT(ps[1],(desc?"LA ":"")+elem.toUpperCase());
-    setT(ps[2],`EN EL PK ${r.pk||""}${r.dr?` – DR ${r.dr}`:""}`);setT(ps[3],`${[r.sistema,r.linea].filter(Boolean).join(" ").toUpperCase()} ${r.diametro||""} in`)}
+    setT(ps[2],`EN EL PK ${r.pk||""}${drN?` – DR ${drN}`:""}`);setT(ps[3],`${[r.sistema,r.linea].filter(Boolean).join(" ").toUpperCase()} ${r.diametro||""} in`)}
   [...cov[3].getElementsByTagNameNS(WNS,"t")].forEach(t=>{if(/INSERTAR IMAGEN/i.test(t.textContent))t.textContent=""});
   setT(cp(5)[0],lugar);setT(cp(7)[0],fechas);setT(cp(9)[0],`Informe N° ${r.consecutivo||""}`);
   // ---- aprobación ----
   {const f=filasDe(K[3]);celda(celdasDe(f[1])[0],`Ing. ${realizo}`);celda(celdasDe(f[3])[0],hoyTxt);celda(celdasDe(f[3])[2],hoyTxt)}
   // ---- datos generales ----
-  {const f=filasDe(K[5]),v=i=>celdasDe(f[i])[1];celda(v(0),r.consecutivo||"");celda(v(8),r.pk||"");celda(v(10),lin);
+  {const f=filasDe(K[5]),v=i=>celdasDe(f[i])[1];celda(v(0),r.consecutivo||"");celda(v(8),`${r.pk||""}${drN?` – DR ${drN}`:""}`);celda(v(10),lin);
     const ps=kids(v(13),"p"),nombres=[[scanC,"Ultrasonido Scan C"],[pt,"Líquidos penetrantes"],[mt,tn&&!usaH("MT")?"Partículas Magnéticas fluorescentes":"Partículas Magnéticas"],[paut,"Ultrasonido phased array"]];
     ps.forEach((p,k)=>{const n=nombres[k];if(!n||!n[0])p.remove();else setT(p,n[1])});
     if(scanA){const q=ps[0].cloneNode(true);setT(q,"Ultrasonido medición de espesores (Scan A)");v(13).insertBefore(q,v(13).firstChild)}
@@ -3147,12 +3148,12 @@ async function generarInforme(r){REP_PT=r;
   if(zs)setT(K[39],`Inspección por medio de ultrasonido ${scanTxt} de las zonas donde se realizarán las soldaduras de filete de la ${elem} ${enPK}.`);
   else if(tn)setT(K[39],`Inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} al metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}.`);
   else K[39].remove();
-  if(bis)setT(K[40],`Inspección mediante líquidos penetrantes a los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}.`);else K[40].remove();
+  if(bis)setT(K[40],`Inspección mediante líquidos penetrantes a los biseles de la ${elem} para el ${pkTxt} del ${lin}.`);else K[40].remove();
   const areas=zs?zsAreas(zs.reparacion):[];
   setT(K[48],`Esquema 1.  Identificación del área sana para la soldadura de la ${elem}`);setT(K[56],`Esquema 2.  Identificación de biseles de la ${elem}`);setT(K[64],`Esquema 3. Identificación de las soldaduras de la ${elem}`);
   if(zs){setT(K[42],`Identificación del área sana para la realización de la soldadura de filete de la ${elem} ${enPK}`);
     llenar(K[44],1,areas.map(a=>({c:[`Zona sana para la soldadura de filete ${a.replace(/^AS /,"")}`,a,"-"]})))}else quitar(42,49);
-  if(bis){const br=bisRows(bis.reparacion);setT(K[50],`Identificación de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);
+  if(bis){const br=bisRows(bis.reparacion);setT(K[50],`Identificación de los biseles de la ${elem} para el ${pkTxt} del ${lin}`);
     llenar(K[52],1,br.map(([id])=>{const m=id.match(/Bisel (?:(\S+) )?(CPS|CPI) - (L\d)/)||[];return{g:m[1]?`Sección ${m[1]}`:"Camisa",c:["",`Bisel longitudinal ${m[3]||""} sección ${m[2]==="CPI"?"inferior":"superior"}`,id]}}),true)}else quitar(50,57);
   const js=repCam?juntasDe(repCam,tipoA):[];
   if(js.length){setT(K[58],`Identificación de las soldaduras de la ${elem} ${enPK}`);
@@ -3171,7 +3172,7 @@ async function generarInforme(r){REP_PT=r;
     if(tec(tn).includes("SCANC")){setT(K[83],"Resultados de la inspección por ultrasonido Scan C");llenar(K[84],1,tb.map(t=>({c:[t,mmTxt(num(r.espesor)!=null?num(r.espesor)*25.4:null),"-"]})))}else{K[83].remove();K[84].remove();K[85]?.remove()}
     setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes");llenar(K[87],1,tb.map(t=>({c:[t,"-",tec(tn).includes("MT")?"X":"-",ok(tn)]})))}
   else quitar(80,88);
-  if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
+  if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el ${pkTxt} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
   // todas las actividades del mismo momento (p. ej. dos 0 H en días distintos) van en una sola tabla, cada junta con lo que se le hizo
   const resH=(act,ip,it_,lab)=>{const xs=A.filter(x=>x.act===act);const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(repCam,tipoA,x).map(j=>({c:[j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",(x.ind||[]).some(d=>d.j===j.id&&d.res==="Rechazo")?"Rechazo":(x.ind||[]).some(d=>d.j===j.id)?"OK (ver ind.)":ok(x)]}))}):[];
     if(!filas.length){quitar(ip,ip+3);return}setT(K[ip],`Resultados de la inspección ‘’${lab}’’ de las soldaduras ${tipoJ} de la ${elem} instalada ${enPK}`);llenar(K[it_],2,filas)};
@@ -3193,7 +3194,7 @@ async function generarInforme(r){REP_PT=r;
     t+=` Las demás soldaduras se encuentran aceptadas bajo el código de construcción API 1104.`;return t};
   const conc=[[104,zs&&`En la inspección mediante ultrasonido ${scanTxt} de las zonas sanas destinadas para las soldaduras de filete de la ${elem} ${enPK}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de las soldaduras.`],
     [106,tn&&`En la inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""} del metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}, no se identificaron indicaciones relevantes.`],
-    [108,bis&&`En la inspección mediante líquidos penetrantes de los biseles de la ${elem} para el PK ${r.pk||""} del ${lin}, no se identificaron indicaciones relevantes causales de rechazo.`],
+    [108,bis&&`En la inspección mediante líquidos penetrantes de los biseles de la ${elem} para el ${pkTxt} del ${lin}, no se identificaron indicaciones relevantes causales de rechazo.`],
     [110,h0&&js.length&&concH("0H","0 Horas",h0)],
     [112,h12&&js.length&&concH("12H","12 Horas",h12)]];
   conc.forEach(([i,t])=>{if(t)setT(K[i],t);else{K[i].remove();K[i+1]?.localName==="p"&&!tx(K[i+1]).trim()&&K[i+1].remove()}});
