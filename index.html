@@ -1693,7 +1693,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v51";
+const LOCAL=!!window.__LOCAL;const APPV="v52";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3320,6 +3320,10 @@ pan.innerHTML=`<div class="box"><h2>Sincronización entre equipos</h2>
 <label class="f"><span class="label">Repositorio</span><input class="field mono" id="syRepo" autocomplete="off"></label>
 <label class="f"><span class="label">Clave (token de GitHub)</span><input class="field mono" id="syTok" type="password" autocomplete="off" placeholder="github_pat_…"></label>
 <p class="note" id="syMsg"></p>
+<h2 style="margin-top:8px">Sin sincronización (pruebas)</h2>
+<p class="note">Si no va a sincronizar, cargue aquí las plantillas que le enviaron. Quedan guardadas en este equipo y la app genera borrador, final y Word sin internet.</p>
+<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn small" type="button" id="syPlX">📗 Cargar plantilla Excel</button><button class="btn small" type="button" id="syPlW">📘 Cargar plantilla Word</button></div>
+<p class="note" id="syPlMsg"></p>
 <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" type="button" id="syClose">Cerrar</button><button class="btn primary" type="button" id="sySave">Probar y guardar</button></div></div>`;
 document.body.appendChild(pan);
 const $=id=>document.getElementById(id);
@@ -3334,6 +3338,11 @@ $("sySave").addEventListener("click",async()=>{
   catch(e){$("syMsg").textContent=e==="push"?"La clave no tiene permiso de escritura (Contents: Read and write).":e===401?"Clave incorrecta.":e===404?"No encuentro ese repositorio con esa clave.":"Sin internet o error al probar."}
 });
 $("btnSync").addEventListener("click",()=>sync(true));
+{const pedirArchivo=(acc,KEY,SHA,nom)=>{const fi=document.createElement("input");fi.type="file";fi.accept=acc;fi.onchange=async()=>{const f=fi.files?.[0];if(!f)return;
+  await L.putBlob(KEY,f);LS.set(SHA,"local-"+Date.now());$("syPlMsg").textContent=`Plantilla ${nom} cargada: ${f.name}`};fi.click()};
+ $("syPlX").addEventListener("click",()=>pedirArchivo(".xlsx","plantilla-integrados","plantilla_sha","Excel"));
+ $("syPlW").addEventListener("click",()=>pedirArchivo(".docx","plantilla-informe","plantillaw_sha","Word"));
+ Promise.all([L.getBlob("plantilla-integrados"),L.getBlob("plantilla-informe")]).then(([x,w])=>{const el=$("syPlMsg");if(el)el.textContent=`En este equipo: Excel ${x?"✓":"falta"} · Word ${w?"✓":"falta"}`}).catch(()=>{})}
 // carpeta de descargas (solo PC con Chrome/Edge)
 {const bc=$("btnCarpeta"),C=window.__carpeta;const pinta=()=>{bc.textContent=C.listo()?"📁 "+C.nombre():"📁 Elegir carpeta";bc.title=C.listo()?"Las descargas van a "+C.nombre()+" (Borradores, Reportes finales, Informes Word, Datos, Esquemas). Toque para cambiarla.":"Elija dónde crear la carpeta Control de informes"};
  if(C?.disponible){bc.hidden=false;C.cambio=pinta;pinta();
