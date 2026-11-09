@@ -1711,6 +1711,7 @@ function fotoGrupos(it,tipoA=tipoAForm()){
   if(it.act==="__punto")return[
     {k:"UBC",t:"Ubicación en campo",caps:["Ubicación en campo (sitio)"],min:1,ubi:"campo",fixed:true},
     {k:"UBP",t:"Ubicación en patio",caps:["Ubicación en patio"],min:1,ubi:"patio",fixed:true},
+    {k:"POR",t:"Portada del Word (opcional)",caps:["Foto general de la reparación"],min:0,fixed:true},
     (m=>({k:"ANX",t:"Fotos del anexo",caps:Array(m).fill("Registro fotográfico"),min:m}))(anxMinDe(it===puntoF?formItems:[],it.anexoMin))];
   if(it.act==="Biseles")g.push({k:"PT",t:"Fotos tintas penetrantes (biseles)",caps:FOTO_PT,min:6});
   else if(esTN(it.act)){const tec=it.tecnicas||[];
@@ -1729,7 +1730,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v56";
+const LOCAL=!!window.__LOCAL;const APPV="v57";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -1763,7 +1764,7 @@ function fotosHtml(it,i,only){
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
 function refreshFotos(i){
-  if(i==="P"){if($("iAnxMin"))$("iAnxMin").value=anxMinDe(formItems,puntoF.anexoMin);$("ubiBox").innerHTML=fotosHtml(puntoF,"P",["UBC","UBP"]);$("anexoBox").innerHTML=fotosHtml(puntoF,"P",["ANX"]);updLeerBtns();return}
+  if(i==="P"){if($("iAnxMin"))$("iAnxMin").value=anxMinDe(formItems,puntoF.anexoMin);$("ubiBox").innerHTML=fotosHtml(puntoF,"P",["UBC","UBP","POR"]);$("anexoBox").innerHTML=fotosHtml(puntoF,"P",["ANX"]);updLeerBtns();return}
   const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return; const b=card.querySelector(".fotobox"); if(b)b.innerHTML=fotosHtml(it,i)}
 function setFoto(i,k,j,patch){const it=own(i);if(!it)return;it.fotos={...(it.fotos||{})};
   const gr=fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]};const sl=fotoSlots(it,gr);while(sl.length<=j)sl.push({cap:"",id:null});
@@ -3207,7 +3208,7 @@ async function generarInforme(r){REP_PT=r;
   const ext=id=>{const d=[...doc.getElementsByTagNameNS("*","blip")].find(b=>b.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","embed")===id);if(!d)return null;
     let n=d;while(n&&n.localName!=="inline"&&n.localName!=="anchor")n=n.parentNode;const e=n&&[...n.children].find(c=>c.localName==="extent");return e?{cx:+e.getAttribute("cx"),cy:+e.getAttribute("cy")}:null};
   const medios={};const pon=async(id,fn)=>{const e=ext(id),t=target(id);if(!e||!t)return;try{const b=await fn(e);if(b)medios[t]=b}catch(err){console.warn("imagen",id,err)}};
-  const ubc=(r.fotosPunto?.UBC||[]).find(x=>x?.id)||(r.fotosPunto?.ANX||[]).find(x=>x?.id);
+  const ubc=(r.fotosPunto?.POR||[]).find(x=>x?.id)||(r.fotosPunto?.UBC||[]).find(x=>x?.id)||(r.fotosPunto?.ANX||[]).find(x=>x?.id);
   const vacia=async(e,tipo)=>{const c=lienzo(e.cx,e.cy,1);const g=c.getContext("2d");if(tipo==="image/jpeg"){g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height)}return aBytes(await new Promise(ok=>c.toBlob(ok,tipo)))};
   {// portada: la foto ocupa todo el alto de su recuadro (fila de alto fijo) en 4:3, centrada y sin espacios que la corten
     const bl=[...doc.getElementsByTagNameNS("*","blip")].find(x=>x.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","embed")==="rId8");
