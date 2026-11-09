@@ -1411,6 +1411,8 @@ $("catEsq").addEventListener("click",async e=>{
 function pegarOSubir(t,id,btn){const w=document.createElement("span");w.innerHTML=`<button class="btn small" type="button">📋 Pegar</button> <button class="btn small" type="button">🖼 Subir imagen</button>`;
   const[bp,bs]=w.querySelectorAll("button");bp.onclick=()=>pegarEsq(t,id);bs.onclick=()=>{esqPara={t,id};esqIn.value="";esqIn.click()};btn.replaceWith(w)}
 // ---------- planes de escaneo (PAUT por soldadura y Scan C de zona sana) ----------
+// un plan PAUT puede servir para longitudinales y circunferenciales a la vez (misma configuración)
+const planSirve=(p,t)=>p.tipo===t||(p.ambos==="si"&&((t==="LONG"&&p.tipo==="CIRC")||(t==="CIRC"&&p.tipo==="LONG")));
 const PL_TIPOS={LONG:"PAUT · soldaduras longitudinales",CIRC:"PAUT · soldaduras circunferenciales",SCANC:"Scan C · zona sana (0°)",SCANA:"Scan A · espesores con palpador dual"};
 const PL_SCANA=[["palpador","Palpador (referencia)","7.5M-PT06"],["tamano","Tamaño","6mm"],["angulo","Ángulo","0º"],["frecuencia","Frecuencia (MHz)","7,5"],["ganancia","Ganancia de referencia (dB)","29"],["alturaRef","% altura de referencia","80"],["rangoBarrido","Rango de barrido","3t"],["bloqueCal","Bloque de calibración","Escalerilla"],["serieBloque","Serie del bloque","55013"],["vRef","V. ref","5890m/s"],["acoplante","Acoplante","Metilcelulosa"],["reflector","Tipo de reflector","Fondo plano"]];
 const PL_PAUT=[["palpador","Palpador (referencia)","5L16 A10"],["zapata","Zapata","SA10-N55S"],["angRef","Ángulo de referencia","36,1°"],["frecuencia","Frecuencia (MHz)","5"],["pitch","Pitch (mm)","0,6"],["elemLey","Elementos por ley","16"],["pasoAng","Paso angular","1"],["elem1","Primer elemento","1"],["elemUlt","Último elemento","16"],["angIni","Ángulo inicial","32"],["angFin","Ángulo final","70"],["profFocal","Profundidad focal","19 mm"],["rangoBarrido","Rango de barrido","3,5T"],["ganancia","Ganancia de referencia (dB)","21,1"],["alturaRef","% altura de referencia","80"],["vRef","Velocidad de referencia","3240 m/s"],["bloqueCal","Bloque de calibración","IIW-V1"],["bloqueRef","Bloque de referencia","API 1104"],["reflector","Tipo de reflector","Entallas tipo N10"],["backing","Backing","NO / SI - Platina"],["resolX","Resolución X (mm)","1"]];
@@ -1427,7 +1429,7 @@ function renderPlanes(){
   const eqP=equipos.filter(e=>e.tecnica==="PAUT");
   $("catPlanes").innerHTML=`<p class="note">Cada plan sirve para un rango de espesor y diámetro, un inspector y un equipo. En la actividad la app le propone el plan que cuadra con el punto.</p>`+
     Object.keys(PL_TIPOS).map(t=>`<div class="eqlist"><div class="eqhead"><span class="label">${PL_TIPOS[t]}</span>${readOnly?"":`<button class="btn small" type="button" data-plnew="${t}">+ Nuevo</button>`}</div>
-      ${planes.filter(p=>p.tipo===t).map(p=>planCard(p,eqP)).join("")||`<p class="note">Sin planes registrados.</p>`}</div>`).join("");
+      ${planes.filter(p=>planSirve(p,t)).map(p=>planCard(p,eqP)).join("")||`<p class="note">Sin planes registrados.</p>`}</div>`).join("");
 }
 function planCard(p,eqP){const cs=plCampos(p.tipo);const ins=[...new Set([...INSPECTORES,p.inspector].filter(Boolean))];
   return`<div class="eqcard" data-plid="${esc(p.id)}"><label class="f"><span class="label">Nombre del plan</span><input class="field" data-k="nombre" value="${esc(p.nombre||"")}" placeholder="Ej: Long. 0,500-0,625 in · 16-20 in"></label>
@@ -1438,6 +1440,7 @@ function planCard(p,eqP){const cs=plCampos(p.tipo);const ins=[...new Set([...INS
       <label class="f"><span class="label">Espesor hasta (pulg)</span><input class="field mono" data-k="espMax" value="${esc(p.espMax||"")}" inputmode="decimal" placeholder="0,625"></label>
       <label class="f"><span class="label">Diámetro desde (pulg)</span><input class="field mono" data-k="diaMin" value="${esc(p.diaMin||"")}" inputmode="decimal" placeholder="16"></label>
       <label class="f"><span class="label">Diámetro hasta (pulg)</span><input class="field mono" data-k="diaMax" value="${esc(p.diaMax||"")}" inputmode="decimal" placeholder="20"></label>
+      ${p.tipo==="LONG"||p.tipo==="CIRC"?`<label class="f" style="grid-column:1/-1"><span class="label">Sirve para</span><select class="field" data-k="ambos"><option value="">Solo ${p.tipo==="LONG"?"longitudinales":"circunferenciales"}</option><option value="si"${p.ambos==="si"?" selected":""}>Longitudinales y circunferenciales</option></select></label>`:""}
     </div>
     <span class="label">Parámetros</span>
     <div class="grid2">${cs.map(([k,l,ph])=>`<label class="f"><span class="label">${esc(l)}</span><input class="field" data-c="${k}" value="${esc(p.campos?.[k]||"")}" placeholder="${esc(ph)}"></label>`).join("")}</div>
@@ -1517,10 +1520,10 @@ function plEncaje(p,it){const esp=numIn(p.tipo==="SCANC"||p.tipo==="SCANA"?$("iN
   const r={esp:enR(esp,p.espMin,p.espMax),dia:enR(dia,p.diaMin,p.diaMax),ins:!p.inspector||ins.includes(p.inspector),eq:!p.equipo||!it.equipos?.PAUT||p.equipo===it.equipos.PAUT};
   r.ok=r.esp!==false&&r.dia!==false&&r.ins&&r.eq;r.score=(r.esp?2:0)+(r.dia?2:0)+(p.inspector&&r.ins?1:0)+(p.equipo&&r.eq?1:0);return r}
 function plDefaults(it){const ts=plTiposDe(it);it.planes={...(it.planes||{})};
-  ts.forEach(t=>{if(it.planes[t])return;const c=planes.filter(p=>p.tipo===t).map(p=>({p,r:plEncaje(p,it)})).filter(x=>x.r.ok).sort((a,b)=>b.r.score-a.r.score);
+  ts.forEach(t=>{if(it.planes[t])return;const c=planes.filter(p=>planSirve(p,t)).map(p=>({p,r:plEncaje(p,it)})).filter(x=>x.r.ok).sort((a,b)=>b.r.score-a.r.score);
     const u=store.get("ultimoPlan_"+t);const pick=c[0]?.p||planes.find(p=>p.id===u);if(pick)it.planes[t]=pick.id})}
 function plHtml(it){const ts=plTiposDe(it);if(!ts.length)return"";
-  return`<span class="label">Plan de escaneo</span>`+ts.map(t=>{const lst=planes.filter(p=>p.tipo===t);const sel=it.planes?.[t]||"";const p=lst.find(x=>x.id===sel);const r=p?plEncaje(p,it):null;
+  return`<span class="label">Plan de escaneo</span>`+ts.map(t=>{const lst=planes.filter(p=>planSirve(p,t));const sel=it.planes?.[t]||"";const p=lst.find(x=>x.id===sel);const r=p?plEncaje(p,it):null;
     const aviso=p?(r.ok?`<span class="sub2">✓ Cuadra con el punto${plCalc(p).length?" · "+esc(plCalc(p).join(" · ")):""}</span>`:`<span class="sub2 lowf">⚠ ${[r.esp===false?"espesor fuera de rango":"",r.dia===false?"diámetro fuera de rango":"",!r.ins?"es de otro inspector":"",!r.eq?"es de otro equipo":""].filter(Boolean).join(", ")}</span>`):"";
     return`<div class="eqsel"><span class="sub2" style="font-weight:600">${t==="LONG"?"Long.":t==="CIRC"?"Circ.":t==="SCANA"?"Scan A":"Scan C"}</span><div><div class="eqrow"><select class="field" data-pl="${t}" aria-label="Plan ${PL_TIPOS[t]}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el plan…":"Sin planes registrados"}</option>${lst.map(x=>`<option value="${esc(x.id)}"${x.id===sel?" selected":""}>${esc(x.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-pladd="${t}">+ Nuevo</button>`}</div>${aviso}</div></div>`}).join("")}
 function refreshPl(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;plDefaults(it);const b=card.querySelector(".plbox");if(b)b.innerHTML=plHtml(it)}
@@ -1734,7 +1737,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v60";
+const LOCAL=!!window.__LOCAL;const APPV="v61";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
