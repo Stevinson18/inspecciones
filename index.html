@@ -1330,10 +1330,12 @@ const EQ_CAMPOS={
   PT:[["marcaKit","Marca kit penetrante","Met-L-Chek"],["tipoPen","Tipo de penetrante","Tipo II - Visibles"],["metodo","Método de examinación","C - Removible con solvente"],["limpiador","Limpiador","E-59A"],["loteLimp","Lote limpiador","35881"],["revelador","Revelador","D-70"],["loteRev","Lote revelador","37233"],["penetrante","Penetrante","VP-31A"],["lotePen","Lote penetrante","18394"],["tPen","Tiempo penetración","10 min"],["tRev","Tiempo revelado","10 min"]],
   MT:[["tipoPart","Tipo de partículas","Fluorescentes"],["tecnica","Técnica de magnetización","Yoke"],["tipoYoke","Tipo de yoke","Electroimán"],["metodo","Método de magnetización","Continuo"],["corriente","Corriente del yoke","AC"],["marcaYoke","Marca del yoke","Magnaflux"],["serieYoke","Serie del yoke","43530"],["marcaKit","Marca kit partículas","Met-L-Chek"],["limpiador","Limpiador","E-59A"],["loteLimp","Lote limpiador","32831"],["particulas","Partículas","MPI-1400B"],["lotePart","Lote partículas","32451"],["contraste","Contraste / lote","N/A"]],
   PAUT:[["marca","Marca","OLYMPUS"],["modelo","Modelo","OMNI - SX"],["serie","Serie","QC-077617"],["modulo","Módulo","16/64"],["softAdq","Software adquisición","MXU-4.4 R3"],["softAna","Software análisis","OMNIPC 5.13.0"],["palpador","Palpador (referencia)","5L16 A10"],["zapata","Zapata","SA10-N55S"],["frecuencia","Frecuencia (MHz)","5"],["bloqueCal","Bloque calibración","IIW-V1"],["bloqueRef","Bloque referencia","API 1104"],["acoplante","Acoplante","Agua"]],
+  AUX:[["luxometro","Serie luxómetro",""],["termometro","Serie termómetro láser",""],["gaussimetro","Serie gaussímetro",""],["indicador","Serie indicador de campo",""],["lamparaUV","Serie lámpara UV",""],["calibrador","Serie calibrador pie de rey",""],["escuadra","Serie escuadras",""],["decametro","Serie decámetro",""],["galgas","Serie galgas",""],["escaner","Serie escáner con encoder",""]],
   UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración","Escalerilla"],["serieBloque","Serie bloque calibración","60986"],["acoplante","Acoplante","Metilcelulosa"]]};
-const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)"};
+const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)",AUX:"Instrumentos auxiliares (luxómetro, termómetro…)"};
 let equipos=[], firmas={}, basesPer={};
-const tecsDe=it=>it.act==="Zona sana"?(it.zsTec==="SCANA"?["UTME"]:["PAUT"]):it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
+const tecsDe=it=>(t=>t.length?[...t,"AUX"]:t)(tecsDe0(it));
+const tecsDe0=it=>it.act==="Zona sana"?(it.zsTec==="SCANA"?["UTME"]:["PAUT"]):it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
 function eqHtml(it){const ts0=tecsDe(it);if(!ts0.length)return"";
   // PAUT longitudinal y circunferencial pueden hacerse con equipos distintos
   const pl=conTec(it.act)?plTiposDe(it,tipoAForm()):[];const dos=ts0.includes("PAUT")&&pl.includes("LONG")&&pl.includes("CIRC");
@@ -1737,7 +1739,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v61";
+const LOCAL=!!window.__LOCAL;const APPV="v62";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2662,7 +2664,7 @@ function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo 
     if(n==="Zona sana"&&it.zsTec==="SCANA")zsAreas(it.reparacion).forEach(a=>{const k=(it.zsLect?.[a]||[]).filter(v=>mmNum(v)!=null).length;if(k<NPOS)f.push(`Zona sana: lecturas de ${a} (${k} de ${NPOS})`)});
     if(!ins)f.push(`${n}: inspector`);else if(!firmas[slug(ins)]?.img?.id)f.push(`${n}: firma de ${ins}`);
     fotoGrupos(it,tipoA).forEach(g=>{const k=fotoSlots(it,g).filter(x=>x.id).length;if(g.min&&k<g.min)f.push(`${n}: ${g.t} (${k} de ${g.min})`)});
-    tecsDe(it).forEach(t=>{const e=equipos.find(x=>x.id===it.equipos?.[t]);if(!e)f.push(`${n}: equipo ${t}`);else{const vac=(EQ_CAMPOS[t]||[]).filter(([k])=>/^lote/.test(k)&&!e.campos?.[k]);if(vac.length)f.push(`${n}: lotes del equipo ${t}`)}});
+    tecsDe0(it).forEach(t=>{const e=equipos.find(x=>x.id===it.equipos?.[t]);if(!e)f.push(`${n}: equipo ${t}`);else{const vac=(EQ_CAMPOS[t]||[]).filter(([k])=>/^lote/.test(k)&&!e.campos?.[k]);if(vac.length)f.push(`${n}: lotes del equipo ${t}`)}});
     plTiposDe(it,tipoA).forEach(t=>{const et=t==="LONG"?"TOPE":t==="CIRC"?esqCirc(it.reparacion):t;if(!esqDe(et))f.push(`Esquema del barrido: ${ES_TIPOS[et]}`)});
     plTiposDe(it,tipoA).forEach(t=>{if(!planes.find(p=>p.id===it.planes?.[t]))f.push(`${n}: plan de escaneo ${t==="LONG"?"longitudinales":t==="CIRC"?"circunferenciales":t==="SCANA"?"Scan A":"Scan C"}`)});
     if(conTec(it.act)){if(!it.reparacion?.tipo)f.push(`${n}: esquema de la camisa`);else juntasDe(it.reparacion,tipoA,it).forEach(j=>{const s=String(it.soldadores?.[j.id]||"").split("/").filter(x=>x.trim());if(s.length<(j.tipo==="circ"?2:1))f.push(`${n}: soldador de ${j.id}`)})}});
@@ -3113,6 +3115,25 @@ async function generarInforme(r){REP_PT=r;
     celda(v(14),elem.charAt(0).toUpperCase()+elem.slice(1));
     const partes=[(zs||tn)&&"material base",bis&&"biseles",(h0||h12)&&"soldaduras"].filter(Boolean);celda(v(16),(partes.length>1?partes.slice(0,-1).join(", ")+" y "+partes.at(-1):partes[0]||"").replace(/^./,c=>c.toUpperCase()));
     celda(v(18),insp.join(", "));const c21=celdasDe(f[21])[1];if(c21)celda(c21,"");celda(v(22),r.base||"");celda(v(24),fechas)}
+  // ---- equipo utilizado: series y lotes de los equipos escogidos en las actividades ----
+  {const T=K.find(n=>n.localName==="tbl"&&/Yoke de im/.test(tx(n)));
+   if(T){const F=filasDe(T),put=(ri,ci,t)=>{const c=F[ri]&&celdasDe(F[ri])[ci];if(c&&t)celda(c,t)};
+    const eqs=t=>{const ids=[...new Set(A.map(x=>x.equipos?.[t]).filter(Boolean))];return ids.map(id=>equipos.find(e=>e.id===id)?.campos).filter(Boolean)};
+    const v=x=>String(x??"").trim(),jn=a=>[...new Set(a.filter(Boolean))].join("; ");
+    const ut=[...eqs("PAUT"),...eqs("PAUTC")],um=eqs("UTME"),mt=eqs("MT"),pt=eqs("PT"),ax=eqs("AUX");
+    put(1,0,jn([...ut,...um].map(c=>[v(c.marca),v(c.modelo),v(c.serie)&&`S/N ${v(c.serie)}`].filter(Boolean).join(" "))));
+    put(2,0,jn(ut.map(c=>[v(c.palpador)&&`Palpador PAUT ${v(c.palpador)}`,v(c.zapata)&&`zapata ${v(c.zapata)}`].filter(Boolean).join(", "))));
+    put(3,0,jn(um.map(c=>v(c.palpador)&&`Palpador dual ${v(c.palpador)}`)));
+    put(6,0,jn([...ut,...um].map(c=>v(c.acoplante)&&`Acoplante: ${v(c.acoplante)}`)));
+    put(7,0,jn(um.map(c=>{const bc=v(c.bloqueCal),num=/^\d+$/.test(bc),sn=v(c.serieBloque)||(num?bc:"");return(bc||sn)&&`${num||!bc?"Escalerilla":bc}${sn?` S/N ${sn}`:""}`})));
+    put(8,0,jn(ut.map(c=>[v(c.bloqueCal)&&`Bloque calibración ${v(c.bloqueCal)}`,v(c.bloqueRef)&&`referencia ${v(c.bloqueRef)}`].filter(Boolean).join(", "))));
+    put(1,1,jn(mt.map(c=>[`Yoke ${v(c.tipoYoke)||""}`.trim(),v(c.marcaYoke),v(c.serieYoke)&&`S/N ${v(c.serieYoke)}`].filter(Boolean).join(" "))));
+    put(5,1,jn(mt.map(c=>[v(c.particulas)&&`Partículas ${v(c.particulas)}${v(c.tipoPart)?` (${v(c.tipoPart).toLowerCase()})`:""}${v(c.lotePart)?` lote ${v(c.lotePart)}`:""}`,v(c.limpiador)&&`limpiador ${v(c.limpiador)}${v(c.loteLimp)?` lote ${v(c.loteLimp)}`:""}`,v(c.contraste)&&!/^n\/?a$/i.test(v(c.contraste))&&`contraste ${v(c.contraste)}`].filter(Boolean).join(", "))));
+    put(1,2,jn(pt.map(c=>[v(c.marcaKit),v(c.limpiador)&&`Limpiador ${v(c.limpiador)}${v(c.loteLimp)?` lote ${v(c.loteLimp)}`:""}`,v(c.penetrante)&&`Penetrante ${v(c.penetrante)}${v(c.lotePen)?` lote ${v(c.lotePen)}`:""}`,v(c.revelador)&&`Revelador ${v(c.revelador)}${v(c.loteRev)?` lote ${v(c.loteRev)}`:""}`].filter(Boolean).join(", "))));
+    // auxiliares (luxómetro, termómetro, etc.)
+    const aux=k=>jn(ax.map(c=>v(c[k])&&`S/N ${v(c[k])}`));const ad=(ri,ci,lab,k)=>{const s=aux(k);if(s)put(ri,ci,`${lab} ${s}`)};
+    ad(2,1,"Indicador de campo","indicador");ad(3,1,"Termómetro láser","termometro");ad(4,1,"Lámpara luz ultravioleta","lamparaUV");ad(7,1,"Gaussímetro","gaussimetro");ad(8,1,"Luxómetro","luxometro");
+    ad(2,2,"Luxómetro","luxometro");ad(5,2,"Calibrador pie de rey","calibrador");ad(6,2,"Escuadras","escuadra");ad(7,2,"Decámetro","decametro");ad(8,2,"Galgas","galgas");ad(5,0,"Escáner con encoder","escaner")}}
   // ---- matriz de alcance (X según lo que de verdad se hizo) ----
   {const T=K.find(n=>n.localName==="tbl"&&/Integridad/.test(tx(n))&&/Reparaci/.test(tx(n)));
    if(T){const F=filasDe(T),mk=(ri,ci,on)=>{const c=F[ri]&&celdasDe(F[ri])[ci];if(c)celda(c,on?"X":"-")};
