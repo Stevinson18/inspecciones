@@ -1334,13 +1334,17 @@ const EQ_CAMPOS={
 const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)"};
 let equipos=[], firmas={}, basesPer={};
 const tecsDe=it=>it.act==="Zona sana"?(it.zsTec==="SCANA"?["UTME"]:["PAUT"]):it.act==="Biseles"?["PT"]:esTN(it.act)?[...new Set((it.tecnicas||[]).map(t=>t==="SCANC"?"PAUT":t))].filter(t=>EQ_CAMPOS[t]):conTec(it.act)?(it.tecnicas||[]).filter(t=>EQ_CAMPOS[t]):[];
-function eqHtml(it){const ts=tecsDe(it);if(!ts.length)return"";
-  return`<span class="label">Equipos y consumibles usados</span>`+ts.map(t=>{const lst=equipos.filter(e=>e.tecnica===t);const sel=it.equipos?.[t]||"";
-    return`<div class="eqsel"><span class="sub2" style="font-weight:600">${t}</span><div class="eqrow"><select class="field" data-eq="${t}" aria-label="Equipo ${t}"${readOnly?" disabled":""}><option value="">${lst.length?"Escoge el equipo…":"Sin equipos registrados"}</option>${lst.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-eqadd="${t}">+ Nuevo</button>`}</div></div>`}).join("");}
+function eqHtml(it){const ts0=tecsDe(it);if(!ts0.length)return"";
+  // PAUT longitudinal y circunferencial pueden hacerse con equipos distintos
+  const pl=conTec(it.act)?plTiposDe(it,tipoAForm()):[];const dos=ts0.includes("PAUT")&&pl.includes("LONG")&&pl.includes("CIRC");
+  const ts=dos?ts0.flatMap(t=>t==="PAUT"?["PAUT","PAUTC"]:[t]):ts0;
+  return`<span class="label">Equipos y consumibles usados</span>`+ts.map(t=>{const tc=t==="PAUTC"?"PAUT":t;const lst=equipos.filter(e=>e.tecnica===tc);const sel=it.equipos?.[t]||"";
+    const nom=t==="PAUTC"?"PAUT circ.":t==="PAUT"&&dos?"PAUT long.":t;
+    return`<div class="eqsel"><span class="sub2" style="font-weight:600">${nom}</span><div class="eqrow"><select class="field" data-eq="${t}" aria-label="Equipo ${t}"${readOnly?" disabled":""}><option value="">${t==="PAUTC"?"El mismo de longitudinales":lst.length?"Escoge el equipo…":"Sin equipos registrados"}</option>${lst.map(e=>`<option value="${esc(e.id)}"${e.id===sel?" selected":""}>${esc(e.nombre||"Sin nombre")}</option>`).join("")}</select>${readOnly?"":`<button class="btn small" type="button" data-eqadd="${tc}">+ Nuevo</button>`}</div></div>`}).join("");}
 // al marcar una técnica se propone el último equipo usado para esa técnica
 function eqDefaults(it){const ts=tecsDe(it);let ch=false;it.equipos={...(it.equipos||{})};
   ts.forEach(t=>{if(!it.equipos[t]){const u=store.get("ultimoEq_"+t);const lst=equipos.filter(e=>e.tecnica===t);const pick=lst.find(e=>e.id===u)||(lst.length===1?lst[0]:null);if(pick){it.equipos[t]=pick.id;ch=true}}});return ch}
-function refreshEq(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;eqDefaults(it);const b=card.querySelector(".eqbox:not(.soldbox):not(.plbox)");if(b)b.innerHTML=eqHtml(it)}
+function refreshEq(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;eqDefaults(it);const b=card.querySelector(".eqsbox");if(b)b.innerHTML=eqHtml(it)}
 // ---------- panel: firmas de inspectores y catálogo de equipos ----------
 const slug=t=>String(t).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 const rid20=()=>{const a=new Uint8Array(10);crypto.getRandomValues(a);return[...a].map(b=>b.toString(16).padStart(2,"0")).join("")};
@@ -1730,7 +1734,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v58";
+const LOCAL=!!window.__LOCAL;const APPV="v60";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2028,7 +2032,7 @@ function itemHtml(it,i){it=it||{};
   <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
   <div class="h0box repbox"${conTecUI(it.act)?"":" hidden"}>${conTecUI(it.act)?h0Html(it):""}</div>
   <div class="eqbox soldbox repbox">${soldHtml(it)}</div><div class="eqbox indbox">${indHtml(it)}</div>
-  <div class="eqbox repbox">${eqHtml(it)}</div>
+  <div class="eqbox repbox eqsbox">${eqHtml(it)}</div>
   <div class="eqbox plbox repbox">${plHtml(it)}</div>
   <div class="fotobox repbox">${fotosHtml(it,i)}</div>
   <div class="zsbox repbox" data-k="${esc(zsAreas(it.reparacion).join("|"))}"${it.act==="Zona sana"?"":" hidden"}>${it.act==="Zona sana"?zsHtml(it):""}</div>
@@ -2289,7 +2293,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
   if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i);refreshInd(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
-  if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);scheduleDraft();return}
+  if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);refreshEq(i);scheduleDraft();return}
   if(e.target.dataset.jon!=null){const it=formItems[i];const no=juntasNo(it,it.reparacion);if(e.target.checked)no.delete(e.target.dataset.jon);else no.add(e.target.dataset.jon);it.juntasNo=[...no];delete it.sinAnillos;refreshSold(i);refreshFotos(i);refreshPl(i);refreshH0?.(i);scheduleDraft();return}
   if(e.target.dataset.sj!=null||e.target.dataset.sall){const it=formItems[i];let v=e.target.value;
     if(v==="__otro"){const n=(prompt("Iniciales del soldador")||"").trim().toUpperCase();if(!n){e.target.value="";return}v=n}
@@ -2751,7 +2755,9 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
     if(t==="Biseles")return rep.tipoCamisa==="cascota"?`Esquema 1. Identificación de biseles rectos de ${cas}`:"Esquema 1. Identificación de biseles inspeccionados";
     if(t==="Tubería nueva")return"Esquema 1. Zonas inspeccionadas de la tubería nueva";if(t==="Zona sana")return"Esquema 1. Identificación de las zonas sanas";
     const d=descCamisa(r,rep);return`Esquema 1. Identificación de soldaduras ${d.charAt(0).toUpperCase()+d.slice(1)}`};
-  async function cabecera(h,it,obs,esq,rep){C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);{const e=num(r.espesor);if(e!=null){if(/^(5\.1|12|13|15|16)\./.test(h))C(h,"AF13",e);else if(/^14\./.test(h))C(h,"AH13",e)}}const a=ANCLAS_REP[h]||{};
+  // fechas de la inspección cuando se hizo en varios días (trazabilidad del cliente)
+  const conFechas=(it,t)=>{if(!t||!(it?.fechasExtra||[]).length||/se realizó los días/.test(t))return t;return`${t.replace(/\s+$/,"")}${/[.!?]$/.test(t.trim())?"":"."} La inspección se realizó los días ${fechasTxt([it.inspFecha||r.fecha,...it.fechasExtra])}.`};
+  async function cabecera(h,it,obs,esq,rep){obs=conFechas(it,obs);C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);{const e=num(r.espesor);if(e!=null){if(/^(5\.1|12|13|15|16)\./.test(h))C(h,"AF13",e);else if(/^14\./.test(h))C(h,"AH13",e)}}const a=ANCLAS_REP[h]||{};
     if(a.realizo)C(h,a.realizo,realizoDe(it));if(/PT|MT/.test(h)&&!/PAUT|Scan/.test(h))ponMed(h,it);if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
@@ -2823,7 +2829,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
           const ladosC=j=>{const n=+(String(j.id).match(/C(\d+)\s*$/)||[])[1]||1;const l=n%2?[j.lados[1],j.lados[0]]:[j.lados[0],j.lados[1]];return[AB[l[0]]||"-","X",AB[l[1]]||"-","X"]};
           const filaC=j=>filaU(j).map(f=>[...f.slice(0,11),...ladosC(j)]);
           const hs=await tabla([sfx({h0:"15.PAUT-CIRC-CAM -1",h12:"15.PAUT-CIRC-CAM -1 12H"})],cc.flatMap(filaC),[...cols.slice(0,11),"AH","AI","AJ","AK"],h=>C(h,"AH30","LADO DE LA INSPECCIÓN"));
-          for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (circunferenciales)","PAUT"),true,rep);ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"CIRC");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,esqCirc(rep))}
+          for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (circunferenciales)","PAUT"),true,rep);ponEq(h,EQ_UT,it.equipos?.PAUTC?equipo(it,"PAUTC"):equipo(it,"PAUT"));const pl=plan(it,"CIRC");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,esqCirc(rep))}
           await fotosEn([sfx({h0:"15F.PAUT-CIRC-CAM -2",h12:"15F.PAUT-CIRC-CAM -2 -12H"})],imgs.filter(x=>/^C\d/.test(x.cap)),"campo",true)}}}
     if(esTN(it.act)&&it.reparacion?.tipo==="Tubería nueva"){const rp=it.reparacion,tec=it.tecnicas||[],tb=tubosDe(rp),L=longTN(rp,r.diametro),ext=num(rp.extremo)??110,cen=num(rp.centro)??3000,fm=v=>String(v).replace(".",",");
       const desc=`al metal base de la tubería nueva, ${tb.join(" y ")} (${fm(ext)} mm en cada extremo en todo el perímetro y ${fm(cen)} mm en el centro)`;
@@ -2832,7 +2838,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
         for(const h of hs){await cabecera(h,it,`Observaciones: Inspección MT fluorescente al metal base de la tubería nueva, ${tb.join(" y ")}: ${fm(ext)} mm en cada extremo (todo el perímetro) y ${fm(cen)} mm en el centro.${it.novedad?"":" No se identificaron indicaciones relevantes."}${it.observaciones?" "+it.observaciones:""}`,true,rp);encab(h);ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn(["4.MT-ZS cam2"],[...fot("MT"),...fot("GEN")],"campo")}
       if(tec.includes("SCANC")){const h="3.SC-ZS CAM2";if(hoja[h]){visibles.add(h);await cabecera(h,it,"",true,rp);encab(h);const a=ANCLAS_REP[h];
-        C(h,"A50",`Observaciones: Se realizó la inspección por ultrasonido Scan C ${desc}.${it.observaciones?" "+it.observaciones:""}`);
+        C(h,"A50",conFechas(it,`Observaciones: Se realizó la inspección por ultrasonido Scan C ${desc}.${it.observaciones?" "+it.observaciones:""}`));
         const imgs=fot("SCI");for(let k=0;k<imgs.length&&k<(a.fotos||[]).length;k++)P(h,a.fotos[k],await fotoRep({...imgs[k],noStamp:imgs[k].noStamp!==false},"campo",a.fotos[k]),"jpeg");
         ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"SCANC");ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC")}}}
     else if(it.act==="Zona sana"&&it.zsTec==="SCANA"){const base="4.Scan A-CAS";if(hoja[base]){const areas=zsAreas(it.reparacion),hs=[base];
@@ -2847,7 +2853,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
           ["AM32","A57","E57","O57","S57"].forEach(c=>C(h,c,"",true));
           const que=ilic?`Se realiza medición de espesores en la zona sana dónde se va a instalar la cascota #${k+1} que cubrirá la zona afectada por la válvula ilícita ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`
             :`Se realiza medición de espesores por ultrasonido (Scan A, palpador dual) en la ${lab.toLowerCase()}, ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`;
-          C(h,"A50",`Observaciones: ${que}${it.novedad?"":""}${it.observaciones?" "+it.observaciones:""}`);
+          C(h,"A50",conFechas(it,`Observaciones: ${que}${it.novedad?"":""}${it.observaciones?" "+it.observaciones:""}`));
           C(h,"N48",`Registro medición de espesores en ${ilic?"zona de Cascota #"+(k+1):lab.toLowerCase()}`);
           const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg){P(h,an.reg,await fotoRep({...im,noStamp:im.noStamp!==false},"campo",an.reg),"jpeg");paq(h,`Registro ${a}`,im,an.reg)}
           C(h,"AT64","si");quitar(h,an.esq);await barrido(h,"SCANA")}}
@@ -2856,7 +2862,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
         const imgs=fot("ZSI"),pl=plan(it,"SCANC");
         for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=areas.slice(2*p,2*p+2);
           const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
-          await cabecera(h,it,obsSC,false,null);C(h,"A50",obsSC);
+          await cabecera(h,it,obsSC,false,null);C(h,"A50",conFechas(it,obsSC));
           ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(it.zsLect?.[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
