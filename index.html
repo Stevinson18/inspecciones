@@ -1693,7 +1693,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v52";
+const LOCAL=!!window.__LOCAL;const APPV="v53";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2026,10 +2026,18 @@ function setActive(i){
   syncCards();commitRep();active=i;loadRep(formItems[i]?.reparacion);renderItems();
   $("repBox").scrollIntoView?.({block:"nearest"});
 }
+// una actividad de horas nueva (p. ej. 12 H) arranca con el esquema, longitudes, soldadores y técnicas de la que ya existe (p. ej. 0 H)
+const vacioIt=it=>!Object.values(it.fotos||{}).some(l=>(l||[]).some(f=>f?.id))&&!Object.values(it.soldadores||{}).some(v=>String(v||"").trim())&&!JSON.stringify(it.reparacion?.largos||{}).match(/\d/);
+function copiarDeHoras(i){const it=formItems[i];if(!it||!conTec(it.act)||!vacioIt(it))return false;
+  const src=[...formItems].reverse().find((x,k)=>x!==it&&conTec(x.act)&&x.reparacion?.tipo&&!vacioIt(x))||[...formItems].reverse().find(x=>x!==it&&conTec(x.act)&&x.reparacion?.tipo);if(!src)return false;
+  const cp=o=>o==null?o:JSON.parse(JSON.stringify(o));
+  Object.assign(it,{reparacion:cp(src.reparacion),soldadores:cp(src.soldadores)||{},tecnicas:cp(src.tecnicas)||it.tecnicas,pautSin:cp(src.pautSin),equipos:cp(src.equipos),planes:cp(src.planes),inspectores:it.inspectores||src.inspectores});
+  delete it.juntasNo;delete it.sinAnillos;delete it.ind;return true}
 function addItem(){
   syncCards();commitRep();
-  const used=new Set(formItems.map(x=>x.act)), next=(ACTS.find(([n])=>!used.has(n))||ACTS[0])[0];
+  const used=new Set(formItems.map(x=>x.act)), next=used.has("0H")&&!used.has("12H")?"12H":(ACTS.find(([n])=>!used.has(n))||ACTS[0])[0];
   formItems.push({act:next,inspectores:formItems[formItems.length-1]?.inspectores||store.get("ultimoInsp")||"",inspFecha:formItems[formItems.length-1]?.inspFecha||$("iFecha").value,reparacion:defaultRep(next)});
+  if(copiarDeHoras(formItems.length-1))setTimeout(()=>toast("Copié el esquema, longitudes, soldadores y técnicas de la otra actividad. Marca las juntas que se inspeccionaron."),50);
   active=formItems.length-1;loadRep(formItems[active].reparacion);renderItems();updateTermHint();
   const last=$("itemsBox").lastElementChild;last?.scrollIntoView?.({block:"nearest"});last?.querySelector('[data-addinsp]')?.focus();
 }
@@ -2225,7 +2233,11 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(e.target.dataset.addinsp!=null){const v=e.target.value;if(v==="__otro"){e.target.value="";const o=card.querySelector("[data-otroinsp]");o.hidden=false;o.focus()}else if(v)setInsp(card,[...inspList(card.querySelector('[data-f="inspectores"]').value),v]);return}
   if(e.target.dataset.otroinsp!=null){const v=e.target.value.trim();if(v)setInsp(card,[...inspList(card.querySelector('[data-f="inspectores"]').value),v]);return}
   // si el esquema era el sugerido para la actividad anterior (o no había), se cambia al de la nueva actividad
-  if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
+  if(f==="act"){const prev=formItems[i]?.act;syncCards();commitRep();const cur=formItems[i].reparacion;
+    // de 0 H a 12 H (o al revés) no se pierde nada: esquema, soldadores, fotos e indicaciones se quedan
+    if(conTec(prev)&&conTec(e.target.value)){formItems[i].act=e.target.value;toast(`Actividad cambiada a ${e.target.value}. Se conservó todo lo registrado.`)}
+    else if(conTec(e.target.value)&&copiarDeHoras(i)){if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i);toast("Copié el esquema, longitudes, soldadores y técnicas de la otra actividad. Marca las juntas que se inspeccionaron.")}
+    else if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
   if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
   if(e.target.dataset.zstec!=null){syncCards();refreshZs(i,true);refreshPl(i);scheduleDraft();return}
   if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshFotos("P");refreshEq(i);refreshPl(i);refreshSold(i)}
