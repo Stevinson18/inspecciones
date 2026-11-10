@@ -1772,7 +1772,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v65";
+const LOCAL=!!window.__LOCAL;const APPV="v66";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2844,10 +2844,11 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
     h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H","13F.PT-CAM -4-12H","14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H","14F.MT-SOLD -4 -12H","16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H","16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H","15.PAUT-CIRC-CAM -1 12H","15F.PAUT-CIRC-CAM -2 -12H"]};
   for(let it of r.items){
     const lugarIt=it.act==="Biseles"&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:it.inspFecha||r.fecha}));
-    if(it===bisCas0&&it.act==="Ilícitas"&&!ptCas)it=bisCas;
-    if(it===bisCas&&!ptCas){bisUsado=true;const hs=await tabla(["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
+    if(it===bisCas0&&it.act==="Ilícitas")it=bisCas;
+    if(it===bisCas){bisUsado=true;// bisel recto de la cascota: reporte propio (hojas de biseles), separado del PT a las soldaduras
+      const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
       for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes al bisel recto de ${n>1?"las cascotas":"la cascota"} para la reparación de la válvula ilícita${it.novedad?"":", en el cual no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,it.reparacion);C(h,"H9","Cascotas");C(h,"T9","Bisel recto");C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
-      await fotosEn(["13F.PT-CAM -4"],fot("PT"),lugarIt)}
+      await fotosEn(["12F.PT-BIS-CAM 2","12F.PT-BIS-CAM 6","12F.PT-BIS-CAM 7"],fotDe(it,"PT"),lugarIt)}
     else if(it.act==="Biseles"&&it!==bisCas&&it.reparacion?.tipo){const rep=it.reparacion;const filas=bisRows(rep).map(([id,len])=>[id,"N/A",len,"-","-","-",resultado(it),"-"]);
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filas,["A","G","K","O","R","U","Z","AD"],()=>{});
       for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes a los biseles de la ${descCamisa(r,repCam||rep)}${it.novedad?"":", en los cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
@@ -2864,7 +2865,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
       const hayJ=js.some(j=>j.tope),hayC=js.some(j=>!j.tope),objE=hayJ?`a las juntas a tope tubo-tubo${hayC?` y a las soldaduras de la ${descCamisa(r,rep)}`:""}`:`a las soldaduras${SA?.adj||""} de la ${descCamisa(r,rep)}`;
       const que=t=>ilic?`${insp} por ${t} a las soldaduras de filete de ${nc>1?"las cascotas instaladas":"la cascota instalada"} sobre la zona afectada por la válvula ilícita`:`${insp} por ${t} ${objE}`;
       const t9=(h,pre)=>{if(SA&&!ilic)C(h,"T9",pre?`${pre} / ${SA.lab}`:hayJ&&!hayC?`Juntas a tope${SA.mom?" /"+SA.mom.replace(/^ a/," A").replace(/^ d/," D"):""}`:SA.t9)};
-      const conBis=!!bisCas&&!!ptCas&&!H12&&!dupN&&(it.tecnicas||[]).includes("PT");
+      const conBis=false;
       if(tec.includes("PT")){const hs=await tabla(sfx({h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H"]}),[...(conBis?filasBisCas():[]),...js.flatMap(j=>filaPM("PT",j))],["A","G","K","O","R","U","Z","AD"],()=>{});
         for(const h of hs){await cabecera(h,it,obsTxt(it,que("líquidos penetrantes")+(conBis?` y al bisel recto de ${nc>1?"las cascotas":"la cascota"}`:""),"PT"),true,conBis?{...rep,vista:"0H+B"}:rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9",conBis?"Bisel recto y soldaduras":"Soldaduras")}t9(h);ponEq(h,EQ_PT,equipo(it,"PT"))}
         await fotosEn([sfx({h0:"13F.PT-CAM -4",h12:"13F.PT-CAM -4-12H"})],[...(conBis?fotDe(bisCas,"PT"):[]),...fot("PT")],"campo")}
