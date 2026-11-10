@@ -1330,6 +1330,20 @@ function h0CalcHtml(it){
   <div class="tot"><span>Longitudinales ${mm(c.lon)} mm</span><span>Circunferenciales ${mm(c.circ)} mm</span><span>Total <b>${mm(c.total)} mm</b> = <b>${mt(c.total)} m</b></span></div>
   <p class="note">Directas cubiertas: −2,2" (55,9 mm) por cada lado bajo otra sección. Perímetros con OD ${mm1(c.D)} mm (${fIn(c.D)}") + espesor de cada camisa (${c.t.toFixed(3).replace(".",",")}" = ${mm1(c.t)} mm).</p></div>`;
 }
+// ---- ilícita: un solo informe con 4 reportes (zona sana, bisel recto, PT y MT a las soldaduras de filete) ----
+const ilLink=t=>t==="ZS"?formItems.find(x=>x.act==="Zona sana"&&x.reparacion?.tipo==="Ilícita"):formItems.find(x=>x.act==="0H"&&x.reparacion?.tipo==="Ilícita");
+function ilHtml(it){const zs=ilLink("ZS"),h=ilLink("H"),on={ZS:!!zs,BIS:it.ilBis!==false,PT:!!h&&(h.tecnicas||[]).includes("PT"),MT:!!h&&(h.tecnicas||[]).includes("MT")};
+  const L=[["ZS",`Zona sana${zs?` (${zsT(zs).filter(t=>t!=="MT").map(t=>t==="SCANA"?"Scan A":"Scan C").join(" + ")||"escoge Scan C o A"})`:" · Scan C o Scan A"}`],["BIS","Biseles · bisel recto de la cascota (PT)"],["PT","PT · soldaduras de filete"],["MT","MT · soldaduras de filete"]];
+  return`<span class="label">Reportes de la ilícita (un solo informe) · marca los que se hicieron</span><div class="picks">${L.map(([k,l])=>`<label class="pick"><input type="checkbox" data-ilrep="${k}"${on[k]?" checked":""}${readOnly?" disabled":""}><span>${l}</span></label>`).join("")}</div>
+  <p class="note">Zona sana y PT/MT a soldaduras quedan como actividades de este mismo punto (cada una con su fecha, inspector y fotos); en la zona sana escoges Scan C o Scan A. Aquí van las fotos del bisel recto.</p>`}
+function ilToggle(i,k,on){syncCards();commitRep();const it=formItems[i];if(!it)return;const rep=JSON.parse(JSON.stringify(it.reparacion?.tipo?it.reparacion:{tipo:"Ilícita"}));const base={inspectores:it.inspectores||"",inspFecha:it.inspFecha||$("iFecha").value};
+  const lleno=x=>Object.values(x.fotos||{}).some(v=>Array.isArray(v)?v.some(Boolean):!!v)||[x.zsLect,x.zsLectA].some(L=>Object.values(L||{}).flat().some(Boolean))||(x.ind||[]).length>0;
+  if(k==="BIS"){it.ilBis=on;if(on)it.tecnicas=["PT"]}
+  else if(k==="ZS"){const z=ilLink("ZS");if(on&&!z)formItems.splice(formItems.indexOf(it),0,{act:"Zona sana",...base,reparacion:rep,zsTecs:["SCANA"],zsTec:"SCANA"});
+    else if(!on&&z){if(lleno(z))setTimeout(()=>toast("La zona sana ya tiene lecturas o fotos: si no se hizo, bórrala con su botón."),50);else formItems.splice(formItems.indexOf(z),1)}}
+  else{let h=ilLink("H");if(on){if(!h){h={act:"0H",...base,reparacion:rep,tecnicas:[]};formItems.splice(formItems.indexOf(it)+1,0,h)}if(!(h.tecnicas||[]).includes(k))h.tecnicas=[...(h.tecnicas||[]),k]}
+    else if(h){h.tecnicas=(h.tecnicas||[]).filter(t=>t!==k);if(!h.tecnicas.length){if(lleno(h))setTimeout(()=>toast("Esa actividad ya tiene fotos o indicaciones: si no se hizo, bórrala con su botón."),50);else formItems.splice(formItems.indexOf(h),1)}}}
+  active=formItems.indexOf(it);loadRep(it.reparacion);renderItems();scheduleDraft()}
 function h0Html(it){fixTec(it);const tec=it.tecnicas||[];
   if(esTN(it.act)){const rp=it.reparacion||{},ext=num(rp.extremo)??110,cen=num(rp.centro)??3000,nt=nInt(rp.tubos,1,1,20),od=odOf($("iDiam").value);
     const ETAPAS=["","Antes del doblado","Después del doblado"],et=it.etapa||"";
@@ -1758,7 +1772,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v64";
+const LOCAL=!!window.__LOCAL;const APPV="v65";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2056,6 +2070,7 @@ function itemHtml(it,i){it=it||{};
   <label class="check"><input type="checkbox" data-f="novedad"${it.novedad?" checked":""}> Tiene novedad (bloquea el informe)</label>
   <textarea class="field" data-f="observaciones" placeholder="Observaciones o novedad de esta actividad">${esc(it.observaciones||"")}</textarea>
   <div class="h0box repbox"${conTecUI(it.act)?"":" hidden"}>${conTecUI(it.act)?h0Html(it):""}</div>
+  <div class="ilbox repbox"${it.act==="Ilícitas"?"":" hidden"}>${it.act==="Ilícitas"?ilHtml(it):""}</div>
   <div class="eqbox soldbox repbox">${soldHtml(it)}</div><div class="eqbox indbox">${indHtml(it)}</div>
   <div class="eqbox repbox eqsbox">${eqHtml(it)}</div>
   <div class="eqbox plbox repbox">${plHtml(it)}</div>
@@ -2164,7 +2179,7 @@ function updateDrawing(){
   if(rep)$("drawing").innerHTML=drawRepair({...rep,vista:formItems[active]?.act},metaForm(),PAL_VAR,false);
   $("btnImg").hidden=!rep||!downloads;
   updateLtCheck(rep);
-  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>{refreshFotos(active);refreshSold(active)},400)}
+  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;if(formItems[active].act==="Ilícitas"&&rep?.tipo==="Ilícita")formItems.forEach(x=>{if(x!==formItems[active]&&x.reparacion?.tipo==="Ilícita"&&(x.act==="Zona sana"||x.act==="0H"))x.reparacion=JSON.parse(JSON.stringify(rep))});refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>{refreshFotos(active);refreshSold(active)},400)}
 }
 function updateTermHint(){
   const term=$("iPunto").value==="Terminado";
@@ -2319,10 +2334,13 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
     else if(!cur?.tipo||cur.tipo===defaultRep(prev)?.tipo){formItems[i].reparacion=defaultRep(e.target.value);if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i)}}
   if(f==="entregaFecha"){const q=card.querySelector('[data-f="entregaQuien"]');if(e.target.value&&!q.value)q.value=store.get("ultimoQuien")||(card.querySelector('[data-f="inspectores"]').value.split(",")[0]||"").trim();updateTermHint()}
   if(e.target.dataset.zstec!=null||e.target.dataset.zstecs!=null){syncCards();refreshZs(i,true);refreshPl(i);scheduleDraft();return}
-  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}fixTec(formItems[i]);refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshFotos("P");refreshEq(i);refreshPl(i);refreshSold(i);refreshInd(i)}
+  if(f==="act"){const lb=card.querySelector(".lugbis");if(lb)lb.hidden=e.target.value!=="Biseles";syncCards();if(esTN(e.target.value)){const t=(formItems[i].tecnicas||[]).filter(x=>x==="MT"||x==="SCANC");formItems[i].tecnicas=t.length?t:["MT"]}fixTec(formItems[i]);refreshZs(i,true);refreshH0(i,true);refreshFotos(i);refreshFotos("P");refreshEq(i);refreshPl(i);refreshSold(i);refreshInd(i);
+      {const ib=card.querySelector(".ilbox");if(ib){ib.hidden=e.target.value!=="Ilícitas";ib.innerHTML=ib.hidden?"":ilHtml(formItems[i])}}
+      if(e.target.value==="Ilícitas"&&!ilLink("ZS")&&!ilLink("H")){const it=formItems[i];it.tecnicas=["PT"];for(const k of ["PT","MT","ZS"])ilToggle(formItems.indexOf(it),k,true);setTimeout(()=>toast("Ilícita: activé zona sana, bisel recto, PT y MT. Desmarca lo que no se hizo."),60)}}
   if(f==="lugarInsp"){syncCards();refreshAllFotos()}
   if(e.target.dataset.tec){syncCards();refreshH0(i);refreshFotos(i);refreshEq(i);refreshPl(i);refreshSold(i);refreshInd(i)}
   if(e.target.dataset.eq){const it=formItems[i];it.equipos={...(it.equipos||{}),[e.target.dataset.eq]:e.target.value};if(e.target.value)store.set("ultimoEq_"+e.target.dataset.eq,e.target.value);refreshPl(i)}
+  if(e.target.dataset.ilrep!=null){ilToggle(i,e.target.dataset.ilrep,e.target.checked);return}
   if(e.target.dataset.jtt!=null){const it=formItems[i];it.juntasTT=nInt(e.target.value,0,0,40);refreshSold(i);refreshFotos(i);refreshPl(i);refreshInd(i);scheduleDraft();return}
   if(e.target.dataset.etapa!=null){const it=formItems[i];it.etapa=e.target.value;scheduleDraft();return}
   if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);refreshEq(i);scheduleDraft();return}
@@ -2815,7 +2833,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
   const paq=(h,cap,f,an)=>{const it_=fotos[h]?.at(-1);if(it_)paquete.push({carpeta:etiqueta(h),cap,bytes:it_.bytes,ext:it_.ext})};
   const altura=(h,src)=>{const a=num(src.alturaRef);if(a!=null)C(h,"AC25",a>1?a/100:a)};
   // ilícita: el bisel recto de la cascota va en el mismo registro de PT que las soldaduras (0 horas)
-  const bisCas0=r.items.find(x=>(x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota")||(x.act==="Ilícitas"&&(x.tecnicas||["PT"]).includes("PT")&&fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k==="PT")||{k:"PT",caps:[]}).some(f=>f.id)));
+  const bisCas0=r.items.find(x=>(x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota")||(x.act==="Ilícitas"&&x.ilBis!==false&&(x.tecnicas||["PT"]).includes("PT")&&fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k==="PT")||{k:"PT",caps:[]}).some(f=>f.id)));
   // el bisel recto se describe con las cascotas de la reparación (número y Ø)
   const bisCas=bisCas0&&bisCas0.act==="Ilícitas"?{...bisCas0,reparacion:{tipo:"Biseles",tipoCamisa:"cascota",nCas:nInt(bisCas0.reparacion?.cascotas,1,1,12),diamCas:bisCas0.reparacion?.largos?.cas||[],unidad:bisCas0.reparacion?.unidad||"pulg"}}:bisCas0;
   const ptCas=r.items.find(x=>x.act==="0H"&&(x.tecnicas||[]).includes("PT")&&x.reparacion?.tipo);let bisUsado=false;
