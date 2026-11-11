@@ -426,6 +426,13 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
     </fieldset>
 
     <fieldset>
+      <legend class="label">Reportes de compañeros (Excel)</legend>
+      <p class="note">Carga el Excel que te envió un compañero y marca las hojas de su reporte. Entran al reporte integrado tal como las hizo (datos, resultados y fotos); el PK y el informe N° se ponen con los de este punto.</p>
+      <div id="extBox"></div>
+      <button type="button" class="btn small ghost" id="btnExtAdd">➕ Agregar reporte de Excel</button>
+    </fieldset>
+
+    <fieldset>
       <legend class="label">Estado del punto de trabajo</legend>
       <div class="grid2">
         <label class="f"><span class="label">Estado</span><select class="field" id="iPunto"></select></label>
@@ -895,7 +902,7 @@ function drawRepair(rep,meta,P,compact){
     const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
     const MB=!!rep.mb;// MT al metal base: se resalta toda la pieza, no los biseles
     const shell=(xx,yy,w,h,label,sup)=>{
-      if(MB){R(xx,yy,w,h,{f:"#f2a93b",s:"#9a5b00",sw:1.4});R(xx+3,yy+3,w-6,h-6,{f:"none",s:"#ffffff",sw:1,d:"4 3"});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:"#2b1700"});return}
+      if(MB){R(xx,yy,w,h,{f:"#39e75f",s:"#0b6b25",sw:1.4});R(xx+3,yy+3,w-6,h-6,{f:"none",s:"#d9ffe2",sw:1,d:"4 3"});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:"#05300f"});return}
       R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2});
       R(xx+1,sup?yy+1:yy+h-1-h*0.28,w-2,h*0.28,{f:P.shellHi});
       const a=xx+5,b=xx+w-5;
@@ -913,7 +920,7 @@ function drawRepair(rep,meta,P,compact){
       T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":""),{s:11,c:P.muted})}
       x+=w+GAP;});
     if(!compact){
-      if(MB){S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#f2a93b",s:"#9a5b00",sw:1.2});T(58,74,"Metal base inspeccionado MT (100 %)",{a:"start",s:12,w:600});S.push(`</g>`)}else{
+      if(MB){S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#39e75f",s:"#0b6b25",sw:1.2});T(58,74,"Metal base inspeccionado MT fluorescente (100 %)",{a:"start",s:12,w:600});S.push(`</g>`)}else{
       S.push(`<g data-fijo="135">`);L(20,70,52,70,{s:P.l1,sw:3});T(58,74,"Biseles L1",{a:"start",s:12,w:600});
       L(150,70,182,70,{s:P.l2,sw:3});T(188,74,"Biseles L2",{a:"start",s:12,w:600});S.push(`</g>`)}
     }
@@ -1777,7 +1784,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v69";
+const LOCAL=!!window.__LOCAL;const APPV="v70";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2218,7 +2225,7 @@ function openForm(r,addAct,actIdx){
   $("iNom").value=NOMINALES.includes(r?.nominal)?r.nominal:"";
   $("iMatTub").value=MATERIALES.includes(r?.materialTub)?r.materialTub:"";
   $("iCoord").value=r?.coord||"";$("iCoordPatio").value=r?.coordPatio||"";
-  puntoF={act:"__punto",fotos:JSON.parse(JSON.stringify(r?.fotosPunto||{})),anexoMin:r?.anexoMin||""};fotosQuitadas.clear();
+  puntoF={act:"__punto",fotos:JSON.parse(JSON.stringify(r?.fotosPunto||{})),anexoMin:r?.anexoMin||"",repsExt:JSON.parse(JSON.stringify(r?.repsExt||[]))};extSel=null;setTimeout(refreshExt,0);fotosQuitadas.clear();
   $("iPunto").value=r?.estadoPunto||(r?"":"En ejecución");
   $("iTerm").value=r?.terminadoEn||"";
   formItems=r?r.items.map(({consecutivo,...it})=>({...it})):[{act:"Zona sana",inspectores:store.get("ultimoInsp")||"",reparacion:defaultRep("Zona sana")}];
@@ -2311,6 +2318,66 @@ $("form").addEventListener("click",e=>{
   if(fa){const i=foOf(fa),k=fa.dataset.fadd;const it=own(i);const gr=fotoGrupos(it).find(g=>g.k===k);
     const n=fotoSlots(it,gr).length;setFoto(i,k,n,{cap:gr.caps[gr.caps.length-1]||"",id:null});refreshFotos(i);scheduleDraft();return}
 });
+// ---- reportes de compañeros (hojas de otro Excel) ----
+let extSel=null;
+const dxe=s=>String(s).replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,"&");
+const colL2=n=>{let s="";while(n>0){const m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=(n-m-1)/26}return s};
+const aB64=u8=>{let s="";for(let i=0;i<u8.length;i+=32768)s+=String.fromCharCode.apply(null,u8.subarray(i,i+32768));return btoa(s)};
+const deB64=b=>{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u};
+async function leerExcelExt(buf){const ents=zipLeer(buf);const E=Object.fromEntries(ents.map(e=>[e.name,e]));const T=async n=>E[n]?new TextDecoder().decode(await inflar(E[n])):"";
+  const wb=await T("xl/workbook.xml"),rl=await T("xl/_rels/workbook.xml.rels");const tg={};
+  for(const m of rl.matchAll(/<Relationship [^>]*>/g)){const id=m[0].match(/Id="([^"]+)"/)?.[1],t=m[0].match(/Target="([^"]+)"/)?.[1];if(id&&t)tg[id]=t.replace(/^\/?xl\//,"")}
+  const hojas=[...wb.matchAll(/<sheet [^>]*\/>/g)].map((m,i)=>({i,nombre:dxe(m[0].match(/name="([^"]+)"/)[1]),oculta:/state="(hidden|veryHidden)"/.test(m[0]),file:"xl/"+tg[m[0].match(/r:id="([^"]+)"/)[1]]})).filter(h=>E[h.file]);
+  return{E,T,wb,hojas}}
+// celdas del encabezado donde va el valor de INFORME N° y PK (a la derecha de su rótulo)
+function cabExt(xml){const mg=[...xml.matchAll(/<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g)].map(m=>({c0:colN(m[1]),r0:+m[2],c1:colN(m[3]),r1:+m[4]}));const cel=[];
+  for(const m of xml.matchAll(/<c r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)){if(+m[2]>12)continue;cel.push({c:colN(m[1]),r:+m[2],t:dxe((m[3]||"").replace(/<[^>]+>/g,"")).trim()})}
+  const val=l=>{const g=mg.find(g=>g.r0<=l.r&&l.r<=g.r1&&g.c0<=l.c&&l.c<=g.c1),fin=g?g.c1:l.c;const a=cel.filter(x=>x.r===l.r&&x.c>fin).sort((p,q)=>p.c-q.c)[0],b=mg.filter(g=>g.r0===l.r&&g.c0>fin).sort((p,q)=>p.c0-q.c0)[0];
+    const c=Math.min(a?.c??1e9,b?.c0??1e9);return c<1e9?colL2(c)+l.r:null};
+  const inf=cel.find(x=>/^INFORME\s*N/i.test(x.t)),pk=cel.find(x=>/^PK\s*:?$/i.test(x.t));return{inf:inf?val(inf):null,pk:pk?val(pk):null}}
+async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/sharedStrings.xml");const SI=[...sst.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map(m=>m[1]||"<t></t>");
+  const media={},hojas=[];const res=(base,t)=>{if(t.startsWith("/"))return t.slice(1);const o=[];for(const q of (base.replace(/[^/]+$/,"")+t).split("/")){if(q==="..")o.pop();else if(q!==".")o.push(q)}return o.join("/")};
+  const PA=[...wb.matchAll(/<definedName [^>]*>[^<]*<\/definedName>/g)].map(m=>m[0]).filter(d=>/_xlnm\.Print_Area/.test(d));
+  for(const h of sel){let xml=await T(h.file);
+    // textos compartidos → texto en la celda; fórmulas → su último resultado (así no dependen del otro libro)
+    xml=xml.replace(/<c ([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g,(m,at,end,body)=>{if(end==="/>")return m;const t=(at.match(/\bt="([^"]+)"/)||[])[1];const v=(body.match(/<v[^>]*>([\s\S]*?)<\/v>/)||[])[1];const a2=at.replace(/\s*\bt="[^"]*"/,"");
+      // encabezado (proyecto, cliente, línea, PK, informe, diámetro…): si viene de Matriz1 se deja la fórmula para que tome los datos de este punto (menos elemento, parte y fecha, fila 9)
+      {const f=(body.match(/<f>([^<]*)<\/f>/)||[])[1],rr=+((at.match(/r="[A-Z]+(\d+)"/)||[])[1]||0);if(f&&rr<=14&&rr!==9&&/^\+?'?Matriz1'?!\$?[A-Z]+\$?\d+$/.test(f.trim()))return`<c ${a2}><f>${f.trim().replace(/^\+/,"")}</f></c>`}
+      if(t==="s"){const q=SI[+v];return q==null?`<c ${a2}/>`:`<c ${a2} t="inlineStr"><is>${q}</is></c>`}
+      if(t==="inlineStr")return`<c ${a2} t="inlineStr">${(body.match(/<is>[\s\S]*?<\/is>/)||["<is><t></t></is>"])[0]}</c>`;
+      if(t==="str")return v==null?`<c ${a2}/>`:`<c ${a2} t="inlineStr"><is><t xml:space="preserve">${v}</t></is></c>`;
+      if(t==="e")return`<c ${a2}/>`;if(t==="b")return v==null?`<c ${a2}/>`:`<c ${a2} t="b"><v>${v}</v></c>`;
+      return v==null||v===""?`<c ${a2}/>`:`<c ${a2}><v>${v}</v></c>`});
+    xml=xml.replace(/<sheetProtection[^>]*\/>|<protectedRanges>[\s\S]*?<\/protectedRanges>|<conditionalFormatting[\s\S]*?<\/conditionalFormatting>|<dataValidations[\s\S]*?<\/dataValidations>|<hyperlinks>[\s\S]*?<\/hyperlinks>|<legacyDrawing[^>]*\/>|<legacyDrawingHF[^>]*\/>|<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>|<extLst>[\s\S]*?<\/extLst>|<picture[^>]*\/>|<oleObjects>[\s\S]*?<\/oleObjects>|<controls>[\s\S]*?<\/controls>|<mc:AlternateContent[\s\S]*?<\/mc:AlternateContent>/g,"").replace(/\s+tabSelected="1"/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1");
+    let dib=null;const rls=await T(h.file.replace(/([^/]+)$/,"_rels/$1.rels"));const dm=rls.match(/<Relationship [^>]*Type="[^"]*\/drawing"[^>]*\/>/);
+    if(dm&&/<drawing /.test(xml)){const dp=res(h.file,dm[0].match(/Target="([^"]+)"/)[1]);let dx=await T(dp);const drl=await T(dp.replace(/([^/]+)$/,"_rels/$1.rels"));const imgs={};
+      for(const m of drl.matchAll(/<Relationship [^>]*\/>/g)){const id=m[0].match(/Id="([^"]+)"/)[1],t=m[0].match(/Target="([^"]+)"/)[1];if(/\/image"/.test(m[0])&&!/TargetMode="External"/.test(m[0])){const mp=res(dp,t);if(E[mp]){const key=mp.split("/").pop();if(!media[key])media[key]=aB64(await inflar(E[mp]));imgs[id]=key}}}
+      // solo quedan imágenes y formas propias (sin gráficos ni vínculos a otros archivos)
+      dx=dx.replace(/<xdr:(twoCellAnchor|oneCellAnchor|absoluteAnchor)\b[\s\S]*?<\/xdr:\1>/g,a=>[...a.matchAll(/r:(?:embed|id|link)="([^"]+)"/g)].every(q=>imgs[q[1]])?a:"");
+      dib={xml:dx,imgs}}
+    if(!dib)xml=xml.replace(/<drawing [^>]*\/>/,"");
+    const pa=PA.find(d=>new RegExp(`localSheetId="${h.i}"`).test(d));const area=pa?[...pa.matchAll(/\$[A-Z]+\$\d+:\$[A-Z]+\$\d+/g)].map(q=>q[0]).join(","):"";
+    hojas.push({nombre:h.nombre,xml,dib,area,cab:cabExt(xml)})}
+  return{v:1,archivo,fecha:Date.now(),styles:await T("xl/styles.xml"),media,hojas}}
+window.__ext={leerExcelExt,paqueteExt};
+function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
+  let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
+  if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"><span>${esc(s.nombre)}</span></label>`).join("")}</div>
+    <div class="eqrow" style="margin-top:6px"><button type="button" class="btn small" id="extOk">Agregar hojas marcadas</button><button type="button" class="btn small ghost" id="extNo">Cancelar</button></div></div>`;
+  b.innerHTML=h||`<p class="note">Sin reportes de compañeros.</p>`;$("btnExtAdd").hidden=readOnly||!!extSel}
+$("btnExtAdd").addEventListener("click",()=>{if(!assets){toast("Para guardar el Excel necesitas permiso de edición (o la app instalada).");return}
+  const fi=document.createElement("input");fi.type="file";fi.accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  fi.onchange=async()=>{const f=fi.files[0];if(!f)return;try{const x=await leerExcelExt(await f.arrayBuffer());if(!x.hojas.length)throw new Error("sin hojas");extSel={archivo:f.name,x};refreshExt()}catch(e){toast("No pude leer ese Excel (debe ser .xlsx).")}};fi.click()});
+$("extBox").addEventListener("click",async e=>{const d=e.target.closest("[data-extdel]");
+  if(d){if(!d.dataset.ok){d.dataset.ok="1";d.textContent="¿Quitar? Toca otra vez";return}puntoF.repsExt.splice(+d.dataset.extdel,1);refreshExt();scheduleDraft();return}
+  if(e.target.id==="extNo"){extSel=null;refreshExt();return}
+  if(e.target.id==="extOk"){const ks=[...$("extBox").querySelectorAll("[data-exth]:checked")].map(c=>+c.dataset.exth);if(!ks.length){toast("Marca al menos una hoja.");return}
+    const b=e.target;b.disabled=true;b.textContent="Guardando…";
+    try{const sel=ks.map(k=>extSel.x.hojas[k]);const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
+      const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fecha:Date.now()});
+      const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);extSel=null;refreshExt();scheduleDraft();
+      toast(sinCab.length?`Agregado. En ${sinCab.join(", ")} no encontré la casilla de PK o informe N°: revísala en el reporte.`:"Reporte agregado: sale en el reporte integrado con el PK e informe de este punto.")}
+    catch(err){b.disabled=false;b.textContent="Agregar hojas marcadas";toast("No se pudo guardar: "+(err.message||err))}}});
 $("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refreshFotos("P");scheduleDraft()});
 // al tocar una descripción sugerida se selecciona toda, para escribir encima
 $("form").addEventListener("focusin",e=>{const t=e.target;if(t.dataset?.fcap!=null&&t.value){const def=t.defaultValue;if(t.value===def)setTimeout(()=>{try{t.select()}catch(_){}},0)}});
@@ -2404,7 +2471,7 @@ $("form").addEventListener("submit",async e=>{
     materialTub:$("iMatTub").value,
     coord:$("iCoord").value.trim(),
     coordPatio:$("iCoordPatio").value.trim(),
-    fotosPunto:puntoF.fotos||{},anexoMin:puntoF.anexoMin||"",
+    fotosPunto:puntoF.fotos||{},anexoMin:puntoF.anexoMin||"",repsExt:puntoF.repsExt||[],
     fecha:$("iFecha").value,
     pk:$("iPk").value.trim(),
     dr:$("iDr").value.trim(),
@@ -2527,7 +2594,7 @@ async function unzip(buf){// solo lee zips sin compresión, como los que arma la
     const lnl=v.getUint16(lo+26,true), lxl=v.getUint16(lo+28,true), st=lo+30+lnl+lxl; out[name]=u8.slice(st,st+sz); o+=46+nl+xl+cl}
   return out;
 }
-const fotoIdsDe=r=>[...(r.items||[]),{fotos:r.fotosPunto||{}}].flatMap(it=>Object.values(it.fotos||{}).flat().map(f=>f?.id).filter(Boolean));
+const fotoIdsDe=r=>[...(r.items||[]),{fotos:r.fotosPunto||{}},{fotos:{X:r.repsExt||[]}}].flatMap(it=>Object.values(it.fotos||{}).flat().map(f=>f?.id).filter(Boolean));
 // celular → archivo .zip con los puntos y sus fotos
 $("btnPaquete").addEventListener("click",async()=>{
   const b=$("btnPaquete");b.disabled=true;b.textContent="Armando paquete…";
@@ -2568,7 +2635,7 @@ async function importarZip(f){{const b=$("btnImport");b.disabled=true;
       const mapG=async g=>{const o={};for(const[k,arr]of Object.entries(g||{}))o[k]=await Promise.all((arr||[]).map(mapF));return o};
       const items=[];for(const it of p.items||[])items.push({...it,fotos:await mapG(it.fotos)});
       const {id,...rest}=p;
-      await db.collection("trabajos").doc(id).set({...rest,modificado:p.modificado||p.creado||0,items,fotosPunto:await mapG(p.fotosPunto),importado:Date.now()});nP++;
+      await db.collection("trabajos").doc(id).set({...rest,modificado:p.modificado||p.creado||0,items,fotosPunto:await mapG(p.fotosPunto),repsExt:await Promise.all((p.repsExt||[]).map(mapF)),importado:Date.now()});nP++;
     }
     // lo que llega de otro equipo no cuenta como "sin enviar" en este
     if(LOCAL)store.set("ultimoEnvio",String(Math.max(+store.get("ultimoEnvio")||0,Date.now())));updPaquete();
@@ -2970,6 +3037,44 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     return new Blob([await zipEscribir(ents)],{type:"application/zip"})}
   const relsQuitar=new Set(),archivosQuitar=new Set();
   // ---- paginación por reporte (técnica): datos primero, luego fotos; páginas de fotos vacías fuera ----
+  // reportes de compañeros: sus hojas entran tal cual (estilos renumerados), junto a las del mismo formato, con PK e informe de este punto
+  const extHojas=new Set(),medExt=new Map();let pqN=0;
+  async function insertarExt(pq){pqN++;let st=extra["xl/styles.xml"]??await txt("xl/styles.xml");const ot=pq.styles||"";
+    const blk=(x,t)=>{const m=x.match(new RegExp(`<${t}\\b[^>]*>([\\s\\S]*?)</${t}>`));return m?m[1]:""};
+    const its=(inner,el)=>inner.match(new RegExp(`<${el}\\b(?:[^>]*/>|[^>]*>[\\s\\S]*?</${el}>)`,"g"))||[];
+    const off={},pon=(tag,el,nuevos)=>{const n0=its(blk(st,tag),el).length;off[tag]=n0;if(!nuevos.length)return;
+      if(new RegExp(`<${tag}\\b`).test(st))st=st.replace(new RegExp(`(<${tag}\\b[^>]*>)([\\s\\S]*?)</${tag}>`),(m,o,c)=>`${o.replace(/\s+count="\d+"/,"").replace(new RegExp(`^<${tag}`),`<${tag} count="${n0+nuevos.length}"`)}${c}${nuevos.join("")}</${tag}>`);
+      else st=st.replace(/(<styleSheet\b[^>]*>)/,`$1<${tag} count="${nuevos.length}">${nuevos.join("")}</${tag}>`)};
+    const nfMine=its(blk(st,"numFmts"),"numFmt"),nfMax=Math.max(163,...nfMine.map(q=>+(q.match(/numFmtId="(\d+)"/)||[])[1]||0));const nfMap={};let nfN=nfMax;
+    const nfNew=its(blk(ot,"numFmts"),"numFmt").map(q=>{const id=+(q.match(/numFmtId="(\d+)"/)||[])[1];nfMap[id]=++nfN;return q.replace(/numFmtId="\d+"/,`numFmtId="${nfN}"`)});
+    const oF=its(blk(st,"fonts"),"font").length,oFi=its(blk(st,"fills"),"fill").length,oB=its(blk(st,"borders"),"border").length;
+    pon("numFmts","numFmt",nfNew);pon("fonts","font",its(blk(ot,"fonts"),"font"));pon("fills","fill",its(blk(ot,"fills"),"fill"));pon("borders","border",its(blk(ot,"borders"),"border"));
+    const xfOff=its(blk(st,"cellXfs"),"xf").length;
+    pon("cellXfs","xf",its(blk(ot,"cellXfs"),"xf").map(q=>q.replace(/fontId="(\d+)"/,(m,n)=>`fontId="${+n+oF}"`).replace(/fillId="(\d+)"/,(m,n)=>`fillId="${+n+oFi}"`).replace(/borderId="(\d+)"/,(m,n)=>`borderId="${+n+oB}"`).replace(/numFmtId="(\d+)"/,(m,n)=>`numFmtId="${nfMap[+n]??n}"`).replace(/xfId="\d+"/,'xfId="0"')));
+    extra["xl/styles.xml"]=st;
+    for(const hx of pq.hojas){const base=hx.nombre.replace(/ #\d+$/,"").slice(0,27);let k=2;while(hoja[`${base} #${k}`]||hoja[`${base} #${k}`.slice(0,31)])k++;const nuevo=`${base} #${k}`.slice(0,31);
+      const nf="sheet"+(++sheetN);
+      let x=hx.xml.replace(/(<c [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<row [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<col [^>]*?\bstyle=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`);
+      let r2='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+      if(hx.dib){const nd=`drawing${++drawN}.xml`;let dr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+        for(const[id,key]of Object.entries(hx.dib.imgs)){const mn=`ext${pqN}_${key}`;if(!medExt.has(mn)&&pq.media[key])medExt.set(mn,deB64(pq.media[key]));dr+=`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mn}"/>`}
+        extra["xl/drawings/"+nd]=hx.dib.xml;extra[`xl/drawings/_rels/${nd}.rels`]=dr+"</Relationships>";
+        x=x.replace(/<drawing r:id="[^"]+"\s*\/>/,'<drawing r:id="rIdExtD"/>');r2+=`<Relationship Id="rIdExtD" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/${nd}"/>`;
+        ctAdd.push(`<Override PartName="/xl/drawings/${nd}" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`)}
+      extra[`xl/worksheets/${nf}.xml`]=x;extra[`xl/worksheets/_rels/${nf}.xml.rels`]=r2+"</Relationships>";
+      ctAdd.push(`<Override PartName="/xl/worksheets/${nf}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`);
+      const nr="rIdC"+(++ridN);relsAdd.push(`<Relationship Id="${nr}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/${nf}.xml"/>`);rid[nr]=nf;
+      // va después de la hoja de la plantilla con el mismo nombre (y sus copias); si no hay, al final
+      const tags=[...wbxM.matchAll(/<sheet [^>]*\/>/g)];const nm=t=>t[0].match(/name="([^"]+)"/)[1].replace(/&amp;/g,"&").replace(/&apos;/g,"'");
+      let pos=-1;tags.forEach((t,i)=>{const q=nm(t);if(q===base||q.startsWith(base+" #")||q.startsWith(base+" ("))pos=i});if(pos<0)pos=tags.length-1;
+      const ins=pos+1,prev=tags[pos],at=prev.index+prev[0].length;
+      wbxM=wbxM.slice(0,at)+`<sheet name="${xe(nuevo)}" sheetId="${++sheetIdMax}" r:id="${nr}"/>`+wbxM.slice(at);
+      wbxM=wbxM.replace(/(<definedName [^>]*localSheetId=")(\d+)(")/g,(m0,a,b,c)=>+b>=ins?a+(+b+1)+c:m0);
+      if(hx.area){const dn=`<definedName name="_xlnm.Print_Area" localSheetId="${ins}">${hx.area.split(",").map(a=>`'${xe(nuevo.replace(/'/g,"''"))}'!${a}`).join(",")}</definedName>`;
+        wbxM=/<\/definedNames>/.test(wbxM)?wbxM.replace("</definedNames>",dn+"</definedNames>"):wbxM.replace("</sheets>","</sheets><definedNames>"+dn+"</definedNames>")}
+      hoja[nuevo]=nf;visibles.add(nuevo);extHojas.add(nuevo);
+      if(hx.cab?.inf&&r.consecutivo)C(nuevo,hx.cab.inf,r.consecutivo);if(hx.cab?.pk&&r.pk)C(nuevo,hx.cab.pk,r.pk)}}
+  for(const e of r.repsExt||[]){if(!e?.id)continue;let pq;try{pq=JSON.parse(await (await blobFoto(e.id)).text())}catch(err){throw new Error(`No pude abrir el reporte de compañero «${e.archivo||"Excel"}»: ${err.message||err}`)}await insertarExt(pq)}
   const grupoBase=g=>g.replace(/#\d+$/,"");const esFoto=h=>/^\d+F\.|ANEXFOT/.test(h)||!!AREA_FOTOS[h]||/ F\d+$/.test(h);
   const grupoDe=h=>{const m=h.match(/^(\d+)F?\.\s*([A-Za-z]+)/);return m?m[1]+m[2]+(/12H|-12\b|1-12/.test(h)?"-12H":"")+((h.match(/ (#\d+)(?: F\d+)?$/)||[])[1]||""):h};
   const baseDe=h=>{if(PAGS_REP[h])return h;const sin=h.replace(/ #\d+(?= F\d+$|$)/,"");if(PAGS_REP[sin])return sin;return Object.keys(PAGS_REP).find(b=>sin.startsWith(b.slice(0,22))&&/ F\d+$|\(\d+\)$/.test(sin))||h};
@@ -2984,7 +3089,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       let ult=AREA_FOTOS[h]&&a.ini===1?0:-1;out.forEach((q,k)=>{if(filas.some(r_=>r_>=q.ini&&r_<=q.fin))ult=k});
       if(ult<out.length-1&&ult>=0){ponArea(a,out[ult].fin);out.splice(ult+1)}}
     return out};
-  const vis=nomOrden.filter(h=>visibles.has(h)&&h!=="Matriz1");const grupos={};vis.forEach(h=>(grupos[grupoDe(h)]??=[]).push(h));
+  const vis=nomOrden.filter(h=>visibles.has(h)&&h!=="Matriz1"&&!extHojas.has(h));const grupos={};vis.forEach(h=>(grupos[grupoDe(h)]??=[]).push(h));
   const ordenFinal={};
   for(const[g,hs]of Object.entries(grupos)){const ord=[...hs.filter(h=>!esFoto(h)),...hs.filter(esFoto)];ordenFinal[g]=ord;
     const pgs=ord.map(h=>[h,paginas(h)]);const tot=pgs.reduce((n,[,q])=>n+q.length,0);let n=0;
@@ -3035,7 +3140,8 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     const y=x.replace(/<sheetProtection[^>]*\/>/g,"").replace(/showErrorMessage="(1|true)"/g,'showErrorMessage="0"').replace(/<protectedRanges>[\s\S]*?<\/protectedRanges>/g,"").replace(/<c ((?:(?!t=)[^>])*?)><f>([^<]*)<\/f><v( xml:space="preserve")?>([^<]*)<\/v><\/c>/g,(m,at,f,sp,v)=>v.trim()!==""&&isFinite(+v)?m:`<c ${at} t="str"><f>${f}</f><v${sp||""}>${v}</v></c>`);
     if(y!==x)nuevas[n]=y}
   nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<workbookProtection[^>]*\/>/g,"").replace(/<fileSharing[^>]*\/>/g,"");
-  let ct=await txt("[Content_Types].xml");if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="xml"');if(!/Extension="png"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="png" ContentType="image/png"/><Default Extension="xml"');if(relsAdd.length){ct=ct.replace("</Types>",ctAdd.join("")+"</Types>").replace(/<Override [^>]*calcChain[^>]*\/>/,"");
+  let ct=await txt("[Content_Types].xml");if(!/Extension="jpeg"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="jpeg" ContentType="image/jpeg"/><Default Extension="xml"');if(!/Extension="png"/i.test(ct))ct=ct.replace('<Default Extension="xml"','<Default Extension="png" ContentType="image/png"/><Default Extension="xml"');
+  for(const m of medExt.keys()){const ex=(m.match(/\.(\w+)$/)||[])[1];const TY={jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",gif:"image/gif",emf:"image/x-emf",wmf:"image/x-wmf",bmp:"image/bmp",tif:"image/tiff",tiff:"image/tiff"};if(ex&&!new RegExp(`Extension="${ex}"`,"i").test(ct))ct=ct.replace('<Default Extension="xml"',`<Default Extension="${ex}" ContentType="${TY[ex.toLowerCase()]||"application/octet-stream"}"/><Default Extension="xml"`)}if(relsAdd.length){ct=ct.replace("</Types>",ctAdd.join("")+"</Types>").replace(/<Override [^>]*calcChain[^>]*\/>/,"");
     nuevas["xl/_rels/workbook.xml.rels"]=rels.replace(/<Relationship [^>]*calcChain[^>]*\/>/,"").replace("</Relationships>",relsAdd.join("")+"</Relationships>")}
   if(archivosQuitar.size){for(const a of archivosQuitar)ct=ct.replace(new RegExp(`<Override PartName="/${a.replace(/\./g,"\\.")}"[^>]*/>`),"");ct=ct.replace(/<Override [^>]*calcChain[^>]*\/>/,"");
     const wr=nuevas["xl/_rels/workbook.xml.rels"]??rels;nuevas["xl/_rels/workbook.xml.rels"]=wr.replace(/<Relationship [^>]*\/>/g,m=>{const id=(m.match(/Id="([^"]+)"/)||[])[1];return relsQuitar.has(id)||/calcChain/.test(m)?"":m})}
@@ -3049,7 +3155,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     nuevas["[Content_Types].xml"]=nuevas["[Content_Types].xml"].replace(/<Override PartName="\/xl\/(externalLinks\/[^"]+|calcChain\.xml)"[^>]*\/>/g,"")}
   const enc=new TextEncoder();const salida=ents.filter(e=>!((relsAdd.length||archivosQuitar.size)&&e.name==="xl/calcChain.xml")&&!archivosQuitar.has(e.name)).map(e=>nuevas[e.name]!=null?{name:e.name,data:enc.encode(nuevas[e.name])}:{name:e.name,raw:e});
   Object.keys(nuevas).filter(k=>!E[k]).forEach(k=>salida.push({name:k,data:enc.encode(nuevas[k])}));
-  medios.forEach(([m,b])=>salida.push({name:"xl/media/"+m,data:b}));
+  medios.forEach(([m,b])=>salida.push({name:"xl/media/"+m,data:b}));medExt.forEach((b,m)=>salida.push({name:"xl/media/"+m,data:b}));
   return zipEscribir(salida);
 }
 // ---------- romper vínculos: cada fórmula se cambia por su valor (para que otro la pegue en su libro sin enlaces) ----------
