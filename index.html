@@ -1784,7 +1784,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v71";
+const LOCAL=!!window.__LOCAL;const APPV="v72";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2348,7 +2348,7 @@ async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/s
       if(t==="str")return v==null?`<c ${a2}/>`:`<c ${a2} t="inlineStr"><is><t xml:space="preserve">${v}</t></is></c>`;
       if(t==="e")return`<c ${a2}/>`;if(t==="b")return v==null?`<c ${a2}/>`:`<c ${a2} t="b"><v>${v}</v></c>`;
       return v==null||v===""?`<c ${a2}/>`:`<c ${a2}><v>${v}</v></c>`});
-    xml=xml.replace(/<sheetProtection[^>]*\/>|<protectedRanges>[\s\S]*?<\/protectedRanges>|<conditionalFormatting[\s\S]*?<\/conditionalFormatting>|<dataValidations[\s\S]*?<\/dataValidations>|<hyperlinks>[\s\S]*?<\/hyperlinks>|<legacyDrawing[^>]*\/>|<legacyDrawingHF[^>]*\/>|<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>|<extLst>[\s\S]*?<\/extLst>|<picture[^>]*\/>|<oleObjects>[\s\S]*?<\/oleObjects>|<controls>[\s\S]*?<\/controls>|<mc:AlternateContent[\s\S]*?<\/mc:AlternateContent>/g,"").replace(/\s+tabSelected="1"/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1");
+    xml=xml.replace(/<sheetProtection[^>]*\/>|<protectedRanges>[\s\S]*?<\/protectedRanges>|<conditionalFormatting[\s\S]*?<\/conditionalFormatting>|<dataValidations[\s\S]*?<\/dataValidations>|<hyperlinks>[\s\S]*?<\/hyperlinks>|<legacyDrawing[^>]*\/>|<legacyDrawingHF[^>]*\/>|<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>|<extLst>[\s\S]*?<\/extLst>|<picture[^>]*\/>|<oleObjects>[\s\S]*?<\/oleObjects>|<controls>[\s\S]*?<\/controls>|<mc:AlternateContent[\s\S]*?<\/mc:AlternateContent>/g,"").replace(/\s+tabSelected="1"/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1").replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/,"$1");
     let dib=null;const rls=await T(h.file.replace(/([^/]+)$/,"_rels/$1.rels"));const dm=rls.match(/<Relationship [^>]*Type="[^"]*\/drawing"[^>]*\/>/);
     if(dm&&/<drawing /.test(xml)){const dp=res(h.file,dm[0].match(/Target="([^"]+)"/)[1]);let dx=await T(dp);const drl=await T(dp.replace(/([^/]+)$/,"_rels/$1.rels"));const imgs={};
       for(const m of drl.matchAll(/<Relationship [^>]*\/>/g)){const id=m[0].match(/Id="([^"]+)"/)[1],t=m[0].match(/Target="([^"]+)"/)[1];if(/\/image"/.test(m[0])&&!/TargetMode="External"/.test(m[0])){const mp=res(dp,t);if(E[mp]){const key=mp.split("/").pop();if(!media[key])media[key]=aB64(await inflar(E[mp]));imgs[id]=key}}}
@@ -2359,10 +2359,34 @@ async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/s
     const pa=PA.find(d=>new RegExp(`localSheetId="${h.i}"`).test(d));const area=pa?[...pa.matchAll(/\$[A-Z]+\$\d+:\$[A-Z]+\$\d+/g)].map(q=>q[0]).join(","):"";
     hojas.push({nombre:h.nombre,xml,dib,area,cab:cabExt(xml)})}
   return{v:1,archivo,fecha:Date.now(),styles:await T("xl/styles.xml"),media,hojas}}
-window.__ext={leerExcelExt,paqueteExt};
+// hoja de anexo fotográfico de otro Excel: cada imagen (sin logos del encabezado) con el texto que tiene debajo como leyenda
+async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst=await T("xl/sharedStrings.xml");const SI=[...sst.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map(m=>dxe((m[1]||"").replace(/<rPh[\s\S]*?<\/rPh>/g,"").replace(/<[^>]+>/g,"")));
+  const txtC={};for(const m of xml.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){const t=(m[3].match(/\bt="([^"]+)"/)||[])[1],b=m[4]||"";let v="";
+    if(t==="s")v=SI[+((b.match(/<v>(\d+)<\/v>/)||[])[1])]||"";else if(t==="inlineStr")v=dxe(b.replace(/<[^>]+>/g,""));else if(t==="str")v=dxe((b.match(/<v[^>]*>([\s\S]*?)<\/v>/)||[])[1]||"");
+    v=v.trim();if(v)txtC[m[1]+m[2]]=v}
+  const rls=await T(h.file.replace(/([^/]+)$/,"_rels/$1.rels"));const dm=rls.match(/<Relationship [^>]*Type="[^"]*\/drawing"[^>]*\/>/);if(!dm)return[];
+  const res=(base,t)=>{if(t.startsWith("/"))return t.slice(1);const o=[];for(const q of (base.replace(/[^/]+$/,"")+t).split("/")){if(q==="..")o.pop();else if(q!==".")o.push(q)}return o.join("/")};
+  const dp=res(h.file,dm[0].match(/Target="([^"]+)"/)[1]),dx=await T(dp),drl=await T(dp.replace(/([^/]+)$/,"_rels/$1.rels"));const tgt={};
+  for(const m of drl.matchAll(/<Relationship [^>]*\/>/g)){if(/\/image"/.test(m[0]))tgt[m[0].match(/Id="([^"]+)"/)[1]]=res(dp,m[0].match(/Target="([^"]+)"/)[1])}
+  const out=[];const gen=/^(registro fotogr|foto|imagen|descripci|anexo)/i;
+  for(const a of dx.matchAll(/<xdr:(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/xdr:\1>/g)){const A=a[0],emb=(A.match(/r:embed="([^"]+)"/)||[])[1];if(!emb||!tgt[emb]||!E[tgt[emb]])continue;
+    const g=(k,tag)=>+((A.match(new RegExp(`<xdr:${tag}>[\\s\\S]*?<xdr:${k}>(\\d+)<`))||[])[1]??-1);const r0=g("row","from"),c0=g("col","from");let r1=g("row","to"),c1=g("col","to");if(r1<0){r1=r0+12;c1=c0+8}
+    if(r0<9||(r1>=0&&r1-r0<6))continue;// logos y encabezados de cada página (las fotos ocupan muchas filas)
+    const ext=(tgt[emb].match(/\.(\w+)$/)||[])[1]?.toLowerCase();if(!/^(jpe?g|png|gif|bmp|webp)$/.test(ext||""))continue;
+    let cap="";for(let rr=r1+1;rr<=r1+4&&!cap;rr++)for(let cc=Math.max(0,c0-1);cc<=c1+1&&!cap;cc++){const v=txtC[colL2(cc+1)+rr];if(v&&!/^\d+$/.test(v))cap=v}
+    const bytes=await inflar(E[tgt[emb]]),type=ext==="png"?"image/png":ext==="gif"?"image/gif":"image/jpeg";
+    try{const bm=await createImageBitmap(new Blob([bytes],{type}));let ok=bm.width>=200&&bm.height>=150;
+      // recuadros vacíos (fondo blanco con una raya) no son fotos
+      if(ok){const cv=document.createElement("canvas");cv.width=48;cv.height=36;const g=cv.getContext("2d");g.drawImage(bm,0,0,48,36);const d=g.getImageData(0,0,48,36).data;let cl=0;for(let q=0;q<d.length;q+=4)if(d[q+3]<30||(d[q]>235&&d[q+1]>235&&d[q+2]>235))cl++;if(cl/(d.length/4)>0.9)ok=false}
+      bm.close?.();if(!ok)continue}catch(e){continue}
+    if(/^(\d+\.\s*FOTOS|P[ÁA]GINA)/i.test(cap))cap="";
+    out.push({r0,c0,cap:gen.test(cap)&&cap.length<25?"":cap,bytes,type})}
+  return out.sort((p,q)=>p.r0-q.r0||p.c0-q.c0)}
+const esAnexo=n=>/ANEX/i.test(n);
+window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt};
 function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
   let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
-  if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"><span>${esc(s.nombre)}</span></label>`).join("")}</div>
+  if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
     <div class="eqrow" style="margin-top:6px"><button type="button" class="btn small" id="extOk">Agregar hojas marcadas</button><button type="button" class="btn small ghost" id="extNo">Cancelar</button></div></div>`;
   b.innerHTML=h||`<p class="note">Sin reportes de compañeros.</p>`;$("btnExtAdd").hidden=readOnly||!!extSel}
 $("btnExtAdd").addEventListener("click",()=>{if(!assets){toast("Para guardar el Excel necesitas permiso de edición (o la app instalada).");return}
@@ -2373,10 +2397,16 @@ $("extBox").addEventListener("click",async e=>{const d=e.target.closest("[data-e
   if(e.target.id==="extNo"){extSel=null;refreshExt();return}
   if(e.target.id==="extOk"){const ks=[...$("extBox").querySelectorAll("[data-exth]:checked")].map(c=>+c.dataset.exth);if(!ks.length){toast("Marca al menos una hoja.");return}
     const b=e.target;b.disabled=true;b.textContent="Guardando…";
-    try{const sel=ks.map(k=>extSel.x.hojas[k]);const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
-      const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fecha:Date.now()});
-      const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);extSel=null;refreshExt();scheduleDraft();
-      toast(sinCab.length?`Agregado. En ${sinCab.join(", ")} no encontré la casilla de PK o informe N°: revísala en el reporte.`:"Reporte agregado: sale en el reporte integrado con el PK e informe de este punto.")}
+    try{const todas=ks.map(k=>extSel.x.hojas[k]),anx=todas.filter(h=>esAnexo(h.nombre)),sel=todas.filter(h=>!esAnexo(h.nombre));let nF=0,msg=[];
+      // anexo fotográfico: sus fotos pasan al anexo de la app (con su leyenda), no como hoja aparte
+      for(const h of anx){const fs_=await fotosAnexoExt(extSel.x,h);const arr=(puntoF.fotos.ANX??=[]);
+        for(const f of fs_){b.textContent=`Subiendo fotos del anexo… ${++nF}`;const up=await assets.upload(new Blob([f.bytes],{type:f.type}),{type:f.type});const o={id:up.id,cap:f.cap||"Registro fotográfico",noStamp:true,origen:extSel.archivo};
+          const j=arr.findIndex(x=>!x?.id);if(j>=0)arr[j]={...arr[j],...o};else arr.push(o)}}
+      if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico`)}
+      if(sel.length){const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
+        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fecha:Date.now()});
+        const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
+      extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.")}
     catch(err){b.disabled=false;b.textContent="Agregar hojas marcadas";toast("No se pudo guardar: "+(err.message||err))}}});
 $("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refreshFotos("P");scheduleDraft()});
 // al tocar una descripción sugerida se selecciona toda, para escribir encima
@@ -3054,7 +3084,8 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     extra["xl/styles.xml"]=st;
     for(const hx of pq.hojas){const base=hx.nombre.replace(/ #\d+$/,"").slice(0,27);let k=2;while(hoja[`${base} #${k}`]||hoja[`${base} #${k}`.slice(0,31)])k++;const nuevo=`${base} #${k}`.slice(0,31);
       const nf="sheet"+(++sheetN);
-      let x=hx.xml.replace(/(<c [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<row [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<col [^>]*?\bstyle=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`);
+      let x=hx.xml.replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/,"$1").replace(/<c ([^>]*?)><f>'?Matriz1'?!\$?([A-Z]+)\$?(\d+)<\/f><\/c>/g,(m,at,c_,r_)=>{const v=celdas.Matriz1?.[c_+r_];if(v==null||v==="")return m;return typeof v==="number"?`<c ${at}><f>Matriz1!${c_}${r_}</f><v>${v}</v></c>`:`<c ${at} t="str"><f>Matriz1!${c_}${r_}</f><v>${xe(v)}</v></c>`})
+        .replace(/(<c [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<row [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<col [^>]*?\bstyle=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`);
       let r2='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
       if(hx.dib){const nd=`drawing${++drawN}.xml`;let dr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
         for(const[id,key]of Object.entries(hx.dib.imgs)){const mn=`ext${pqN}_${key}`;if(!medExt.has(mn)&&pq.media[key])medExt.set(mn,deB64(pq.media[key]));dr+=`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${mn}"/>`}
@@ -3478,7 +3509,7 @@ async function accionReporte(r,modo,btn){
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{if(modo==="fotos"){const blob=await generarReporte(r,"fotos");const d=await guardar(`FOTOS_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}.zip`,blob,"Fotos");toast("Paquete de fotos listo"+d);return}
     const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":modo==="valores"?"-SIN_VINCULOS":""}.xlsx`;
-    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Reporte final sin vínculos listo":"Reporte final listo")+d)}
+    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");const nx=(r.repsExt||[]).reduce((n,e)=>n+(e.hojas||[]).length,0);toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Reporte final sin vínculos listo":"Reporte final listo")+(nx?` · con ${nx} ${nx===1?"hoja":"hojas"} de compañeros (al lado de las del mismo formato, terminan en #2, #3…)`:"")+d)}
   catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar: "+(e?.message||e))}}
   finally{btn.disabled=false;btn.textContent=t0}}
 function confirmarLista(f){return new Promise(ok=>{const d=$("revp");$("revLista").innerHTML=f.map(x=>`<li>${esc(x)}</li>`).join("");d.hidden=false;
