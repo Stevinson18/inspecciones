@@ -1784,7 +1784,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v73";
+const LOCAL=!!window.__LOCAL;const APPV="v74";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2248,7 +2248,7 @@ function closeForm(){$("scrim").hidden=true;editing=null;dirty=false;clearTimeou
 const DRAFT_KEY="borradorPunto";
 let dirty=false, draftT=null;
 const FIELDS=["iCons","iFecha","iPk","iSistema","iLinea","iLineaOtra","iDiam","iLugar","iCiudad","iBase","iTipoRep","iEsp","iMat","iNom","iMatTub","iCoord","iCoordPatio","iPunto","iTerm"];
-function captureForm(){return{id:editing?.id||null,active,f:Object.fromEntries(FIELDS.map(k=>[k,$(k).value])),items:readItems(),pf:puntoF.fotos||{},t:Date.now()}}
+function captureForm(){return{id:editing?.id||null,active,f:Object.fromEntries(FIELDS.map(k=>[k,$(k).value])),items:readItems(),pf:puntoF.fotos||{},px:puntoF.repsExt||[],pm:puntoF.anexoMin||"",t:Date.now()}}
 function saveDraft(){if($("scrim").hidden||readOnly||!dirty)return;try{store.set(DRAFT_KEY,JSON.stringify(captureForm()))}catch(e){}}
 function scheduleDraft(){dirty=true;clearTimeout(draftT);draftT=setTimeout(saveDraft,500)}
 function readDraft(){try{const d=JSON.parse(store.get(DRAFT_KEY)||"null");return d&&Array.isArray(d.items)?d:null}catch(e){return null}}
@@ -2259,7 +2259,7 @@ function applyDraft(d){
   $("wLineaOtra").hidden=$("iLinea").value!=="__otra";
   setCiudad($("iCiudad").value);
   lastG=$("iTipoRep").value;
-  if(d.pf)puntoF={act:"__punto",fotos:d.pf};
+  if(d.pf)puntoF={act:"__punto",fotos:d.pf,repsExt:d.px||r?.repsExt||[],anexoMin:d.pm??r?.anexoMin??""};refreshExt();
   formItems=d.items.map(x=>({...x}));if(!formItems.length)formItems=[{act:"Zona sana",reparacion:null}];
   active=Math.min(Math.max(0,d.active||0),formItems.length-1);
   renderItems();refreshFotos("P");loadRep(formItems[active]?.reparacion);updateTermHint();
@@ -2578,7 +2578,8 @@ async function onAction(e){
   if(t.dataset.edit){try{return openForm(rows.find(r=>r.id===t.dataset.edit),false,t.dataset.i!=null?+t.dataset.i:undefined)}
     catch(err){console.error(err);$("scrim").hidden=false;toast("No se pudo abrir el punto: "+(err?.message||err)+". Mándele una captura a Claude.")}return}
   if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
-  if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;if(t.dataset.gen==="word")return accionInforme(r,t);return accionReporte(r,t.dataset.gen,t)}
+  if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;
+    {const d=readDraft();const abierto=!$("scrim").hidden&&editing?.id===r.id&&dirty;if(abierto||(d&&d.id===r.id&&(d.t||0)>(r.modificado||0))){toast("Este punto tiene cambios sin guardar (consecutivo, reportes de compañeros, fotos…). Ábrelo, toca Guardar y vuelve a generar.");if(!abierto&&d)showDraftBar();return}}if(t.dataset.gen==="word")return accionInforme(r,t);return accionReporte(r,t.dataset.gen,t)}
   const id=t.dataset.deliver||t.dataset.finish; if(!id||!db)return;
   const r=rows.find(x=>x.id===id);if(!r)return;
   t.disabled=true;
