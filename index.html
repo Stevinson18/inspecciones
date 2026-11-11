@@ -1363,7 +1363,7 @@ const EQ_CAMPOS={
   MT:[["tipoPart","Tipo de partículas","Fluorescentes"],["tecnica","Técnica de magnetización","Yoke"],["tipoYoke","Tipo de yoke","Electroimán"],["metodo","Método de magnetización","Continuo"],["corriente","Corriente del yoke","AC"],["marcaYoke","Marca del yoke","Magnaflux"],["serieYoke","Serie del yoke","43530"],["marcaKit","Marca kit partículas","Met-L-Chek"],["limpiador","Limpiador","E-59A"],["loteLimp","Lote limpiador","32831"],["particulas","Partículas","MPI-1400B"],["lotePart","Lote partículas","32451"],["contraste","Contraste / lote","N/A"]],
   PAUT:[["marca","Marca","OLYMPUS"],["modelo","Modelo","OMNI - SX"],["serie","Serie","QC-077617"],["modulo","Módulo","16/64"],["softAdq","Software adquisición","MXU-4.4 R3"],["softAna","Software análisis","OMNIPC 5.13.0"],["palpador","Palpador (referencia)","5L16 A10"],["zapata","Zapata","SA10-N55S"],["frecuencia","Frecuencia (MHz)","5"],["bloqueCal","Bloque calibración","IIW-V1"],["bloqueRef","Bloque referencia","API 1104"],["acoplante","Acoplante","Agua"]],
   AUX:[["luxometro","Serie luxómetro",""],["termometro","Serie termómetro láser",""],["gaussimetro","Serie gaussímetro",""],["indicador","Serie indicador de campo",""],["lamparaUV","Serie lámpara UV",""],["calibrador","Serie calibrador pie de rey",""],["escuadra","Serie escuadras",""],["decametro","Serie decámetro",""],["galgas","Serie galgas",""],["escaner","Serie escáner con encoder",""]],
-  UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración","Escalerilla"],["serieBloque","Serie bloque calibración","60986"],["acoplante","Acoplante","Metilcelulosa"]]};
+  UTME:[["marca","Marca",""],["modelo","Modelo",""],["serie","Serie",""],["modulo","Módulo (si es OmniScan)",""],["softAdq","Software adquisición",""],["softAna","Software análisis",""],["palpador","Palpador",""],["bloqueCal","Bloque calibración","Escalerilla"],["serieBloque","Serie bloque calibración","60986"],["acoplante","Acoplante","Metilcelulosa"]]};
 const EQ_NOM={PT:"Tintas penetrantes (PT)",MT:"Partículas magnéticas (MT)",PAUT:"Ultrasonido PAUT",UTME:"Medición de espesores (UTME)",AUX:"Instrumentos auxiliares (luxómetro, termómetro…)"};
 let equipos=[], firmas={}, basesPer={};
 const tecsDe=it=>(t=>t.length?[...t,"AUX"]:t)(tecsDe0(it));
@@ -1772,7 +1772,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v66";
+const LOCAL=!!window.__LOCAL;const APPV="v67";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2812,7 +2812,12 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
   const equipo=(it,t)=>equipos.find(e=>e.id===it.equipos?.[t])?.campos||{};const plan=(it,t)=>planes.find(p=>p.id===it.planes?.[t])?.campos||{};
-  const ponEq=(h,mapa,src)=>{const todo=(mapa===EQ_UT||mapa===EQ_PT||mapa===EQ_MT)&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
+  // módulo y software: si el equipo no los tiene (p. ej. UTME o un PAUT a medio llenar) se toman del PAUT registrado con la misma serie
+const utCompleto=src=>{if(!src)return src;const K=["modulo","softAdq","softAna"];if(K.every(k=>String(src[k]??"").trim()))return src;
+  const dig=x=>String(x??"").replace(/\D/g,""),sd=dig(src.serie);const cand=equipos.filter(e=>e.tecnica==="PAUT"&&e.campos);
+  const m=(sd&&cand.find(e=>{const d=dig(e.campos.serie);return d&&(d===sd||d.endsWith(sd)||sd.endsWith(d))&&K.some(k=>String(e.campos[k]??"").trim())}))||cand.find(e=>K.every(k=>String(e.campos[k]??"").trim())&&String(e.campos.modelo||"").trim()&&String(e.campos.modelo).trim()===String(src.modelo||"").trim());
+  if(!m)return src;const o={...src};K.forEach(k=>{if(!String(o[k]??"").trim()&&String(m.campos[k]??"").trim())o[k]=m.campos[k]});return o};
+const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa===EQ_UT||mapa===EQ_PT||mapa===EQ_MT)&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
   // equipo de la actividad; si no lo tiene, el que se usó para esa técnica en otra actividad del punto
   const eqDe=(it,ts)=>{for(const x of [it,...r.items.filter(y=>y!==it)])for(const t of ts){const e=equipos.find(q=>q.id===x.equipos?.[t]);if(e)return e.campos||{}}return{}};
   const EQ_PT={H20:"tipoPen",V20:"metodo",H23:"marcaKit",E24:"limpiador",K24:"loteLimp",R24:"revelador",W24:"loteRev",AD24:"penetrante",AI24:"lotePen",AI22:"tPen",AI23:"tRev"};
