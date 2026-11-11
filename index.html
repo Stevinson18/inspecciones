@@ -1784,7 +1784,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v72";
+const LOCAL=!!window.__LOCAL;const APPV="v73";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3069,6 +3069,9 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
   // ---- paginación por reporte (técnica): datos primero, luego fotos; páginas de fotos vacías fuera ----
   // reportes de compañeros: sus hojas entran tal cual (estilos renumerados), junto a las del mismo formato, con PK e informe de este punto
   const extHojas=new Set(),medExt=new Map();let pqN=0;
+  const ordenTipo=n=>{const u=n.toUpperCase();if(u==="MATRIZ1")return 0;if(/ANEX/.test(u))return 999;const h12=/12\s*H|-12\b|1-12|12H/.test(u)?100:0;const f=/^\d+F\.| F\d+$/.test(n)?0.5:0;
+    if(/SC-ZS|SCAN\s*C/.test(u))return 10+f;if(/SCAN\s*A|ESPESOR/.test(u))return 12+f;if(/MT-ZS|METAL\s*BASE|MT-TN/.test(u))return 20+f;if(/BIS/.test(u))return 30+f;
+    if(/PAUT/.test(u))return h12+(/CIRC|\bC-|SOLD C|CIRC/.test(u)?60:70)+f;if(/\bPT|PT-|PT\./.test(u))return h12+40+f;if(/\bMT|MT-|MT\./.test(u))return h12+50+f;return 500};
   async function insertarExt(pq){pqN++;let st=extra["xl/styles.xml"]??await txt("xl/styles.xml");const ot=pq.styles||"";
     const blk=(x,t)=>{const m=x.match(new RegExp(`<${t}\\b[^>]*>([\\s\\S]*?)</${t}>`));return m?m[1]:""};
     const its=(inner,el)=>inner.match(new RegExp(`<${el}\\b(?:[^>]*/>|[^>]*>[\\s\\S]*?</${el}>)`,"g"))||[];
@@ -3082,7 +3085,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     const xfOff=its(blk(st,"cellXfs"),"xf").length;
     pon("cellXfs","xf",its(blk(ot,"cellXfs"),"xf").map(q=>q.replace(/fontId="(\d+)"/,(m,n)=>`fontId="${+n+oF}"`).replace(/fillId="(\d+)"/,(m,n)=>`fillId="${+n+oFi}"`).replace(/borderId="(\d+)"/,(m,n)=>`borderId="${+n+oB}"`).replace(/numFmtId="(\d+)"/,(m,n)=>`numFmtId="${nfMap[+n]??n}"`).replace(/xfId="\d+"/,'xfId="0"')));
     extra["xl/styles.xml"]=st;
-    for(const hx of pq.hojas){const base=hx.nombre.replace(/ #\d+$/,"").slice(0,27);let k=2;while(hoja[`${base} #${k}`]||hoja[`${base} #${k}`.slice(0,31)])k++;const nuevo=`${base} #${k}`.slice(0,31);
+    for(const hx of pq.hojas){const base=hx.nombre.trim().replace(/ #\d+$/,"").slice(0,27);let nuevo=base;if(hoja[nuevo]){let k=2;while(hoja[`${base} #${k}`])k++;nuevo=`${base} #${k}`}
       const nf="sheet"+(++sheetN);
       let x=hx.xml.replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/,"$1").replace(/<c ([^>]*?)><f>'?Matriz1'?!\$?([A-Z]+)\$?(\d+)<\/f><\/c>/g,(m,at,c_,r_)=>{const v=celdas.Matriz1?.[c_+r_];if(v==null||v==="")return m;return typeof v==="number"?`<c ${at}><f>Matriz1!${c_}${r_}</f><v>${v}</v></c>`:`<c ${at} t="str"><f>Matriz1!${c_}${r_}</f><v>${xe(v)}</v></c>`})
         .replace(/(<c [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<row [^>]*?\bs=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`).replace(/(<col [^>]*?\bstyle=")(\d+)"/g,(m,a,n)=>`${a}${+n+xfOff}"`);
@@ -3097,7 +3100,8 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       const nr="rIdC"+(++ridN);relsAdd.push(`<Relationship Id="${nr}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/${nf}.xml"/>`);rid[nr]=nf;
       // va después de la hoja de la plantilla con el mismo nombre (y sus copias); si no hay, al final
       const tags=[...wbxM.matchAll(/<sheet [^>]*\/>/g)];const nm=t=>t[0].match(/name="([^"]+)"/)[1].replace(/&amp;/g,"&").replace(/&apos;/g,"'");
-      let pos=-1;tags.forEach((t,i)=>{const q=nm(t);if(q===base||q.startsWith(base+" #")||q.startsWith(base+" ("))pos=i});if(pos<0)pos=tags.length-1;
+      // orden de realización: zona sana (Scan C, Scan A), MT zona sana / metal base, biseles, PT, MT, PAUT (0 H y luego 12 H) y al final el anexo
+      const c=ordenTipo(hx.nombre);let pos=0;tags.forEach((t,i)=>{const q=nm(t);if((visibles.has(q)||q==="Matriz1")&&ordenTipo(q)<=c)pos=i});
       const ins=pos+1,prev=tags[pos],at=prev.index+prev[0].length;
       wbxM=wbxM.slice(0,at)+`<sheet name="${xe(nuevo)}" sheetId="${++sheetIdMax}" r:id="${nr}"/>`+wbxM.slice(at);
       wbxM=wbxM.replace(/(<definedName [^>]*localSheetId=")(\d+)(")/g,(m0,a,b,c)=>+b>=ins?a+(+b+1)+c:m0);
@@ -3509,7 +3513,7 @@ async function accionReporte(r,modo,btn){
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{if(modo==="fotos"){const blob=await generarReporte(r,"fotos");const d=await guardar(`FOTOS_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}.zip`,blob,"Fotos");toast("Paquete de fotos listo"+d);return}
     const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":modo==="valores"?"-SIN_VINCULOS":""}.xlsx`;
-    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");const nx=(r.repsExt||[]).reduce((n,e)=>n+(e.hojas||[]).length,0);toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Reporte final sin vínculos listo":"Reporte final listo")+(nx?` · con ${nx} ${nx===1?"hoja":"hojas"} de compañeros (al lado de las del mismo formato, terminan en #2, #3…)`:"")+d)}
+    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");const nx=(r.repsExt||[]).reduce((n,e)=>n+(e.hojas||[]).length,0);toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Reporte final sin vínculos listo":"Reporte final listo")+(nx?` · con ${nx} ${nx===1?"hoja":"hojas"} de compañeros (ubicadas según el orden de realización)`:"")+d)}
   catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar: "+(e?.message||e))}}
   finally{btn.disabled=false;btn.textContent=t0}}
 function confirmarLista(f){return new Promise(ok=>{const d=$("revp");$("revLista").innerHTML=f.map(x=>`<li>${esc(x)}</li>`).join("");d.hidden=false;
