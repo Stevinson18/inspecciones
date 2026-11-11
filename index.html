@@ -1136,7 +1136,7 @@ function renderLens(unit,lg){
   else if(tipo==="Camisa directa"){h+=inp("cd",0,"Longitud de la camisa",lg.cd?.[0]);const nc=nInt($("rp_capas")?.value,0,0,3);for(let k=0;k<nc;k++)h+=inp("sup",k,`Sobrecamisa ${k+1} (encima)`,lg.sup?.[k])}
   else if(tipo==="Camisa puenteada"){h+=inp("ex1",0,"Camisa existente 1",lg.ex1?.[0]);h+=inp("ex2",0,"Camisa existente 2",lg.ex2?.[0]);h+=inp("pu",0,"Sobre camisa a instalar",lg.pu?.[0])}
   else if(tipo==="Ilícita"){const n=nInt($("rp_cascotas")?.value,3,1,12);for(let i=0;i<n;i++)h+=inp("cas",i,`Ø cascota ${i+1}`,lg.cas?.[i])}
-  box.innerHTML=`<div class="drawbar" style="margin:2px 0 8px"><span class="label">${tipo==="Ilícita"?"Diámetro de cada cascota":"Longitud de cada pieza"}</span><label class="check" style="font-size:.85rem">Unidad <select class="field" id="lUni" style="padding:4px 8px"><option>cm</option><option>mm</option><option>pulg</option><option>m</option></select></label></div><div class="grid3">${h}</div>`;
+  box.innerHTML=`<div class="drawbar" style="margin:2px 0 8px"><span class="label">${tipo==="Ilícita"?"Diámetro de cada cascota":"Longitud de cada pieza"}</span><label class="check" style="font-size:.85rem">Unidad <select class="field" id="lUni" style="padding:4px 8px"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label></div><div class="grid3">${h}</div>`;
   $("lUni").value=unit||"cm";
   box.querySelectorAll("input,select").forEach(i=>i.disabled=readOnly);
 }
@@ -1162,7 +1162,7 @@ function readPos(){return{posV:[...document.querySelectorAll("#posBox [data-pv]"
 function buildBiseles(rep){
   const r=rep||{};
   $("repParams").innerHTML=`<label class="f"><span class="label">Tipo de camisa</span><select class="field" id="bTipo"><option value="directa">Directa</option><option value="anillos">Sobre anillos</option><option value="seccionada">Seccionada</option><option value="cascota">Cascota (ilícita) · bisel recto</option></select></label>
-  <label class="f"><span class="label">Unidad de longitud</span><select class="field" id="bUni"><option>cm</option><option>pulg</option><option>m</option></select></label>
+  <label class="f"><span class="label">Unidad de longitud</span><select class="field" id="bUni"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
   <div id="bBody" style="grid-column:1/-1;min-width:0"></div>`;
   $("bTipo").value=r.tipoCamisa||"seccionada";$("bUni").value=r.unidad||"cm";
   bisBody(r);
@@ -1772,7 +1772,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v67";
+const LOCAL=!!window.__LOCAL;const APPV="v68";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
