@@ -902,7 +902,7 @@ function drawRepair(rep,meta,P,compact){
     const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
     const MB=!!rep.mb;// MT al metal base: se resalta toda la pieza, no los biseles
     const shell=(xx,yy,w,h,label,sup)=>{
-      if(MB){R(xx,yy,w,h,{f:"#39e75f",s:"#0b6b25",sw:1.4});R(xx+3,yy+3,w-6,h-6,{f:"none",s:"#d9ffe2",sw:1,d:"4 3"});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:"#05300f"});return}
+      if(MB){R(xx,yy,w,h,{f:"#e3f4e6",s:"#2e9e4f",sw:2.6});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:"#1d5c30"});return}
       R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2});
       R(xx+1,sup?yy+1:yy+h-1-h*0.28,w-2,h*0.28,{f:P.shellHi});
       const a=xx+5,b=xx+w-5;
@@ -920,7 +920,7 @@ function drawRepair(rep,meta,P,compact){
       T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":""),{s:11,c:P.muted})}
       x+=w+GAP;});
     if(!compact){
-      if(MB){S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#39e75f",s:"#0b6b25",sw:1.2});T(58,74,"Metal base inspeccionado MT fluorescente (100 %)",{a:"start",s:12,w:600});S.push(`</g>`)}else{
+      if(MB){S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#e3f4e6",s:"#2e9e4f",sw:2.2});T(58,74,"Metal base inspeccionado MT fluorescente (100 %)",{a:"start",s:12,w:600});S.push(`</g>`)}else{
       S.push(`<g data-fijo="135">`);L(20,70,52,70,{s:P.l1,sw:3});T(58,74,"Biseles L1",{a:"start",s:12,w:600});
       L(150,70,182,70,{s:P.l2,sw:3});T(188,74,"Biseles L2",{a:"start",s:12,w:600});S.push(`</g>`)}
     }
@@ -1784,7 +1784,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v70";
+const LOCAL=!!window.__LOCAL;const APPV="v71";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
