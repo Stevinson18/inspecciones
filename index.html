@@ -1784,7 +1784,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v74";
+const LOCAL=!!window.__LOCAL;const APPV="v75";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -1813,6 +1813,7 @@ function fotosHtml(it,i,only){
       const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button></div>`
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
       return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
+      ${s.id&&!s.raw&&!readOnly&&assets?`<button type="button" class="fstog off" data-frest="${gr.k}" data-j="${j}" title="Borra el estampe que trae la foto y le pone el de la app con los datos del punto">↻ Re‑estampar</button>`:""}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
       <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}>${medidaHtml(it,i,s.desc||s.cap,j)}</div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
@@ -1880,7 +1881,7 @@ async function fotoMeta(file,campo){
 function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":"campo";const it=formItems[i];return(it?.act==="Biseles"||it?.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo"}
 // fecha del estampe: la del día de inspección de la actividad; si no hay, la de la foto
 function stampFor(f,lugar,pt,fi){
-  fi=fi||f.fi;const d=/^\d{4}-\d{2}-\d{2}$/.test(fi||"")?new Date(fi+"T12:00:00"):new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
+  fi=f.fi||fi;const d=/^\d{4}-\d{2}-\d{2}$/.test(fi||"")?new Date(fi+"T12:00:00"):new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
   const sis=pt?pt.sistema||"":$("iSistema").value, lin=pt?pt.linea||"":lineaVal(), pk=pt?pt.pk||"":$("iPk").value.trim(), dia=pt?pt.diametro||"":$("iDiam").value.trim();
   const cC=pt?pt.coord:$("iCoord").value,cP=pt?pt.coordPatio:$("iCoordPatio").value;
   const u=(lugar==="patio"?parseCoord(cP)||parseCoord(cC):parseCoord(cC)||parseCoord(cP))||f.gps;
@@ -1915,6 +1916,30 @@ async function stampLines(file){
     pk?"PK "+pk:"",
     u?`${gms(u.lat,"N","S")}  ${gms(u.lon,"E","W")}`:""].filter(x=>x.trim());
 }
+// borra el estampe que trae una foto (texto claro en la parte de abajo) rellenando con el fondo de alrededor
+async function borrarEstampe(blob){const bm=await createImageBitmap(blob);const K=Math.min(1,2000/Math.max(bm.width,bm.height));const W=Math.round(bm.width*K),H=Math.round(bm.height*K);
+  const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");g.drawImage(bm,0,0,W,H);bm.close?.();
+  const y0=Math.floor(H*0.55),img=g.getImageData(0,y0,W,H-y0),d=img.data,h=H-y0;const br=(x,y)=>{const q=(y*W+x)*4;return Math.min(d[q],d[q+1],d[q+2])};
+  // filas con texto: muchos píxeles claros con fondo más oscuro a su lado (trazos de letra)
+  const tx=new Uint8Array(W*h);const cnt=new Int32Array(h);for(let y=1;y<h-1;y++)for(let x=2;x<W-2;x++){const v=br(x,y);if(v>185&&(br(x-2,y)<v-60||br(x+2,y)<v-60||br(x,y-1)<v-60||br(x,y+1)<v-60)){tx[y*W+x]=1;cnt[y]++}}
+  const minC=Math.max(3,Math.round(W*0.008));let yb=-1,ya=-1,gap=0;const gapMax=Math.round(H*0.035);
+  for(let y=h-2;y>=1;y--){if(cnt[y]>=minC){if(yb<0)yb=y;ya=y;gap=0}else if(yb>=0&&++gap>gapMax)break}
+  if(yb<0)return null;let xa=W,xb=0;for(let y=ya;y<=yb;y++)for(let x=0;x<W;x++)if(tx[y*W+x]){if(x<xa)xa=x;if(x>xb)xb=x}
+  const R_=Math.max(2,Math.round(H/260));const M=new Uint8Array(W*h);
+  for(let y=Math.max(0,ya-R_);y<=Math.min(h-1,yb+R_);y++)for(let x=Math.max(0,xa-R_);x<=Math.min(W-1,xb+R_);x++){let on=false;
+    for(let dy=-R_;dy<=R_&&!on;dy++)for(let dx=-R_;dx<=R_&&!on;dx++){const yy=y+dy,xx=x+dx;if(yy>=0&&yy<h&&xx>=0&&xx<W&&br(xx,yy)>165&&yy>=ya-1&&yy<=yb+1&&xx>=xa-1&&xx<=xb+1)on=true}
+    if(on)M[y*W+x]=1}
+  // relleno de afuera hacia adentro con el promedio de los vecinos ya conocidos
+  let pend=[];for(let i=0;i<M.length;i++)if(M[i])pend.push(i);let guard=0;
+  while(pend.length&&guard++<400){const nx=[],upd=[];for(const i of pend){const x=i%W,y=(i/W)|0;let r=0,gg=0,b=0,n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=W||yy>=h)continue;const j=yy*W+xx;if(M[j])continue;const q=j*4;r+=d[q];gg+=d[q+1];b+=d[q+2];n++}
+      if(n>=2)upd.push([i,r/n,gg/n,b/n]);else nx.push(i)}
+    if(!upd.length)break;for(const[i,r,gg,b]of upd){const q=i*4;d[q]=r;d[q+1]=gg;d[q+2]=b;M[i]=0}pend=nx}
+  g.putImageData(img,0,y0);
+  // suaviza solo la zona rellenada
+  const bx=Math.max(0,xa-3*R_),by=Math.max(0,ya-2*R_)+y0,bw=Math.min(W,xb+3*R_)-bx,bh=Math.min(H,yb+2*R_+y0)-by;if(bw>4&&bh>4){g.save();g.filter=`blur(${Math.max(1,R_/2)}px)`;g.drawImage(c,bx,by,bw,bh,bx,by,bw,bh);g.restore()}
+  return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.9))}
+window.__borrarEstampe=borrarEstampe;
 function estampar(g,W,H,lines){
   if(!lines.length)return;
   const fs=Math.max(14,Math.round(Math.min(W,H)*0.034)), lh=Math.round(fs*1.3), pad=Math.round(fs*0.6);
@@ -2308,6 +2333,12 @@ $("btnAddItem").addEventListener("click",addItem);
 $("form").addEventListener("click",e=>{
   const fcm=e.target.closest("[data-fcam],[data-fgal]");
   if(fcm){pedirFoto(foOf(fcm),fcm.dataset.fcam||fcm.dataset.fgal,+fcm.dataset.j,fcm.dataset.fcam?"cam":"gal");return}
+  const rs=e.target.closest("[data-frest]");
+  if(rs){const i=foOf(rs),k=rs.dataset.frest,j=+rs.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
+    if(!rs.dataset.ok){rs.dataset.ok="1";rs.textContent="¿Borrar su estampe? Toca otra vez";return}rs.disabled=true;rs.textContent="Re‑estampando…";
+    (async()=>{try{const nb=await borrarEstampe(await blobFoto(s.id));if(!nb){toast("No encontré un estampe en la parte de abajo de esa foto.");refreshFotos(i);return}
+      const up=await assets.upload(nb,{type:"image/jpeg"});fotosQuitadas.add(s.id);setFoto(i,k,j,{id:up.id,raw:1,noStamp:false});refreshFotos(i);scheduleDraft();toast("Listo: la foto lleva ahora el estampe de la app con los datos del punto.")}
+    catch(err){toast("No se pudo re‑estampar: "+(err.message||err));refreshFotos(i)}})();return}
   const tg=e.target.closest("[data-fstog]");
   if(tg){const i=foOf(tg),k=tg.dataset.fstog,j=+tg.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];
     if(s?.id){setFoto(i,k,j,{noStamp:!s.noStamp});refreshFotos(i);scheduleDraft()}return}
@@ -2368,6 +2399,7 @@ async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst
   const res=(base,t)=>{if(t.startsWith("/"))return t.slice(1);const o=[];for(const q of (base.replace(/[^/]+$/,"")+t).split("/")){if(q==="..")o.pop();else if(q!==".")o.push(q)}return o.join("/")};
   const dp=res(h.file,dm[0].match(/Target="([^"]+)"/)[1]),dx=await T(dp),drl=await T(dp.replace(/([^/]+)$/,"_rels/$1.rels"));const tgt={};
   for(const m of drl.matchAll(/<Relationship [^>]*\/>/g)){if(/\/image"/.test(m[0]))tgt[m[0].match(/Id="([^"]+)"/)[1]]=res(dp,m[0].match(/Target="([^"]+)"/)[1])}
+  const sv=(xml.match(/<c r="AH9"[^>]*>(?:<f>[^<]*<\/f>)?<v>(\d+(?:\.\d+)?)<\/v>/)||[])[1];const fi=sv?new Date(Date.UTC(1899,11,30)+Math.round(+sv)*864e5).toISOString().slice(0,10):"";
   const out=[];const gen=/^(registro fotogr|foto|imagen|descripci|anexo)/i;
   for(const a of dx.matchAll(/<xdr:(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/xdr:\1>/g)){const A=a[0],emb=(A.match(/r:embed="([^"]+)"/)||[])[1];if(!emb||!tgt[emb]||!E[tgt[emb]])continue;
     const g=(k,tag)=>+((A.match(new RegExp(`<xdr:${tag}>[\\s\\S]*?<xdr:${k}>(\\d+)<`))||[])[1]??-1);const r0=g("row","from"),c0=g("col","from");let r1=g("row","to"),c1=g("col","to");if(r1<0){r1=r0+12;c1=c0+8}
@@ -2380,13 +2412,14 @@ async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst
       if(ok){const cv=document.createElement("canvas");cv.width=48;cv.height=36;const g=cv.getContext("2d");g.drawImage(bm,0,0,48,36);const d=g.getImageData(0,0,48,36).data;let cl=0;for(let q=0;q<d.length;q+=4)if(d[q+3]<30||(d[q]>235&&d[q+1]>235&&d[q+2]>235))cl++;if(cl/(d.length/4)>0.9)ok=false}
       bm.close?.();if(!ok)continue}catch(e){continue}
     if(/^(\d+\.\s*FOTOS|P[ÁA]GINA)/i.test(cap))cap="";
-    out.push({r0,c0,cap:gen.test(cap)&&cap.length<25?"":cap,bytes,type})}
+    out.push({r0,c0,cap:gen.test(cap)&&cap.length<25?"":cap,bytes,type,fi})}
   return out.sort((p,q)=>p.r0-q.r0||p.c0-q.c0)}
 const esAnexo=n=>/ANEX/i.test(n);
 window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt};
 function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
   let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
   if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
+    ${extSel.x.hojas.some(h=>!h.oculta&&esAnexo(h.nombre))?`<label class="check" style="margin-top:6px"><input type="checkbox" id="extReest" checked> Re‑estampar las fotos del anexo con los datos de este punto (borra el estampe que traen)</label>`:""}
     <div class="eqrow" style="margin-top:6px"><button type="button" class="btn small" id="extOk">Agregar hojas marcadas</button><button type="button" class="btn small ghost" id="extNo">Cancelar</button></div></div>`;
   b.innerHTML=h||`<p class="note">Sin reportes de compañeros.</p>`;$("btnExtAdd").hidden=readOnly||!!extSel}
 $("btnExtAdd").addEventListener("click",()=>{if(!assets){toast("Para guardar el Excel necesitas permiso de edición (o la app instalada).");return}
@@ -2400,7 +2433,10 @@ $("extBox").addEventListener("click",async e=>{const d=e.target.closest("[data-e
     try{const todas=ks.map(k=>extSel.x.hojas[k]),anx=todas.filter(h=>esAnexo(h.nombre)),sel=todas.filter(h=>!esAnexo(h.nombre));let nF=0,msg=[];
       // anexo fotográfico: sus fotos pasan al anexo de la app (con su leyenda), no como hoja aparte
       for(const h of anx){const fs_=await fotosAnexoExt(extSel.x,h);const arr=(puntoF.fotos.ANX??=[]);
-        for(const f of fs_){b.textContent=`Subiendo fotos del anexo… ${++nF}`;const up=await assets.upload(new Blob([f.bytes],{type:f.type}),{type:f.type});const o={id:up.id,cap:f.cap||"Registro fotográfico",noStamp:true,origen:extSel.archivo};
+        const reest=$("extReest")?.checked!==false;
+        for(const f of fs_){b.textContent=`Subiendo fotos del anexo… ${++nF}`;let bl=new Blob([f.bytes],{type:f.type}),raw=false;
+          if(reest){const nb=await borrarEstampe(bl).catch(()=>null);if(nb){bl=nb;raw=true}}
+          const up=await assets.upload(bl,{type:bl.type||"image/jpeg"});const o=raw?{id:up.id,cap:f.cap||"Registro fotográfico",raw:1,noStamp:false,...(f.fi?{fi:f.fi}:{}),origen:extSel.archivo}:{id:up.id,cap:f.cap||"Registro fotográfico",noStamp:true,origen:extSel.archivo};
           const j=arr.findIndex(x=>!x?.id);if(j>=0)arr[j]={...arr[j],...o};else arr.push(o)}}
       if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico`)}
       if(sel.length){const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
