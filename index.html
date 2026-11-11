@@ -227,6 +227,7 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .eqsel{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:center}
 .eqrow{display:flex;gap:6px;min-width:0}
 .sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.jtec{margin:6px 0 8px}.jtec>.sid{font-weight:700;font-size:.82rem;display:block;margin-bottom:2px}
 .sfila{display:flex;align-items:center;gap:6px;min-width:0}.sfila .sid{font-weight:700;font-size:.82rem;min-width:44px}
 .sfila select{flex:1;min-width:0;padding-left:6px;padding-right:4px}.sfila.todas{max-width:260px}.eqrow select{flex:1;min-width:0}
 .fpick{cursor:default;gap:6px;padding:22px 6px 6px}
@@ -1686,6 +1687,8 @@ const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad 
 // juntas del esquema: longitudinales (lados superior / inferior) y circunferenciales (lados según qué unen)
 // juntas que NO se inspeccionaron en esta actividad (p. ej. otro inspector las hizo otro día)
 const esAnillo=j=>/^A\d /.test(j.id)||j.lados[0]==="Lado anillo";
+// juntas que NO se hicieron con una técnica en particular (p. ej. anillos con PT y MT pero sin PAUT)
+const noTec=(it,t,id)=>(it?.juntasNoT?.[t]||[]).includes(id);
 function juntasNo(it,rep){if(Array.isArray(it.juntasNo))return new Set(it.juntasNo);if(it.sinAnillos&&/anillos/.test(rep?.tipo||""))return new Set(juntasDe(rep,false).filter(esAnillo).map(j=>j.id));return new Set()}
 function juntasDe(rep,tipoA,it){
   if(it){const no=juntasNo(it,rep);if(no.size)return juntasDe(rep,tipoA,{juntasTT:it.juntasTT}).filter(j=>!no.has(j.id))}
@@ -1707,7 +1710,7 @@ function juntasDe(rep,tipoA,it){
   return out;
 }
 const pautOk=(it,t)=>!(it?.pautSin||{})[t];
-const juntasPAUT=(rep,tipoA,it)=>juntasDe(rep,tipoA,it).filter(j=>pautOk(it,j.tipo==="long"?"LONG":"CIRC")).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
+const juntasPAUT=(rep,tipoA,it)=>juntasDe(rep,tipoA,it).filter(j=>pautOk(it,j.tipo==="long"?"LONG":"CIRC")&&!noTec(it,"PAUT",j.id)).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
 // ---------- soldadores por junta (se anotan una vez y sirven para PT, MT y PAUT) ----------
 const SOLDADORES_BASE={"Puerto Boyacá":["CCT","ETC","DPA","JFG"]};
 function soldLista(){const b=$("iBase").value;const base=SOLDADORES_BASE[b]||[...new Set(Object.values(SOLDADORES_BASE).flat())];
@@ -1723,7 +1726,11 @@ function soldHtml(it){
   const an=/anillos/.test(it.reparacion?.tipo||"");const ro=readOnly?" disabled":"";
   const anTxt=`<span class="label">Juntas inspeccionadas en esta actividad</span><p class="note">Desmarca las que no se hicieron en esta actividad (las hizo otro inspector otro día o no se pudieron inspeccionar). Para la otra parte, agrega otra actividad del mismo momento con su fecha e inspector.</p>
     <div class="picks">${js.map(j=>`<label class="pick"><input type="checkbox" data-jon="${esc(j.id)}"${no.has(j.id)?"":" checked"}${ro}><span>${esc(j.id)}</span></label>`).join("")}</div>
-    ${readOnly?"":`<div class="row-btns" style="justify-content:flex-start;flex-wrap:wrap">${an?`<button class="btn small" type="button" data-jset="anillos">Solo anillos (+C anillo-tubo)</button><button class="btn small" type="button" data-jset="sobre">Solo sobrecamisa</button>`:""}<button class="btn small" type="button" data-jset="todas">Todas</button></div>`}`;
+    ${readOnly?"":`<div class="row-btns" style="justify-content:flex-start;flex-wrap:wrap">${an?`<button class="btn small" type="button" data-jset="anillos">Solo anillos (+C anillo-tubo)</button><button class="btn small" type="button" data-jset="sobre">Solo sobrecamisa</button>`:""}<button class="btn small" type="button" data-jset="todas">Todas</button></div>`}
+    ${(()=>{const ts=(it.tecnicas||[]).filter(t=>["PT","MT","PAUT"].includes(t));const inc=js.filter(j=>!no.has(j.id));if(ts.length<2||!inc.length)return"";
+      return`<span class="label">Juntas por técnica</span><p class="note">Si alguna junta no se hizo con una técnica (p. ej. el tramo de anillos se hizo por PT y MT pero no por PAUT), desmárcala en esa técnica: sale en sus reportes y en el Word solo con las técnicas que sí se hicieron.</p>`+
+      ts.map(t=>`<div class="jtec"><span class="sid">${t}</span><div class="picks">${inc.map(j=>`<label class="pick"><input type="checkbox" data-jont="${t}" data-jid="${esc(j.id)}"${noTec(it,t,j.id)?"":" checked"}${ro}><span>${esc(j.id)}</span></label>`).join("")}</div>
+        ${readOnly||!an?"":`<div class="row-btns" style="justify-content:flex-start"><button class="btn small ghost" type="button" data-jsett="${t}|sinan">${t} sin anillos</button><button class="btn small ghost" type="button" data-jsett="${t}|todas">${t} todas</button></div>`}</div>`).join("")})()}`;
   return`${anTxt}<span class="label">Soldadores por junta</span><p class="note">Se anotan una vez y salen en PT, MT y PAUT. Longitudinales: un soldador; circunferenciales: dos.</p>
     ${lg.length?`<div class="sfila todas"><span class="sid">Todas long.</span>${soldSel("",`data-sall="long" aria-label="Mismo soldador para todas las longitudinales"`)}</div>`:""}
     <div class="sgrid">${lg.map(fila).join("")}</div>${cc.length?`<div class="sgrid">${cc.map(fila).join("")}</div>`:""}`}
@@ -1784,7 +1791,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v76";
+const LOCAL=!!window.__LOCAL;const APPV="v77";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2450,7 +2457,9 @@ $("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refres
 // al tocar una descripción sugerida se selecciona toda, para escribir encima
 $("form").addEventListener("focusin",e=>{const t=e.target;if(t.dataset?.fcap!=null&&t.value){const def=t.defaultValue;if(t.value===def)setTimeout(()=>{try{t.select()}catch(_){}},0)}});
 $("form").addEventListener("input",e=>{if(e.target.dataset.medida){const it=own(+e.target.dataset.mi);if(it){it[e.target.dataset.medida]=e.target.value.trim();scheduleDraft()}return}if(e.target.dataset.fcap!=null){const i=foOf(e.target);setFoto(i,e.target.dataset.fcap,+e.target.dataset.j,e.target.dataset.bycap?{desc:e.target.value}:{cap:e.target.value})}});
-$("itemsBox").addEventListener("click",e=>{const b=e.target.closest("[data-jset]");if(!b||readOnly)return;const card=b.closest(".itcard");const i=+card.dataset.i,it=formItems[i];if(!it)return;
+$("itemsBox").addEventListener("click",e=>{const bt=e.target.closest("[data-jsett]");if(bt&&!readOnly){const card=bt.closest(".itcard");const i=+card.dataset.i,it=formItems[i];if(!it)return;const[t,m]=bt.dataset.jsett.split("|");
+    const js=juntasDe(it.reparacion,tipoAForm(),{juntasTT:it.juntasTT});it.juntasNoT={...(it.juntasNoT||{}),[t]:m==="todas"?[]:js.filter(esAnillo).map(j=>j.id)};refreshSold(i);refreshFotos(i);refreshPl(i);refreshH0?.(i);scheduleDraft();return}
+  const b=e.target.closest("[data-jset]");if(!b||readOnly)return;const card=b.closest(".itcard");const i=+card.dataset.i,it=formItems[i];if(!it)return;
   const js=juntasDe(it.reparacion,tipoAForm(),{juntasTT:it.juntasTT}),m=b.dataset.jset;it.juntasNo=m==="todas"?[]:js.filter(j=>m==="anillos"?!esAnillo(j):esAnillo(j)).map(j=>j.id);delete it.sinAnillos;
   refreshSold(i);refreshFotos(i);refreshPl(i);scheduleDraft()});
 $("itemsBox").addEventListener("click",e=>{
@@ -2491,6 +2500,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
   if(e.target.dataset.jtt!=null){const it=formItems[i];it.juntasTT=nInt(e.target.value,0,0,40);refreshSold(i);refreshFotos(i);refreshPl(i);refreshInd(i);scheduleDraft();return}
   if(e.target.dataset.etapa!=null){const it=formItems[i];it.etapa=e.target.value;scheduleDraft();return}
   if(e.target.dataset.pautt){const it=formItems[i];it.pautSin={...(it.pautSin||{}),[e.target.dataset.pautt]:!e.target.checked};refreshFotos(i);refreshPl(i);refreshEq(i);scheduleDraft();return}
+  if(e.target.dataset.jont!=null){const it=formItems[i],t=e.target.dataset.jont,id=e.target.dataset.jid;const L=new Set(it.juntasNoT?.[t]||[]);if(e.target.checked)L.delete(id);else L.add(id);it.juntasNoT={...(it.juntasNoT||{}),[t]:[...L]};refreshFotos(i);refreshPl(i);scheduleDraft();return}
   if(e.target.dataset.jon!=null){const it=formItems[i];const no=juntasNo(it,it.reparacion);if(e.target.checked)no.delete(e.target.dataset.jon);else no.add(e.target.dataset.jon);it.juntasNo=[...no];delete it.sinAnillos;refreshSold(i);refreshFotos(i);refreshPl(i);refreshH0?.(i);scheduleDraft();return}
   if(e.target.dataset.sj!=null||e.target.dataset.sall){const it=formItems[i];let v=e.target.value;
     if(v==="__otro"){const n=(prompt("Iniciales del soldador")||"").trim().toUpperCase();if(!n){e.target.value="";return}v=n}
@@ -3036,14 +3046,14 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       const que=t=>ilic?`${insp} por ${t} a las soldaduras de filete de ${nc>1?"las cascotas instaladas":"la cascota instalada"} sobre la zona afectada por la válvula ilícita`:`${insp} por ${t} ${objE}`;
       const t9=(h,pre)=>{if(SA&&!ilic)C(h,"T9",pre?`${pre} / ${SA.lab}`:hayJ&&!hayC?`Juntas a tope${SA.mom?" /"+SA.mom.replace(/^ a/," A").replace(/^ d/," D"):""}`:SA.t9)};
       const conBis=false;
-      if(tec.includes("PT")){const hs=await tabla(sfx({h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H"]}),[...(conBis?filasBisCas():[]),...js.flatMap(j=>filaPM("PT",j))],["A","G","K","O","R","U","Z","AD"],()=>{});
+      if(tec.includes("PT")){const hs=await tabla(sfx({h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3"],h12:["13.PT-CAM -1 -12H","13.PT-CAM -2 -12H","13.PT-CAM -3 -12H"]}),[...(conBis?filasBisCas():[]),...js.filter(j=>!noTec(it,"PT",j.id)).flatMap(j=>filaPM("PT",j))],["A","G","K","O","R","U","Z","AD"],()=>{});
         for(const h of hs){await cabecera(h,it,obsTxt(it,que("líquidos penetrantes")+(conBis?` y al bisel recto de ${nc>1?"las cascotas":"la cascota"}`:""),"PT"),true,conBis?{...rep,vista:"0H+B"}:rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9",conBis?"Bisel recto y soldaduras":"Soldaduras")}t9(h);ponEq(h,EQ_PT,equipo(it,"PT"))}
         await fotosEn([sfx({h0:"13F.PT-CAM -4",h12:"13F.PT-CAM -4-12H"})],[...(conBis?fotDe(bisCas,"PT"):[]),...fot("PT")],"campo")}
-      if(tec.includes("MT")){const hs=await tabla(sfx({h0:["14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3"],h12:["14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H"]}),js.flatMap(j=>filaPM("MT",j)),["A","G","K","O","R","U","Z","AD"],()=>{});
+      if(tec.includes("MT")){const hs=await tabla(sfx({h0:["14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3"],h12:["14.MT-CAM -1 -12H","14.MT-CAM -2 -12H","14.MT-CAM -3 -12H"]}),js.filter(j=>!noTec(it,"MT",j.id)).flatMap(j=>filaPM("MT",j)),["A","G","K","O","R","U","Z","AD"],()=>{});
         for(const h of hs){await cabecera(h,it,obsTxt(it,que("partículas magnéticas"),"MT"),true,rep);if(ilic){C(h,"H9","Cascotas");C(h,"T9","Soldaduras")}t9(h);ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([sfx({h0:"14F.MT-SOLD -4",h12:"14F.MT-SOLD -4 -12H"})],fot("MT"),"campo")}
       if(tec.includes("PAUT")){const imgs=fot("PAUTI");const cols=["A","G","K","O","Q","S","U","W","Y","Z","AE","AH"];const filaU=j=>{const ds=indDe("PAUT",j.id);return ds.length?ds.map((d,k)=>[k?j.id:fila(j)[0],...(k?["",""]:fila(j).slice(1)),nv(d.ini),nv(d.lon),nv(d.prof),nv(d.alt),nv(d.idx),nv(d.tcg),d.interp||"-",resInd(d),[d.lado&&d.lado!=="-"?"Lado "+d.lado:"",d.obs].filter(Boolean).join(". ")||"-"]):[[...fila(j),"-","-","-","-","-","-","-",resultado(it),"-"]]};
-        const lg=pautOk(it,"LONG")?js.filter(j=>j.tipo==="long"):[],cc=pautOk(it,"CIRC")?js.filter(j=>j.tipo==="circ"):[];
+        const lg=pautOk(it,"LONG")?js.filter(j=>j.tipo==="long"&&!noTec(it,"PAUT",j.id)):[],cc=pautOk(it,"CIRC")?js.filter(j=>j.tipo==="circ"&&!noTec(it,"PAUT",j.id)):[];
         if(lg.length){const hs=await tabla(sfx({h0:["16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3"],h12:["16.PAUT-LONG-CAM -1 -12H","16.PAUT-LONG-CAM -3 -12H"]}),lg.flatMap(filaU),cols,()=>{});
           for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (longitudinales)","PAUT"),true,rep);t9(h,"Sold. Longitudinales");ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"LONG");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,"TOPE")}
           await fotosEn(sfx({h0:["16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6"],h12:["16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H"]}),[...imgs.filter(x=>/L\d/.test(x.cap)),...fot("PAUT")],"campo",true)}
@@ -3484,7 +3494,7 @@ async function generarInforme(r){REP_PT=r;
   else quitar(80,88);
   if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el ${pkTxt} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
   // todas las actividades del mismo momento (p. ej. dos 0 H en días distintos) van en una sola tabla, cada junta con lo que se le hizo
-  const resH=(act,ip,it_,lab)=>{const xs=act==="12H"?xsH12:xsH0;const varias=new Set(xs.map(x=>x.act)).size>1;const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(x.reparacion?.tipo?x.reparacion:repCam,tipoA,x).map(j=>({c:[varias?`${j.id} · ${SOLD_ACTS[x.act]?.lab||x.act.replace("H"," H")}`:j.id,t.includes("PT")?"X":"-",t.includes("MT")?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]?"X":"-",(x.ind||[]).some(d=>d.j===j.id&&d.res==="Rechazo")?"Rechazo":(x.ind||[]).some(d=>d.j===j.id)?"OK (ver ind.)":ok(x)]}))}):[];
+  const resH=(act,ip,it_,lab)=>{const xs=act==="12H"?xsH12:xsH0;const varias=new Set(xs.map(x=>x.act)).size>1;const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(x.reparacion?.tipo?x.reparacion:repCam,tipoA,x).map(j=>({c:[varias?`${j.id} · ${SOLD_ACTS[x.act]?.lab||x.act.replace("H"," H")}`:j.id,t.includes("PT")&&!noTec(x,"PT",j.id)?"X":"-",t.includes("MT")&&!noTec(x,"MT",j.id)?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]&&!noTec(x,"PAUT",j.id)?"X":"-",(x.ind||[]).some(d=>d.j===j.id&&d.res==="Rechazo")?"Rechazo":(x.ind||[]).some(d=>d.j===j.id)?"OK (ver ind.)":ok(x)]}))}):[];
     if(!filas.length){quitar(ip,ip+3);return}setT(K[ip],`Resultados de la inspección${preW(xs)} de ${objW(xs)}${hayJ&&!jsC.length?"":" instalada"} ${enPK}`);llenar(K[it_],2,filas);if(xs.some(x=>SOLD_ACTS[x.act]))[...K[it_].getElementsByTagNameNS(WNS,"t")].forEach(t=>{if(/Inspección END\s*-\s*(0|12) Horas/i.test(t.textContent))t.textContent="Inspección END -"+preW(xs).replace(/[“”]/g,"")})};
   resH("0H",93,95,"0 Horas");resH("12H",97,99,"12 Horas");
   // ---- conclusiones ----
