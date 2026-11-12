@@ -399,6 +399,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
         <label class="f"><span class="label">Lugar</span>
           <select class="field" id="iLugar"><option>Campo</option><option>Patio</option><option>Campo y Patio</option></select></label>
         <label class="f"><span class="label">Base asignada</span><select class="field" id="iBase"></select></label>
+        <label class="f"><span class="label">Compañero(s) Nivel I (opcional, sale en el Word)</span><input class="field" id="iNivel1" list="dlInsp" autocomplete="off" placeholder="Ej: Martín Castillo"></label>
         <label class="f"><span class="label">Ciudad</span><select class="field" id="iCiudadSel"></select><input type="hidden" id="iCiudad"></label>
         <label class="f" id="wCiudadOtra" hidden><span class="label">Escribe la ciudad</span><input class="field" id="iCiudadOtra" placeholder="Ej: Sogamoso" autocomplete="off"></label>
         <label class="f"><span class="label">Tipo de reparación</span><select class="field" id="iTipoRep"></select></label>
@@ -1823,7 +1824,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v80";
+const LOCAL=!!window.__LOCAL;const APPV="v81";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2283,7 +2284,7 @@ function openForm(r,addAct,actIdx){
   $("iDiam").value=r?r.diametro||"":store.get("ultimoDiam")||"";
   $("iLugar").value=r?.lugar||"Campo";
   $("iCiudad").value=r?r.ciudad||"":store.get("ultimaCiudad")||"";
-  const bs=r?r.base||"":store.get("ultimaBase")||""; $("iBase").value=BASES.includes(bs)?bs:"";
+  const bs=r?r.base||"":store.get("ultimaBase")||""; $("iBase").value=BASES.includes(bs)?bs:"";$("iNivel1").value=r?.nivel1||"";
   setCiudad($("iCiudad").value);
   $("iTipoRep").value=TIPOS_REP.includes(r?.tipoReparacion)?r.tipoReparacion:"";lastG=$("iTipoRep").value;
   $("iEsp").value=ESPESORES.includes(r?.espesor)?r.espesor:"";
@@ -2313,7 +2314,7 @@ function closeForm(){$("scrim").hidden=true;editing=null;dirty=false;clearTimeou
 // ---- borrador: lo que se escribe en la ficha se guarda solo, para no perderlo si la página se recarga ----
 const DRAFT_KEY="borradorPunto";
 let dirty=false, draftT=null;
-const FIELDS=["iCons","iFecha","iPk","iSistema","iLinea","iLineaOtra","iDiam","iLugar","iCiudad","iBase","iTipoRep","iEsp","iMat","iNom","iMatTub","iCoord","iCoordPatio","iPunto","iTerm"];
+const FIELDS=["iCons","iFecha","iPk","iSistema","iLinea","iLineaOtra","iDiam","iLugar","iCiudad","iBase","iNivel1","iTipoRep","iEsp","iMat","iNom","iMatTub","iCoord","iCoordPatio","iPunto","iTerm"];
 function captureForm(){return{id:editing?.id||null,active,f:Object.fromEntries(FIELDS.map(k=>[k,$(k).value])),items:readItems(),pf:puntoF.fotos||{},px:puntoF.repsExt||[],pm:puntoF.anexoMin||"",t:Date.now()}}
 function saveDraft(){if($("scrim").hidden||readOnly||!dirty)return;try{store.set(DRAFT_KEY,JSON.stringify(captureForm()))}catch(e){}}
 function scheduleDraft(){dirty=true;clearTimeout(draftT);draftT=setTimeout(saveDraft,500)}
@@ -2481,7 +2482,7 @@ $("extBox").addEventListener("click",async e=>{const d=e.target.closest("[data-e
           const j=arr.findIndex(x=>!x?.id);if(j>=0)arr[j]={...arr[j],...o};else arr.push(o)}}
       if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico`)}
       if(sel.length){const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
-        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
+        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
         const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
       extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.")}
     catch(err){b.disabled=false;b.textContent="Agregar hojas marcadas";toast("No se pudo guardar: "+(err.message||err))}}});
@@ -2590,7 +2591,7 @@ $("form").addEventListener("submit",async e=>{
     diametro:$("iDiam").value.replace(",",".").trim(),
     lugar:$("iLugar").value,
     ciudad:$("iCiudad").value.trim(),
-    base:$("iBase").value,
+    base:$("iBase").value,nivel1:$("iNivel1").value.trim(),
     estadoPunto:$("iPunto").value,
     terminadoEn:$("iPunto").value==="Terminado"?$("iTerm").value:"",
     items
@@ -3380,6 +3381,26 @@ const fechaHojaExt=xml=>{const m=xml.match(/<c r="AH9"[^>]*>([\s\S]*?)<\/c>/);if
   if(v&&!/t="inlineStr"/.test(m[0])){const n=+v;if(n>30000&&n<80000)return new Date(Date.UTC(1899,11,30)+Math.round(n)*864e5).toISOString().slice(0,10)}
   const t=dxe(b.replace(/<[^>]+>/g,"")).trim();const q=t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(q){const y=+q[3]<100?2000+ +q[3]:+q[3];return`${y}-${String(q[2]).padStart(2,"0")}-${String(q[1]).padStart(2,"0")}`}
   const i=t.match(/^(\d{4})-(\d{2})-(\d{2})/);return i?i[0]:""};
+const inspHojaExt=xml=>{const mg=[...xml.matchAll(/<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g)].map(m=>({c0:colN(m[1]),r0:+m[2],c1:colN(m[3])}));const cel=[];
+  for(const m of xml.matchAll(/<c r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)){if(+m[2]<30)continue;const t=dxe((m[3]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim();if(t)cel.push({c:colN(m[1]),r:+m[2],t})}
+  const labs=cel.filter(x=>/^nombre\s*:?$/i.test(x.t)).sort((a,b)=>a.c-b.c||a.r-b.r);const l=labs[0];if(!l)return"";const g=mg.find(g=>g.r0===l.r&&g.c0<=l.c&&l.c<=g.c1),fin=g?g.c1:l.c;
+  const v=cel.filter(x=>x.r===l.r&&x.c>fin).sort((a,b)=>a.c-b.c)[0];return v&&!/^(firma|fecha|nombre)/i.test(v.t)&&!/^\d/.test(v.t)?v.t:""};
+async function inspExt(r){const out=[];for(const e of r.repsExt||[]){if(e.inspectores){out.push(...e.inspectores);continue}try{const pq=JSON.parse(await (await blobFoto(e.id)).text());for(const h of pq.hojas||[]){const n=inspHojaExt(h.xml||"");if(n)out.push(n)}}catch(err){}}return out}
+// equipos de una hoja de compañero: se leen por rótulo en "4. INFORMACIÓN DE LA TÉCNICA" (marca, serie, palpador, yoke, kit, lotes…)
+function equipoHojaExt(xml,nombre){const cel={};for(const m of xml.matchAll(/<c r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)){const r=+m[2];if(r<18||r>30||colN(m[1])>37)continue;const t=dxe((m[3]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim();if(t)(cel[r]??=[]).push({c:colN(m[1]),r,t})}
+  Object.values(cel).forEach(a=>a.sort((p,q)=>p.c-q.c));const all=Object.values(cel).flat();const nrm=x=>x.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  const lab=(re,k=0)=>all.filter(x=>re.test(nrm(x.t)))[k];const der=l=>{if(!l)return"";const a=cel[l.r];const i=a.indexOf(l);const v=a[i+1];return v&&!/:\s*$/.test(v.t)?v.t:""};
+  const abajo=l=>{if(!l)return"";const v=(cel[l.r+1]||[]).find(x=>Math.abs(x.c-l.c)<=1);return v?.t||""};
+  const lote=re=>{const l=lab(re);if(!l)return"";const a=cel[l.r];const i=a.indexOf(l);const q=a.slice(i+1).find(x=>/^LOTE/.test(nrm(x.t)));return q?der(q):""};
+  const u=nrm(nombre),c={};const f=(k,v)=>{v=String(v||"").trim();if(v&&v!=="-"&&!/^n\/?a$/i.test(v))c[k]=v};
+  if(/PAUT|SCAN|SC-|ESPES/.test(u)){f("marca",der(lab(/^MARCA:?$/)));f("modelo",der(lab(/^MODELO/)));f("serie",der(lab(/^SERIE:?$/)));f("palpador",der(lab(/^REFERENCIA/)));f("zapata",der(lab(/^ZAPATA/)));
+    f("bloqueCal",der(lab(/^BLOQUE CALIB/)));f("bloqueRef",der(lab(/^BLOQUE REF/)));f("serieBloque",der(lab(/^SERIE B/)));f("acoplante",abajo(lab(/^ACOPLANTE/)));return{t:/SCAN\s*A|ESPES/.test(u)?"UTME":"PAUT",c}}
+  if(/\bMT|MT-|MT\./.test(u)){f("tipoYoke",der(lab(/^TIPO DE YOKE/)));f("marcaYoke",der(lab(/^MARCA DEL YOKE/)));f("serieYoke",der(lab(/^SERIE DEL YOKE/)));f("particulas",der(lab(/^PARTICULAS:?$/)));f("tipoPart",der(lab(/^TIPO DE PARTICULAS/)));
+    f("lotePart",lote(/^PARTICULAS:?$/));f("limpiador",der(lab(/^LIMPIADOR/)));f("loteLimp",lote(/^LIMPIADOR/));f("contraste",der(lab(/^CONTRASTE/)));return{t:"MT",c}}
+  if(/\bPT|PT-|PT\./.test(u)){f("marcaKit",der(lab(/^MARCA KIT/)));f("limpiador",der(lab(/^LIMPIADOR/)));f("loteLimp",lote(/^LIMPIADOR/));f("penetrante",der(lab(/^PENETRANTE:?$/)));f("lotePen",lote(/^PENETRANTE:?$/));
+    f("revelador",der(lab(/^REVELADOR:?$/)));f("loteRev",lote(/^REVELADOR:?$/));return{t:"PT",c}}
+  return null}
+async function equiposExt(r){const out=[];for(const e of r.repsExt||[]){try{const pq=JSON.parse(await (await blobFoto(e.id)).text());for(const h of pq.hojas||[]){const q=equipoHojaExt(h.xml||"",h.nombre||"");if(q&&Object.keys(q.c).length)out.push(q)}}catch(err){}}return out}
 async function fechasExt(r){const out=[];for(const e of r.repsExt||[]){if(e.fechas){out.push(...e.fechas);continue}try{const pq=JSON.parse(await (await blobFoto(e.id)).text());for(const h of pq.hojas||[]){const f=fechaHojaExt(h.xml||"");if(f)out.push(f)}}catch(err){}}return out}
 function fechasTxt(isos){const ds=[...new Set(isos.filter(Boolean))].sort();if(!ds.length)return"";const p2=n=>String(n).padStart(2,"0");
   const grupos=[];ds.forEach(s=>{const[y,m,d]=s.split("-").map(Number);const g=grupos[grupos.length-1];if(g&&g.y===y&&g.m===m)g.d.push(d);else grupos.push({y,m,d:[d]})});
@@ -3423,7 +3444,7 @@ async function generarInforme(r){REP_PT=r;
   const enPK=`en el ${pkTxt} del ${lin}`;
   const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} – ${DEPTO[r.ciudad]}`:r.ciudad):"";
   const fechas=fechasTxt(A.flatMap(x=>[x.inspFecha||r.fecha,...(x.fechasExtra||[])]).concat(A.length?[]:[r.fecha]).concat(await fechasExt(r)));
-  const insp=[...new Set(A.flatMap(x=>inspList(x.inspectores)))];const realizo=realizoDe(A[0]||{})||insp[0]||"";
+  const insp=[...new Set([...A.flatMap(x=>inspList(x.inspectores)),...(await inspExt(r))])];const realizo=realizoDe(A[0]||{})||insp[0]||"";
   const tec=x=>x?.tecnicas||[];const usaH=t=>[h0,h12].some(x=>tec(x).includes(t));const zsTs=zs?zsT(zs):[];
   const scanA=zsTs.includes("SCANA"),scanC=zsTs.includes("SCANC")||tec(tn).includes("SCANC"),mt=zsTs.includes("MT")||usaH("MT")||tec(tn).includes("MT")||A.some(x=>x.act==="Ilícitas"&&tec(x).includes("MT")),pt=!!bis||usaH("PT"),paut=usaH("PAUT");
   const hoy=new Date(),p2=n=>String(n).padStart(2,"0"),hoyTxt=`${p2(hoy.getDate())}/${p2(hoy.getMonth()+1)}/${hoy.getFullYear()}`;
@@ -3442,13 +3463,14 @@ async function generarInforme(r){REP_PT=r;
     if(scanA){const q=ps[0].cloneNode(true);setT(q,"Ultrasonido medición de espesores (Scan A)");v(13).insertBefore(q,v(13).firstChild)}
     celda(v(14),elem.charAt(0).toUpperCase()+elem.slice(1));
     const partes=[(zs||tn)&&"material base",bis&&"biseles",(h0||h12)&&"soldaduras"].filter(Boolean);celda(v(16),(partes.length>1?partes.slice(0,-1).join(", ")+" y "+partes.at(-1):partes[0]||"").replace(/^./,c=>c.toUpperCase()));
-    celda(v(18),insp.join(", "));const c21=celdasDe(f[21])[1];if(c21)celda(c21,"");celda(v(22),r.base||"");celda(v(24),fechas)}
+    celda(v(18),insp.join(", "));const c21=celdasDe(f[21])[1];if(c21)celda(c21,r.nivel1?`Nivel I: ${inspList(r.nivel1).join(", ")}`:"");celda(v(22),r.base||"");celda(v(24),fechas)}
   // ---- equipo utilizado: series y lotes de los equipos escogidos en las actividades ----
   {const T=K.find(n=>n.localName==="tbl"&&/Yoke de im/.test(tx(n)));
    if(T){const F=filasDe(T),put=(ri,ci,t)=>{const c=F[ri]&&celdasDe(F[ri])[ci];if(c&&t)celda(c,t)};
     const eqs=t=>{const ids=[...new Set(A.map(x=>x.equipos?.[t]).filter(Boolean))];return ids.map(id=>equipos.find(e=>e.id===id)?.campos).filter(Boolean)};
     const v=x=>String(x??"").trim(),jn=a=>[...new Set(a.filter(Boolean))].join("; ");
-    const ut=[...eqs("PAUT"),...eqs("PAUTC")],um=eqs("UTME"),mt=eqs("MT"),pt=eqs("PT"),ax=eqs("AUX");
+    const EX=await equiposExt(r),ex=t=>EX.filter(q=>q.t===t).map(q=>q.c);// equipos de los reportes de compañeros
+    const ut=[...eqs("PAUT"),...eqs("PAUTC"),...ex("PAUT")],um=[...eqs("UTME"),...ex("UTME")],mt=[...eqs("MT"),...ex("MT")],pt=[...eqs("PT"),...ex("PT")],ax=eqs("AUX");
     put(1,0,jn([...ut,...um].map(c=>[v(c.marca),v(c.modelo),v(c.serie)&&`S/N ${v(c.serie)}`].filter(Boolean).join(" "))));
     put(2,0,jn(ut.map(c=>[v(c.palpador)&&`Palpador PAUT ${v(c.palpador)}`,v(c.zapata)&&`zapata ${v(c.zapata)}`].filter(Boolean).join(", "))));
     put(3,0,jn(um.map(c=>v(c.palpador)&&`Palpador dual ${v(c.palpador)}`)));
