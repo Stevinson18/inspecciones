@@ -962,12 +962,12 @@ function drawRepair(rep,meta,P,compact){
       const mS=(X(EX)+X(a2s))/2,m2=(X(s1)+X(a2e))/2,m1=(X(a2e)+X(a1e))/2;
       T(mS,cy-13,"SC L1",{s:12,w:700});T(mS,cy+25,"SC L2",{s:12,c:P.muted});
       T(m2,cy-13,"A2L1",{s:11,w:700});T(m2,cy+25,"A2L2",{s:11,c:P.muted});T(m1,cy-13,"A1L1",{s:11,w:700});T(m1,cy+25,"A1L2",{s:11,c:P.muted});
-      T(X(s0),cyL,"C1",{s:13,w:700,c:P.bad});T(X(s1),cyL,"C2",{s:13,w:700,c:P.bad});T(X(a2e)+dx,cy-h2/2-6,"C3",{a:an,s:13,w:700,c:P.bad});T(X(a1e)+dx,cy-h1/2-6,"C4",{a:an,s:13,w:700,c:P.bad});
+      const q=dbIds(rep);T(X(s0),cyL,q.SCEX,{s:13,w:700,c:P.bad});T(X(s1),cyL,q.SCA2,{s:13,w:700,c:P.bad});T(X(a2e)+dx,cy-h2/2-6,q.A2A1,{a:an,s:13,w:700,c:P.bad});T(X(a1e)+dx,cy-h1/2-6,q.A1T,{a:an,s:13,w:700,c:P.bad});
       T((X(s0)+X(s1))/2,cy+hS/2+18,"Sobre camisa"+(known?` · ${ls} ${U}`:""),{s:11,c:P.muted});
       T(m2,cy+hS/2+32,"Anillo 2"+(known?` · ${l2} ${U}`:""),{s:11,c:P.muted});T(m1+(der?-18:18),cy+hS/2+46,"Anillo 1"+(known?` · ${l1} ${U}`:""),{s:11,c:P.muted});
       T((X(u0)+X(EX))/2,cy+hS/2+34,`Existente (${exT.replace(/^Camisa /,"")})`+(lx?` · ${lx} ${U} a la vista`:""),{s:11,c:P.muted});
       flow(W/2,cy+hS/2+62,P.zs)}
-    titulo="Camisa doble anillo sobre camisa existente";DL=" (C1 a C4)";resumen=`Sobre camisa sobre la existente (${exT.replace(/^Camisa /,"")}, ${der?"aguas abajo":"aguas arriba"}) + anillo 2 sobre anillo 1 · C1–C4 (C4 compromiso camisa‑tubo)`;
+    titulo="Camisa doble anillo sobre camisa existente";DL=" (C1 a C4)";resumen=`Sobre camisa sobre la existente (${exT.replace(/^Camisa /,"")}, ${der?"aguas abajo":"aguas arriba"}) + anillo 2 sobre anillo 1 · C1–C4 (${dbIds(rep).A1T} compromiso camisa‑tubo)`;
   } else if(tipo==="Camisa puenteada"){
     // dos camisas existentes y una sobre camisa que las une tapando el espacio entre ellas
     const e1=LN(lg.ex1?.[0]), e2=LN(lg.ex2?.[0]), pu=LN(lg.pu?.[0]), knownP=!!(e1&&e2&&pu);
@@ -1345,7 +1345,7 @@ function calcInsp(rep,diam,esp,tipoA){
     if(!tipoA){Cw("C1",D+2*t);Cw("C2",D+2*t);Cw("C3",D+4*t);Cw("C4",D+4*t)}else{Cw("C1",D+4*t);Cw("C2",D+4*t)}
   } else if(rep.tipo==="Camisa doble anillo sobre existente"){
     const ls=toIn(lg.sc?.[0],u),l2=toIn(lg.a2?.[0],u),l1=toIn(lg.a1?.[0],u);if(!ok([ls,l2,l1]))return{err:"Faltan las longitudes de sobre camisa y anillos en el esquema."};
-    Lw("Sobre camisa · L1 y L2",ls,0);Lw("Anillo 2 · L1 y L2",l2,1);Lw("Anillo 1 · L1 y L2",l1,1);Cw("C1",D+6*t);Cw("C2",D+6*t);Cw("C3",D+4*t);Cw("C4",D+2*t);
+    Lw("Sobre camisa · L1 y L2",ls,0);Lw("Anillo 2 · L1 y L2",l2,1);Lw("Anillo 1 · L1 y L2",l1,1);{const q=dbIds(rep),fs={[q.SCEX]:6,[q.SCA2]:6,[q.A2A1]:4,[q.A1T]:2};["C1","C2","C3","C4"].forEach(c=>Cw(c,D+fs[c]*t))}
   } else if(rep.tipo==="Camisa puenteada"){
     const lp=toIn(lg.pu?.[0],u);if(lp==null)return{err:"Falta la longitud de la sobre camisa en el esquema."};
     Lw("Camisa puenteada · L1 y L2",lp,0);Cw("C1",D+4*t);Cw("C2",D+4*t);
@@ -1718,6 +1718,7 @@ const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad 
 // juntas que NO se inspeccionaron en esta actividad (p. ej. otro inspector las hizo otro día)
 const esAnillo=j=>/^A\d /.test(j.id)||j.lados[0]==="Lado anillo";
 // juntas que NO se hicieron con una técnica en particular (p. ej. anillos con PT y MT pero sin PAUT)
+const dbIds=rep=>/abajo|derecha/i.test(rep?.exLado||"")?{A1T:"C1",A2A1:"C2",SCA2:"C3",SCEX:"C4"}:{SCEX:"C1",SCA2:"C2",A2A1:"C3",A1T:"C4"};
 const noTec=(it,t,id)=>(it?.juntasNoT?.[t]||[]).includes(id);
 function juntasNo(it,rep){if(Array.isArray(it.juntasNo))return new Set(it.juntasNo);if(it.sinAnillos&&/anillos/.test(rep?.tipo||""))return new Set(juntasDe(rep,false).filter(esAnillo).map(j=>j.id));return new Set()}
 function juntasDe(rep,tipoA,it){
@@ -1734,7 +1735,7 @@ function juntasDe(rep,tipoA,it){
   else if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"){L("A1 ");L("A2 ");L("SC ");
     let n=1;if(!tipoA){C("C1","Lado anillo","Lado tubo");C("C2","Lado anillo","Lado tubo");n=3}
     C(`C${n}`,"Lado sobre camisa","Lado anillo");C(`C${n+1}`,"Lado sobre camisa","Lado anillo")}
-  else if(t==="Camisa doble anillo sobre existente"){L("SC ");L("A2 ");L("A1 ");C("C1","Lado sobre camisa","Lado camisa existente");C("C2","Lado sobre camisa","Lado anillo");C("C3","Lado anillo","Lado anillo");C("C4","Lado anillo","Lado tubo")}
+  else if(t==="Camisa doble anillo sobre existente"){L("SC ");L("A2 ");L("A1 ");const q=dbIds(rep),cs=[[q.SCEX,"Lado sobre camisa","Lado camisa existente"],[q.SCA2,"Lado sobre camisa","Lado anillo"],[q.A2A1,"Lado anillo","Lado anillo"],[q.A1T,"Lado anillo","Lado tubo"]].sort((a,b)=>+a[0].slice(1)-+b[0].slice(1));cs.forEach(c=>C(...c))}
   else if(t==="Camisa puenteada"){L("");C("C1","Lado sobre camisa","Lado camisa existente");C("C2","Lado sobre camisa","Lado camisa existente")}
   else if(t==="Ilícita"){for(let i=1;i<=nInt(rep.cascotas,3,1,12);i++)C(`Cascota #${i}`,"Lado cascota","Lado tubo")}
   for(let k=1;k<=nInt(it?.juntasTT,0,0,40);k++)out.push({id:`J${k}`,tipo:"circ",tope:true,lados:["Lado tubo","Lado tubo"]});
@@ -1822,7 +1823,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v79";
+const LOCAL=!!window.__LOCAL;const APPV="v80";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2480,7 +2481,7 @@ $("extBox").addEventListener("click",async e=>{const d=e.target.closest("[data-e
           const j=arr.findIndex(x=>!x?.id);if(j>=0)arr[j]={...arr[j],...o};else arr.push(o)}}
       if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico`)}
       if(sel.length){const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
-        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fecha:Date.now()});
+        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
         const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
       extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.")}
     catch(err){b.disabled=false;b.textContent="Agregar hojas marcadas";toast("No se pudo guardar: "+(err.message||err))}}});
@@ -2879,7 +2880,7 @@ function largoSeccion(rep,id){const u=rep.unidad||"cm",lg=rep.largos||{};const m
 const perCascota=(u,v)=>{const n=num(v);return n==null?null:Math.round(Math.PI*n*(U2MM[u||"cm"]||10))};
 function largoJunta(rep,j,diam,esp){if(j.tipo==="long")return largoSeccion(rep,j.id);if(j.tope){const D=odOf(diam);return D?Math.round(Math.PI*D*25.4):null}
   if(rep?.tipo==="Ilícita"){const i=+(j.id.match(/#(\d+)/)||[])[1];return perCascota(rep.unidad||"cm",rep.largos?.cas?.[i-1])}
-  const D=odOf(diam),t=num(esp);if(!D||t==null)return null;if(rep?.tipo==="Camisa doble anillo sobre existente"){const f={C1:6,C2:6,C3:4,C4:2}[j.id];if(f)return Math.round(Math.PI*(D+f*t)*25.4)}{const k=+(j.id.match(/^SC(\d+) C/)||[])[1];if(k)return Math.round(Math.PI*(D+2*(k+1)*t)*25.4)}const sobre=j.lados[0]!=="Lado camisa"&&j.lados[0]!=="Lado anillo";return Math.round(Math.PI*(D+(sobre?4:2)*t)*25.4)}
+  const D=odOf(diam),t=num(esp);if(!D||t==null)return null;if(rep?.tipo==="Camisa doble anillo sobre existente"){const q=dbIds(rep),f={[q.SCEX]:6,[q.SCA2]:6,[q.A2A1]:4,[q.A1T]:2}[j.id];if(f)return Math.round(Math.PI*(D+f*t)*25.4)}{const k=+(j.id.match(/^SC(\d+) C/)||[])[1];if(k)return Math.round(Math.PI*(D+2*(k+1)*t)*25.4)}const sobre=j.lados[0]!=="Lado camisa"&&j.lados[0]!=="Lado anillo";return Math.round(Math.PI*(D+(sobre?4:2)*t)*25.4)}
 function descCamisa(r,rep){if(rep?.tipo==="Ilícita")return nInt(rep.cascotas,3,1,12)>1?"cascotas":"cascota";const A=r.tipoReparacion==="Camisa Tipo A"?"tipo A":"tipo B";const t=rep?.tipo||"";
   return t==="Camisa doble anillo sobre existente"?`camisa ${A} con doble anillo instalada sobre la camisa existente${rep.exTipo&&rep.exTipo!=="Otra"?` (${rep.exTipo.replace(/^Camisa /,"").toLowerCase()})`:""}`:t==="Camisa armadillo"?`camisa ${A} seccionada`:/anillos/.test(t)?`camisa ${A} sobre anillos`:t==="Camisa puenteada"?`camisa ${A} puenteada`:(nInt(rep?.capas,0,0,3)?`camisa ${A} con ${nInt(rep.capas,0,0,3)} ${nInt(rep.capas,0,0,3)>1?"sobrecamisas superpuestas":"sobrecamisa superpuesta"}`:`camisa ${A}`)}
 const realizoDe=it=>inspList(it.inspectores)[0]||"";
@@ -3374,6 +3375,12 @@ async function sinVinculos(leer,escribir,nombres){
 // ---------- informe general en Word (plantilla INFORME GENERAL, se llena por posición) ----------
 const MESES=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 // "11, 25 y 30 de septiembre, 06 y 07 de octubre del 2026"
+// fecha de inspección de cada hoja de un reporte de compañero (casilla FECHA, AH9)
+const fechaHojaExt=xml=>{const m=xml.match(/<c r="AH9"[^>]*>([\s\S]*?)<\/c>/);if(!m)return"";const b=m[1];const v=(b.match(/<v>(\d+(?:\.\d+)?)<\/v>/)||[])[1];
+  if(v&&!/t="inlineStr"/.test(m[0])){const n=+v;if(n>30000&&n<80000)return new Date(Date.UTC(1899,11,30)+Math.round(n)*864e5).toISOString().slice(0,10)}
+  const t=dxe(b.replace(/<[^>]+>/g,"")).trim();const q=t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);if(q){const y=+q[3]<100?2000+ +q[3]:+q[3];return`${y}-${String(q[2]).padStart(2,"0")}-${String(q[1]).padStart(2,"0")}`}
+  const i=t.match(/^(\d{4})-(\d{2})-(\d{2})/);return i?i[0]:""};
+async function fechasExt(r){const out=[];for(const e of r.repsExt||[]){if(e.fechas){out.push(...e.fechas);continue}try{const pq=JSON.parse(await (await blobFoto(e.id)).text());for(const h of pq.hojas||[]){const f=fechaHojaExt(h.xml||"");if(f)out.push(f)}}catch(err){}}return out}
 function fechasTxt(isos){const ds=[...new Set(isos.filter(Boolean))].sort();if(!ds.length)return"";const p2=n=>String(n).padStart(2,"0");
   const grupos=[];ds.forEach(s=>{const[y,m,d]=s.split("-").map(Number);const g=grupos[grupos.length-1];if(g&&g.y===y&&g.m===m)g.d.push(d);else grupos.push({y,m,d:[d]})});
   const lista=a=>a.length>1?a.slice(0,-1).join(", ")+" y "+a[a.length-1]:a[0];
@@ -3415,7 +3422,7 @@ async function generarInforme(r){REP_PT=r;
   const drN=String(r.dr||"").replace(/^\s*DR\s*[:.]?\s*/i,"").trim(),pkTxt=`PK ${r.pk||""}${drN?` (DR ${drN})`:""}`;
   const enPK=`en el ${pkTxt} del ${lin}`;
   const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} – ${DEPTO[r.ciudad]}`:r.ciudad):"";
-  const fechas=fechasTxt(A.flatMap(x=>[x.inspFecha||r.fecha,...(x.fechasExtra||[])]).concat(A.length?[]:[r.fecha]));
+  const fechas=fechasTxt(A.flatMap(x=>[x.inspFecha||r.fecha,...(x.fechasExtra||[])]).concat(A.length?[]:[r.fecha]).concat(await fechasExt(r)));
   const insp=[...new Set(A.flatMap(x=>inspList(x.inspectores)))];const realizo=realizoDe(A[0]||{})||insp[0]||"";
   const tec=x=>x?.tecnicas||[];const usaH=t=>[h0,h12].some(x=>tec(x).includes(t));const zsTs=zs?zsT(zs):[];
   const scanA=zsTs.includes("SCANA"),scanC=zsTs.includes("SCANC")||tec(tn).includes("SCANC"),mt=zsTs.includes("MT")||usaH("MT")||tec(tn).includes("MT")||A.some(x=>x.act==="Ilícitas"&&tec(x).includes("MT")),pt=!!bis||usaH("PT"),paut=usaH("PAUT");
