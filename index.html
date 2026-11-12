@@ -544,7 +544,7 @@ const REPS={
   "Camisa sobre anillos":{params:[]},
   "Camisa sobre anillos sobre venteo":{params:[["tapa","¿Qué tapa la camisa?","Venteo",0,0,"sel",["Venteo","Cascotas"]],["tapaNum","Número de venteo",1,1,20]]},
   "Camisa directa":{params:[["capas","Sobrecamisas encima, una sobre otra (0 = ninguna)",0,0,3]]},
-  "Camisa doble anillo sobre existente":{params:[]},
+  "Camisa doble anillo sobre existente":{params:[["exTipo","Tipo de camisa existente","Camisa sobre anillos",0,0,"sel",["Camisa sobre anillos","Camisa directa","Camisa armadillo","Camisa puenteada","Otra"]],["exLado","¿A qué lado queda la camisa existente? (el flujo va a la derecha)","Aguas arriba (izquierda)",0,0,"sel",["Aguas arriba (izquierda)","Aguas abajo (derecha)"]]]},
   "Camisa puenteada":{params:[["cascota","¿Hay cascota en el espacio?",true,0,0,"yesno"]]},
   "Zona sana":{params:[["zonas","Áreas sanas",2,1,8]],act:"Zona sana"},
   "Biseles":{params:[],act:"Biseles"},
@@ -945,28 +945,29 @@ function drawRepair(rep,meta,P,compact){
     titulo="Corte y empalme";DL=" (Tie In 1 a Tie In 2)";
     resumen=`${ce.v} ${ce.v===1?"venteo":"venteos"} · ${ce.d} ${ce.d===1?"drenaje":"drenajes"} · ${ce.cams&&ce.v?ce.cam+(ce.cam===1?" camisa sobre venteo":" camisas sobre venteos"):"sin camisas sobre venteos"}`;
   } else if(tipo==="Camisa doble anillo sobre existente"){
-    // camisa existente sobre anillos (gris, aguas arriba) + sobre camisa que monta sobre ella y sobre el anillo 2; el anillo 2 va sobre el anillo 1 y este sobre el tubo
+    // camisa existente (gris) + sobre camisa que monta sobre ella y sobre el anillo 2; el anillo 2 va sobre el anillo 1 y este sobre el tubo.
+    // El flujo siempre va a la derecha: la existente puede quedar aguas arriba (izquierda) o aguas abajo (derecha)
     const lx=LN(lg.ex?.[0]),ls=LN(lg.sc?.[0]),l2=LN(lg.a2?.[0]),l1=LN(lg.a1?.[0]),known=!!(ls&&l2&&l1);
+    const exT=rep.exTipo||"Camisa sobre anillos",der=/abajo|derecha/i.test(rep.exLado||""),exAn=/anillos/.test(exT);
     // a escala, pero con un ancho mínimo para que los anillos (cortos) se lean
     const SC=known?ls:2.6,A2=Math.max(known?l2:1,SC*0.38),A1=Math.max(known?l1:1,SC*0.38),EX=Math.max(lx&&known?Math.min(lx,SC*0.9):SC*0.55,SC*0.5);
     const ovE=Math.min(SC*0.28,EX*0.6),ovA=A2*0.4,a1o=A2*0.45;
-    const u0=-EX*0.25,s0=EX-ovE,s1=s0+SC,a2s=s1-ovA,a2e=a2s+A2,a1s=a2s+a1o,a1e=Math.max(a1s+A1,a2e+A1*0.3),tot=a1e-u0;
-    const k=Math.min((W-90)/tot,170/Math.max(A1,A2)),X=u=>(W-tot*k)/2+(u-u0)*k;
-    const hR=ph+INC,hE=ph+2*INC,h1=ph+INC,h2=ph+2*INC,hS=ph+3*INC;RA=X(s0);RB=X(a1e);
-    sleeve(X(u0),cy-hR/2,(EX*0.3)*k,hR,{op:.35});sleeve(X(0),cy-hE/2,EX*k,hE,{op:.35});
-    sleeve(X(a1s),cy-h1/2,(a1e-a1s)*k,h1);seam(X(a2e),X(a1e),cy-8,cy+10);
-    sleeve(X(a2s),cy-h2/2,A2*k,h2);seam(X(s1),X(a2e),cy-8,cy+10);
-    sleeve(X(s0),cy-hS/2,SC*k,hS);seam(X(EX),X(a2s),cy-8,cy+10);
-    if(!compact){const cyL=cy-hS/2-6;
+    const u0=exAn?-EX*0.25:0,s0=EX-ovE,s1=s0+SC,a2s=s1-ovA,a2e=a2s+A2,a1s=a2s+a1o,a1e=Math.max(a1s+A1,a2e+A1*0.3),tot=a1e-u0;
+    const k=Math.min((W-90)/tot,170/Math.max(A1,A2)),X0=u=>(W-tot*k)/2+(u-u0)*k,X=u=>der?W-X0(u):X0(u);
+    const box=(ua,ub,h,o)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));sleeve(a,cy-h/2,b-a,h,o)},sm=(ua,ub)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));seam(a,b,cy-8,cy+10)};
+    const hR=ph+INC,hE=exAn?ph+2*INC:ph+2*INC,h1=ph+INC,h2=ph+2*INC,hS=ph+3*INC;RA=Math.min(X(s0),X(a1e));RB=Math.max(X(s0),X(a1e));
+    if(exAn)box(u0,u0+EX*0.3,hR,{op:.35});box(0,EX,hE,{op:.35});
+    box(a1s,a1e,h1);sm(a2e,a1e);box(a2s,a2e,h2);sm(s1,a2e);box(s0,s1,hS);sm(EX,a2s);
+    if(!compact){const cyL=cy-hS/2-6,an=der?"end":"start",dx=der?-4:4;
       const mS=(X(EX)+X(a2s))/2,m2=(X(s1)+X(a2e))/2,m1=(X(a2e)+X(a1e))/2;
       T(mS,cy-13,"SC L1",{s:12,w:700});T(mS,cy+25,"SC L2",{s:12,c:P.muted});
       T(m2,cy-13,"A2L1",{s:11,w:700});T(m2,cy+25,"A2L2",{s:11,c:P.muted});T(m1,cy-13,"A1L1",{s:11,w:700});T(m1,cy+25,"A1L2",{s:11,c:P.muted});
-      T(X(s0),cyL,"C1",{s:13,w:700,c:P.bad});T(X(s1),cyL,"C2",{s:13,w:700,c:P.bad});T(X(a2e)+4,cy-h2/2-6,"C3",{a:"start",s:13,w:700,c:P.bad});T(X(a1e)+4,cy-h1/2-6,"C4",{a:"start",s:13,w:700,c:P.bad});
+      T(X(s0),cyL,"C1",{s:13,w:700,c:P.bad});T(X(s1),cyL,"C2",{s:13,w:700,c:P.bad});T(X(a2e)+dx,cy-h2/2-6,"C3",{a:an,s:13,w:700,c:P.bad});T(X(a1e)+dx,cy-h1/2-6,"C4",{a:an,s:13,w:700,c:P.bad});
       T((X(s0)+X(s1))/2,cy+hS/2+18,"Sobre camisa"+(known?` · ${ls} ${U}`:""),{s:11,c:P.muted});
-      T(m2,cy+hS/2+32,"Anillo 2"+(known?` · ${l2} ${U}`:""),{s:11,c:P.muted});T(m1+18,cy+hS/2+46,"Anillo 1"+(known?` · ${l1} ${U}`:""),{s:11,c:P.muted});
-      T((X(u0)+X(EX))/2,cy+hS/2+18,"Camisa existente"+(lx?` · ${lx} ${U}`:""),{s:11,c:P.muted});
+      T(m2,cy+hS/2+32,"Anillo 2"+(known?` · ${l2} ${U}`:""),{s:11,c:P.muted});T(m1+(der?-18:18),cy+hS/2+46,"Anillo 1"+(known?` · ${l1} ${U}`:""),{s:11,c:P.muted});
+      T((X(u0)+X(EX))/2,cy+hS/2+34,`Existente (${exT.replace(/^Camisa /,"")})`+(lx?` · ${lx} ${U} a la vista`:""),{s:11,c:P.muted});
       flow(W/2,cy+hS/2+62,P.zs)}
-    titulo="Camisa doble anillo sobre camisa existente";DL=" (C1 a C4)";resumen="Sobre camisa sobre la existente + anillo 2 sobre anillo 1 · soldaduras C1–C4 (C4 compromiso camisa‑tubo)";
+    titulo="Camisa doble anillo sobre camisa existente";DL=" (C1 a C4)";resumen=`Sobre camisa sobre la existente (${exT.replace(/^Camisa /,"")}, ${der?"aguas abajo":"aguas arriba"}) + anillo 2 sobre anillo 1 · C1–C4 (C4 compromiso camisa‑tubo)`;
   } else if(tipo==="Camisa puenteada"){
     // dos camisas existentes y una sobre camisa que las une tapando el espacio entre ellas
     const e1=LN(lg.ex1?.[0]), e2=LN(lg.ex2?.[0]), pu=LN(lg.pu?.[0]), knownP=!!(e1&&e2&&pu);
@@ -1029,7 +1030,7 @@ const repLabel=rep=>{if(!rep?.tipo)return"";const t=rep.tipo;
   if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,30);return`Armadillo · ${d} directas + ${d-1} sobre`}
   if(t==="Camisa sobre anillos")return"Camisa sobre anillos";
   if(t==="Camisa sobre anillos sobre venteo")return rep.tapa==="Cascotas"?`Anillos sobre ${nInt(rep.tapaNum,1,1,12)} cascotas`:`Anillos sobre venteo #${nInt(rep.tapaNum,1,1,20)}`;
-  if(t==="Camisa doble anillo sobre existente")return"Doble anillo sobre camisa existente";
+  if(t==="Camisa doble anillo sobre existente")return`Doble anillo sobre existente (${(rep.exTipo||"Camisa sobre anillos").replace(/^Camisa /,"")}, ${/abajo/.test(rep.exLado||"")?"aguas abajo":"aguas arriba"})`;
   if(t==="Camisa puenteada")return"Camisa puenteada";
   if(t==="Camisa directa"){const nc=nInt(rep.capas,0,0,3);return nc?`Camisa directa + ${nc} sobre`:"Camisa directa"}
   if(t==="Zona sana")return`Zona sana · ${nInt(rep.zonas,2,1,8)} áreas`;
@@ -1171,7 +1172,7 @@ function renderLens(unit,lg){
     for(let i=0;i<d-1;i++)h+=inp("sob",i,`Sec. ${d+i+1} · sobre`,lg.sob?.[i]);}
   else if(tipo.startsWith("Camisa sobre anillos")){h+=inp("an",0,"Cada anillo",lg.an?.[0]);h+=inp("sc",0,"Sobre camisa",lg.sc?.[0])}
   else if(tipo==="Camisa directa"){h+=inp("cd",0,"Longitud de la camisa",lg.cd?.[0]);const nc=nInt($("rp_capas")?.value,0,0,3);for(let k=0;k<nc;k++)h+=inp("sup",k,`Sobrecamisa ${k+1} (encima)`,lg.sup?.[k])}
-  else if(tipo==="Camisa doble anillo sobre existente"){h+=inp("sc",0,"Sobre camisa",lg.sc?.[0]);h+=inp("a2",0,"Anillo 2 (sobre anillo 1)",lg.a2?.[0]);h+=inp("a1",0,"Anillo 1 (sobre el tubo)",lg.a1?.[0]);h+=inp("ex",0,"Camisa existente (opcional)",lg.ex?.[0])}
+  else if(tipo==="Camisa doble anillo sobre existente"){h+=inp("sc",0,"Sobre camisa",lg.sc?.[0]);h+=inp("a2",0,"Anillo 2 (sobre anillo 1)",lg.a2?.[0]);h+=inp("a1",0,"Anillo 1 (sobre el tubo)",lg.a1?.[0]);h+=inp("ex",0,"Camisa existente a la vista",lg.ex?.[0])}
   else if(tipo==="Camisa puenteada"){h+=inp("ex1",0,"Camisa existente 1",lg.ex1?.[0]);h+=inp("ex2",0,"Camisa existente 2",lg.ex2?.[0]);h+=inp("pu",0,"Sobre camisa a instalar",lg.pu?.[0])}
   else if(tipo==="Ilícita"){const n=nInt($("rp_cascotas")?.value,3,1,12);for(let i=0;i<n;i++)h+=inp("cas",i,`Ø cascota ${i+1}`,lg.cas?.[i])}
   box.innerHTML=`<div class="drawbar" style="margin:2px 0 8px"><span class="label">${tipo==="Ilícita"?"Diámetro de cada cascota":"Longitud de cada pieza"}</span><label class="check" style="font-size:.85rem">Unidad <select class="field" id="lUni" style="padding:4px 8px"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label></div><div class="grid3">${h}</div>`;
@@ -1821,7 +1822,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v78";
+const LOCAL=!!window.__LOCAL;const APPV="v79";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2880,7 +2881,7 @@ function largoJunta(rep,j,diam,esp){if(j.tipo==="long")return largoSeccion(rep,j
   if(rep?.tipo==="Ilícita"){const i=+(j.id.match(/#(\d+)/)||[])[1];return perCascota(rep.unidad||"cm",rep.largos?.cas?.[i-1])}
   const D=odOf(diam),t=num(esp);if(!D||t==null)return null;if(rep?.tipo==="Camisa doble anillo sobre existente"){const f={C1:6,C2:6,C3:4,C4:2}[j.id];if(f)return Math.round(Math.PI*(D+f*t)*25.4)}{const k=+(j.id.match(/^SC(\d+) C/)||[])[1];if(k)return Math.round(Math.PI*(D+2*(k+1)*t)*25.4)}const sobre=j.lados[0]!=="Lado camisa"&&j.lados[0]!=="Lado anillo";return Math.round(Math.PI*(D+(sobre?4:2)*t)*25.4)}
 function descCamisa(r,rep){if(rep?.tipo==="Ilícita")return nInt(rep.cascotas,3,1,12)>1?"cascotas":"cascota";const A=r.tipoReparacion==="Camisa Tipo A"?"tipo A":"tipo B";const t=rep?.tipo||"";
-  return t==="Camisa doble anillo sobre existente"?`camisa ${A} con doble anillo instalada sobre la camisa existente`:t==="Camisa armadillo"?`camisa ${A} seccionada`:/anillos/.test(t)?`camisa ${A} sobre anillos`:t==="Camisa puenteada"?`camisa ${A} puenteada`:(nInt(rep?.capas,0,0,3)?`camisa ${A} con ${nInt(rep.capas,0,0,3)} ${nInt(rep.capas,0,0,3)>1?"sobrecamisas superpuestas":"sobrecamisa superpuesta"}`:`camisa ${A}`)}
+  return t==="Camisa doble anillo sobre existente"?`camisa ${A} con doble anillo instalada sobre la camisa existente${rep.exTipo&&rep.exTipo!=="Otra"?` (${rep.exTipo.replace(/^Camisa /,"").toLowerCase()})`:""}`:t==="Camisa armadillo"?`camisa ${A} seccionada`:/anillos/.test(t)?`camisa ${A} sobre anillos`:t==="Camisa puenteada"?`camisa ${A} puenteada`:(nInt(rep?.capas,0,0,3)?`camisa ${A} con ${nInt(rep.capas,0,0,3)} ${nInt(rep.capas,0,0,3)>1?"sobrecamisas superpuestas":"sobrecamisa superpuesta"}`:`camisa ${A}`)}
 const realizoDe=it=>inspList(it.inspectores)[0]||"";
 // biseles de la camisa: id y longitud de cada bisel
 function bisRows(rep){const u=rep.unidad||"cm",mmv=v=>{const n=num(v);return n==null?"-":Math.round(n*(U2MM[u]||10))};const out=[];
