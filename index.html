@@ -1824,7 +1824,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v82";
+const LOCAL=!!window.__LOCAL;const APPV="v83";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3403,6 +3403,22 @@ function equipoHojaExt(xml,nombre){const cel={};for(const m of xml.matchAll(/<c 
     f("revelador",der(lab(/^REVELADOR:?$/)));f("loteRev",lote(/^REVELADOR:?$/));return{t:"PT",c}}
   return null}
 async function equiposExt(r){const out=[];for(const e of r.repsExt||[]){try{const pq=JSON.parse(await (await blobFoto(e.id)).text());for(const h of pq.hojas||[]){const q=equipoHojaExt(h.xml||"",h.nombre||"");if(q&&Object.keys(q.c).length)out.push(q)}}catch(err){}}return out}
+// resultados de las hojas de compañeros: soldaduras (PT/MT/PAUT de 0 H o 12 H) y zona sana (Scan C / MT) → actividades "virtuales" para el Word
+function celdasExt(xml){const C={};for(const m of xml.matchAll(/<c r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)){if(colN(m[1])>37)continue;const t=dxe((m[3]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim();if(t)(C[+m[2]]??=[]).push({c:colN(m[1]),t})}Object.values(C).forEach(a=>a.sort((p,q)=>p.c-q.c));return C}
+function tablaExt(C){const nrm=x=>x.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();const rows=Object.keys(C).map(Number).sort((a,b)=>a-b);
+  const hdr=rows.find(r=>C[r][0]&&C[r][0].c===1&&/^IDENTIFICACION/.test(nrm(C[r][0].t)));if(!hdr)return[];const rc=C[hdr].find(x=>/^RESULTADO/.test(nrm(x.t)))?.c;if(!rc)return[];const out=[];
+  for(const r of rows.filter(r=>r>hdr+1)){const a=C[r].find(x=>x.c===1);if(a&&/^(OBSERVACI|INTERPRETACI)/.test(nrm(a.t)))break;if(!a||a.t==="-")continue;const v=C[r].find(x=>x.c===rc)?.t||"";out.push({id:a.t.replace(/^(A\d|SC\d?|S\d+)\s*-?\s*(L\d)$/i,(m,p1,p2)=>`${p1.toUpperCase()} ${p2.toUpperCase()}`),res:/^R/i.test(v)?"Rechazo":v||"OK"})}return out}
+function momExt(nombre,C){if(/12\s*H|-12\b|1-12/i.test(nombre))return"12H";if(/0\s*H\b|-0H/i.test(nombre))return"0H";for(const r of Object.keys(C)){const a=C[r];const i=a.findIndex(x=>/^12 Horas/i.test(x.t));if(i>=0&&/^x$/i.test(a[i+1]?.t||""))return"12H"}return"0H"}
+async function itemsExt(r){const out=[],zs={areas:[],min:{},mt:[],tecs:new Set(),fechas:[]};
+  for(const e of r.repsExt||[]){let pq;try{pq=JSON.parse(await (await blobFoto(e.id)).text())}catch(err){continue}
+    for(const h of pq.hojas||[]){const n=h.nombre||"",u=n.toUpperCase(),xml=h.xml||"",C=celdasExt(xml),f=fechaHojaExt(xml);
+      if(/SC-ZS|SCAN\s*C/.test(u)){zs.tecs.add("SCANC");if(f)zs.fechas.push(f);
+        for(const rr of Object.keys(C)){const a=C[rr];a.forEach((x,i)=>{if(/^V\.?\s*M[IÍ]N/i.test(x.t)){const v=num(a[i+1]?.t);const lab=a.slice(i+1).find(y=>/^CIRCUNFERENCIAL|^ZONA/i.test(y.t));const ar=lab?a[a.indexOf(lab)+1]?.t:"";if(ar&&v!=null){if(!zs.areas.includes(ar))zs.areas.push(ar);zs.min[ar]=v}}})}}
+      else if(/MT-ZS|MT ZS/.test(u)&&!/METAL BASE/i.test(xml.match(/<c r="T9"[\s\S]*?<\/c>/)?.[0]||"")){zs.tecs.add("MT");if(f)zs.fechas.push(f);for(const q of tablaExt(C)){zs.mt.push(q);if(!zs.areas.includes(q.id))zs.areas.push(q.id)}}
+      else{const t=/PAUT/.test(u)?"PAUT":/\bMT|MT-|MT\./.test(u)?"MT":/\bPT|PT-|PT\./.test(u)&&!/BIS/.test(u)?"PT":null;if(!t)continue;const fs=tablaExt(C);if(!fs.length)continue;
+        out.push({act:momExt(n,C),ext:true,tecnicas:[t],filasExt:fs,ind:fs.filter(q=>q.res==="Rechazo").map(q=>({j:q.id,tec:t,res:"Rechazo"})),inspFecha:f||"",inspectores:inspHojaExt(xml)||""})}}}
+  if(zs.areas.length)out.push({act:"Zona sana",ext:true,zsTecs:[...zs.tecs],zsAreasExt:zs.areas,zsMinMm:zs.min,zsMtExt:zs.mt,inspFecha:zs.fechas[0]||"",reparacion:{tipo:"Zona sana",zonas:zs.areas.length}});
+  return out}
 async function fechasExt(r){const out=[];for(const e of r.repsExt||[]){if(e.fechas){out.push(...e.fechas);continue}try{const pq=JSON.parse(await (await blobFoto(e.id)).text());for(const h of pq.hojas||[]){const f=fechaHojaExt(h.xml||"");if(f)out.push(f)}}catch(err){}}return out}
 function fechasTxt(isos){const ds=[...new Set(isos.filter(Boolean))].sort();if(!ds.length)return"";const p2=n=>String(n).padStart(2,"0");
   const grupos=[];ds.forEach(s=>{const[y,m,d]=s.split("-").map(Number);const g=grupos[grupos.length-1];if(g&&g.y===y&&g.m===m)g.d.push(d);else grupos.push({y,m,d:[d]})});
@@ -3429,9 +3445,9 @@ async function generarInforme(r){REP_PT=r;
       if(grupo){const vm=cs[0].getElementsByTagNameNS(WNS,"vMerge")[0];if(f.g!==prev){if(vm)vm.setAttributeNS(WNS,"w:val","restart");celda(cs[0],f.g)}else{if(vm)vm.removeAttributeNS(WNS,"val");celda(cs[0],"")}prev=f.g}
       tbl.appendChild(nr)}}
   // ---- datos del punto ----
-  const tipoA=r.tipoReparacion==="Camisa Tipo A";const A=r.items;
+  const tipoA=r.tipoReparacion==="Camisa Tipo A";const XA=await itemsExt(r);const A=[...r.items.filter(x=>!(x.act==="Zona sana"&&XA.some(y=>y.act==="Zona sana")&&!x.reparacion?.tipo)),...XA];
   const unir=xs=>xs.length?{...xs[0],tecnicas:[...new Set(xs.flatMap(x=>x.tecnicas||[]))],novedad:xs.some(x=>x.novedad)}:undefined;
-  const zs=A.find(x=>x.act==="Zona sana"),bis=A.find(x=>x.act==="Biseles"),h0=unir(A.filter(x=>conTec(x.act)&&x.act!=="12H")),h12=unir(A.filter(x=>x.act==="12H")),tns=A.filter(x=>esTN(x.act)),tn=tns.length?{...tns[0],tecnicas:[...new Set(tns.flatMap(x=>x.tecnicas||[]))]}:undefined;
+  const zsL=A.filter(x=>x.act==="Zona sana"),zs=zsL.length?{...zsL[0],zsTecs:[...new Set(zsL.flatMap(x=>zsT(x)))],zsAreasExt:[...new Set(zsL.flatMap(x=>x.ext?x.zsAreasExt:zsAreas(x.reparacion)))],zsMinMm:Object.assign({},...zsL.map(x=>x.ext?x.zsMinMm:Object.fromEntries(Object.entries(x.zsMin||{}).map(([a,v])=>[a,num(v)!=null?num(v)*25.4:null])))),zsMtExt:zsL.flatMap(x=>x.ext?x.zsMtExt:zsT(x).includes("MT")?zsAreas(x.reparacion).map(a=>({id:a,res:x.novedad?"Ver obs.":"OK"})):[])}:undefined,bis=A.find(x=>x.act==="Biseles"),h0=unir(A.filter(x=>conTec(x.act)&&x.act!=="12H")),h12=unir(A.filter(x=>x.act==="12H")),tns=A.filter(x=>esTN(x.act)),tn=tns.length?{...tns[0],tecnicas:[...new Set(tns.flatMap(x=>x.tecnicas||[]))]}:undefined;
   const etapas=[...new Set(tns.map(x=>String(x.etapa||"").trim().toLowerCase()).filter(Boolean))],etapaTxt=etapas.length?" "+(etapas.length===2&&etapas.every(x=>/del doblado$/.test(x))?"antes y después del doblado":etapas.length>1?etapas.slice(0,-1).join(", ")+" y "+etapas.at(-1):etapas[0]):"";
   const repCam=([h0,h12].find(x=>x?.reparacion?.tipo&&!/Corte y empalme|Tubería nueva/.test(x.reparacion.tipo))||[h0,h12].find(x=>x?.reparacion?.tipo))?.reparacion||null;
   // actividades a soldaduras distintas de 0 H (PT/MT soldaduras, antes/después del bajado): cómo se nombran en el texto
@@ -3528,11 +3544,13 @@ async function generarInforme(r){REP_PT=r;
     else K[22].remove()}
   // ---- procedimiento ----
   const scanTxt=[zsTs.includes("SCANC")&&"ultrasonido Scan C",scanA&&"medición de espesores (Scan A)",zsTs.includes("MT")&&"partículas magnéticas fluorescentes"].filter(Boolean).join(zsTs.length>2?", ":" y ").replace(/, ([^,]*)$/," y $1")||"ultrasonido Scan C";
+  const mbs=A.filter(x=>x.act==="MT metal base camisa"&&x.reparacion?.tipo),mb=mbs[0];let MB=null;
+  if(mb)MB={proc:K[40].cloneNode(true),ident:K.slice(50,58).map(n=>n.cloneNode(true)),res:K.slice(89,93).map(n=>n.cloneNode(true)),conc:K[108].cloneNode(true)};
   if(zs)setT(K[39],`Inspección por medio de ${scanTxt} de las zonas donde se realizarán las soldaduras de filete de la ${elem} ${enPK}.`);
   else if(tn)setT(K[39],`Inspección mediante partículas magnéticas fluorescentes${tec(tn).includes("SCANC")?" y ultrasonido Scan C":""}${etapaTxt} al metal base de la tubería nueva (${tubosDe(tn.reparacion||{}).join(", ")}) ${enPK}.`);
   else K[39].remove();
   if(bis)setT(K[40],`Inspección mediante líquidos penetrantes a los biseles de la ${elem} para el ${pkTxt} del ${lin}.`);else K[40].remove();
-  const areas=zs?zsAreas(zs.reparacion):[];
+  const areas=zs?zs.zsAreasExt:[];
   setT(K[48],`Esquema 1.  Identificación del área sana para la soldadura de la ${elem}`);setT(K[56],`Esquema 2.  Identificación de biseles de la ${elem}`);setT(K[64],`Esquema 3. Identificación de las soldaduras de la ${elem}`);
   if(zs){setT(K[42],`Identificación del área sana para la realización de la soldadura de filete de la ${elem} ${enPK}`);
     llenar(K[44],1,areas.map(a=>({c:[`Zona sana para la soldadura de filete ${a.replace(/^AS /,"")}`,a,"-"]})))}else quitar(42,49);
@@ -3550,15 +3568,22 @@ async function generarInforme(r){REP_PT=r;
   // ---- resultados ----
   const ok=x=>x?.novedad?"Ver obs.":"OK";const mmTxt=v=>v==null?"-":`${v.toFixed(2).replace(".",",")} mm`;
   if(zs){setT(K[81],`Resultados de la inspección de las áreas sanas para la realización de las soldaduras de filete de la ${elem} ${enPK}`);setT(K[83],`Resultados de la inspección por ${scanTxt}`);
-    const nomMm=num(r.nominal)!=null?num(r.nominal)*25.4:null;llenar(K[84],1,areas.map(a=>{const v=num(zs.zsMin?.[a]);return{c:[a,mmTxt(nomMm),mmTxt(v!=null?v*25.4:null)]}}));
-    K[86].remove();K[87].remove();if(K[88]?.localName==="p"&&!tx(K[88]).trim())K[88].remove()}
+    const nomMm=num(r.nominal)!=null?num(r.nominal)*25.4:null;const conScan=areas.filter(a=>zs.zsMinMm?.[a]!=null);
+    if(zsTs.some(t=>t!=="MT")&&conScan.length)llenar(K[84],1,conScan.map(a=>({c:[a,mmTxt(nomMm),mmTxt(zs.zsMinMm[a])]})));else{K[83].remove();K[84].remove();K[85]?.localName==="p"&&!tx(K[85]).trim()&&K[85].remove()}
+    // MT a las zonas sanas (de la app o de un compañero)
+    if(zs.zsMtExt?.length){setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes");llenar(K[87],1,zs.zsMtExt.map(q=>({c:[q.id,"-","X",q.res]})))}else{K[86].remove();K[87].remove();if(K[88]?.localName==="p"&&!tx(K[88]).trim())K[88].remove()}}
   else if(tn){const tb=tubosDe(tn.reparacion||{});setT(K[81],`Resultados de la inspección del metal base de la tubería nueva ${enPK}`);
     if(tec(tn).includes("SCANC")){setT(K[83],"Resultados de la inspección por ultrasonido Scan C");llenar(K[84],1,tb.map(t=>({c:[t,mmTxt(num(r.espesor)!=null?num(r.espesor)*25.4:null),"-"]})))}else{K[83].remove();K[84].remove();K[85]?.remove()}
     setT(K[86],"Resultados inspección por partículas magnéticas fluorescentes"+etapaTxt);llenar(K[87],1,tns.flatMap(x=>tubosDe(x.reparacion||{}).map(t=>({c:[x.etapa?`${t} · ${String(x.etapa).toLowerCase()}`:t,"-",tec(x).includes("MT")?"X":"-",ok(x)]}))))}
   else quitar(80,88);
   if(bis){setT(K[89],`Resultados de la inspección de los biseles de la ${elem} para el ${pkTxt} del ${lin}`);llenar(K[91],1,bisRows(bis.reparacion).map(([id])=>({c:[id,"PT",ok(bis)]})))}else quitar(89,92);
   // todas las actividades del mismo momento (p. ej. dos 0 H en días distintos) van en una sola tabla, cada junta con lo que se le hizo
-  const resH=(act,ip,it_,lab)=>{const xs=act==="12H"?xsH12:xsH0;const varias=new Set(xs.map(x=>x.act)).size>1;const filas=repCam?xs.flatMap(x=>{const t=tec(x);return juntasDe(x.reparacion?.tipo?x.reparacion:repCam,tipoA,x).map(j=>({c:[varias?`${j.id} · ${SOLD_ACTS[x.act]?.lab||x.act.replace("H"," H")}`:j.id,t.includes("PT")&&!noTec(x,"PT",j.id)?"X":"-",t.includes("MT")&&!noTec(x,"MT",j.id)?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]&&!noTec(x,"PAUT",j.id)?"X":"-",(x.ind||[]).some(d=>d.j===j.id&&d.res==="Rechazo")?"Rechazo":(x.ind||[]).some(d=>d.j===j.id)?"OK (ver ind.)":ok(x)]}))}):[];
+  const resH=(act,ip,it_,lab)=>{const xs=act==="12H"?xsH12:xsH0;const varias=new Set(xs.filter(x=>!x.ext).map(x=>x.act)).size>1;const filas0=repCam?xs.filter(x=>!x.ext).flatMap(x=>{const t=tec(x);return juntasDe(x.reparacion?.tipo?x.reparacion:repCam,tipoA,x).map(j=>({c:[varias?`${j.id} · ${SOLD_ACTS[x.act]?.lab||x.act.replace("H"," H")}`:j.id,t.includes("PT")&&!noTec(x,"PT",j.id)?"X":"-",t.includes("MT")&&!noTec(x,"MT",j.id)?"X":"-",t.includes("PAUT")&&!(x.pautSin||{})[j.tipo==="long"?"LONG":"CIRC"]&&!noTec(x,"PAUT",j.id)?"X":"-",(x.ind||[]).some(d=>d.j===j.id&&d.res==="Rechazo")?"Rechazo":(x.ind||[]).some(d=>d.j===j.id)?"OK (ver ind.)":ok(x)]}))}):[];
+    // combina por junta lo de la app y lo de los reportes de compañeros (X en cada técnica hecha; rechazo si alguno lo tiene)
+    const M=new Map();const put=(id,PT,MT,PA,res)=>{const o=M.get(id)||{id,PT:"-",MT:"-",PA:"-",res:[]};if(PT==="X")o.PT="X";if(MT==="X")o.MT="X";if(PA==="X")o.PA="X";o.res.push(res);M.set(id,o)};
+    filas0.forEach(f=>put(...f.c));const ord0=repCam?juntasDe(repCam,tipoA).map(j=>j.id):[];const nid=id=>!ord0.includes(id)&&ord0.includes("SC "+id)?"SC "+id:id;xs.filter(x=>x.ext).forEach(x=>{const t=x.tecnicas[0];x.filasExt.forEach(q=>put(nid(q.id),t==="PT"?"X":"-",t==="MT"?"X":"-",t==="PAUT"?"X":"-",q.res))});
+    const ord=repCam?juntasDe(repCam,tipoA).map(j=>j.id):[];const ix=id=>{const k=ord.indexOf(String(id).split(" · ")[0]);return k<0?999:k};
+    const filas=[...M.values()].sort((a,b)=>ix(a.id)-ix(b.id)).map(o=>({c:[o.id,o.PT,o.MT,o.PA,o.res.includes("Rechazo")?"Rechazo":o.res.find(x=>x!=="OK")||"OK"]}));
     if(!filas.length){quitar(ip,ip+3);return}setT(K[ip],`Resultados de la inspección${preW(xs)} de ${objW(xs)}${hayJ&&!jsC.length?"":" instalada"} ${enPK}`);llenar(K[it_],2,filas);if(xs.some(x=>SOLD_ACTS[x.act]))[...K[it_].getElementsByTagNameNS(WNS,"t")].forEach(t=>{if(/Inspección END\s*-\s*(0|12) Horas/i.test(t.textContent))t.textContent="Inspección END -"+preW(xs).replace(/[“”]/g,"")})};
   resH("0H",93,95,"0 Horas");resH("12H",97,99,"12 Horas");
   // ---- conclusiones ----
@@ -3566,7 +3591,7 @@ async function generarInforme(r){REP_PT=r;
   const yL=a=>a.length>1?a.slice(0,-1).join(", ")+" y "+a.at(-1):a[0]||"";const fTxt=d=>d?d.split("-").reverse().join("/"):"";const TEC_N={PT:"líquidos penetrantes",MT:"partículas magnéticas",PAUT:"ultrasonido phased array"};
   const concH=(act,lab,u)=>{const xx=act==="12H"?xsH12:xsH0;const xs=xx.map((x,k)=>({x,k,f:x.inspFecha||r.fecha||""}));const base=`En la inspección${preW(xx)} mediante ${tecsTxt(u)} de ${objW(xx)} ${enPK}`;
     const rech=[];xs.forEach(o=>(o.x.ind||[]).filter(d=>d.res==="Rechazo").forEach(d=>{
-      const re=xs.find(q=>(q.f>o.f||(q.f===o.f&&q.k>o.k))&&tec(q.x).includes(d.tec)&&juntasDe(q.x.reparacion?.tipo?q.x.reparacion:repCam,tipoA,q.x).some(j=>j.id===d.j)&&!(q.x.ind||[]).some(e=>e.j===d.j&&e.tec===d.tec&&e.res==="Rechazo"));
+      const re=xs.find(q=>(q.f>o.f||(q.f===o.f&&q.k>o.k))&&tec(q.x).includes(d.tec)&&(q.x.ext?(q.x.filasExt||[]).map(f=>({id:f.id})):juntasDe(q.x.reparacion?.tipo?q.x.reparacion:repCam,tipoA,q.x)).some(j=>j.id===d.j)&&!(q.x.ind||[]).some(e=>e.j===d.j&&e.tec===d.tec&&e.res==="Rechazo"));
       rech.push({d,o,re})}));
     const acep=xs.flatMap(o=>(o.x.ind||[]).filter(d=>d.res!=="Rechazo"));
     if(!rech.length)return`${base} ${acep.length?`se identificaron indicaciones no relevantes (${[...new Set(acep.map(d=>d.j))].join(", ")}) que no son causa de rechazo`:"no se identificaron indicaciones relevantes causales de rechazo"}, por lo tanto, se encuentran aceptadas bajo el código de construcción API 1104.`;
@@ -3581,6 +3606,21 @@ async function generarInforme(r){REP_PT=r;
     [108,bis&&`En la inspección mediante líquidos penetrantes de los biseles de la ${elem} para el ${pkTxt} del ${lin}, no se identificaron indicaciones relevantes causales de rechazo.`],
     [110,h0&&js.length&&concH("0H","0 Horas",h0)],
     [112,h12&&js.length&&concH("12H","12 Horas",h12)]];
+  if(MB){const rows=[...new Map(mbs.flatMap(x=>mbRows(x.reparacion).map(([id,len])=>[id,{x,id,len}]))).values()];const tp=String(equipos.find(e=>e.id===mb.equipos?.MT)?.campos?.tipoPart||"").toLowerCase(),tpT=/visib/.test(tp)?" visibles":" fluorescentes";
+    const antes=(cands,nodes)=>{const ref=cands.find(n=>n&&n.isConnected);nodes.forEach(n=>ref?ref.parentNode.insertBefore(n,ref):body.appendChild(n))};
+    setT(MB.proc,`Inspección mediante partículas magnéticas${tpT} al 100 % del metal base de las secciones de la ${elem}${mb.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""} ${enPK}.`);
+    {const ref=[K[40],K[39],K[38]].find(n=>n&&n.isConnected);ref?ref.after(MB.proc):antes(K.slice(41,60),[MB.proc])}
+    setT(MB.ident[0],`Identificación del metal base de las secciones de la ${elem} inspeccionado por partículas magnéticas ${enPK}`);
+    const tb=MB.ident.find(n=>n.localName==="tbl");if(tb){const h=celdasDe(filasDe(tb)[0])[1];if(h)celda(h,"Parte")}if(tb)llenar(tb,1,rows.map(q=>{const m=q.id.match(/^(\S+)\s+(CPS|CPI)$/)||[];return{g:m[1]&&m[1]!=="Camisa"?`Sección ${m[1]}`:"Camisa",c:["",`Metal base media caña ${m[2]==="CPI"?"inferior":"superior"}${q.len!=="-"?` (${q.len} mm)`:""}`,q.id]}}),true);
+    MB.cap=MB.ident.find(n=>/^Esquema/.test(tx(n).trim()));if(MB.cap)setT(MB.cap,`Esquema 0.  Identificación del metal base de la ${elem} inspeccionado por MT`);
+    MB.ident.forEach(n=>[...n.getElementsByTagNameNS("*","blip")].forEach(b=>b.setAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","r:embed","rIdMB1")));
+    MB.ident.forEach(n=>[...n.getElementsByTagNameNS("*","docPr")].forEach(d=>d.setAttribute("id","9101")));
+    antes(K.slice(58,80),MB.ident);
+    setT(MB.res[0],`Resultados de la inspección por partículas magnéticas${tpT} al metal base de las secciones de la ${elem} ${enPK}`);
+    const tr=MB.res.find(n=>n.localName==="tbl");if(tr)llenar(tr,1,rows.map(q=>({c:[q.id,"MT",ok(q.x)]})));antes(K.slice(93,102),MB.res);
+    setT(MB.conc,`En la inspección mediante partículas magnéticas${tpT} al 100 % del metal base de las secciones de la ${elem} ${enPK}, ${mbs.some(x=>x.novedad)?"se registraron novedades (ver observaciones)":"no se identificaron indicaciones relevantes causales de rechazo"}.`);antes(K.slice(110,116),[MB.conc]);
+    // numeración de los esquemas en el orden del documento
+    [K[48],K[56],MB.cap,K[64]].filter(n=>n&&n.isConnected).forEach((p,i)=>setT(p,tx(p).replace(/^Esquema\s*\d+\.?/,`Esquema ${i+1}.`)))}
   conc.forEach(([i,t])=>{if(t)setT(K[i],t);else{K[i].remove();K[i+1]?.localName==="p"&&!tx(K[i+1]).trim()&&K[i+1].remove()}});
   // novedades escritas en las actividades
   const obs=A.filter(x=>x.observaciones).map(x=>`${x.act}: ${x.observaciones}`);if(obs.length){const q=K[116].cloneNode(true);setT(q,obs.join(" · "));K[116].after(q)}
@@ -3608,12 +3648,14 @@ async function generarInforme(r){REP_PT=r;
   if(bis?.reparacion?.tipo)await pon("rId10",e=>esquemaRep({...bis.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
   if(repCam)await pon("rId11",e=>esquemaRep({...repCam,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
   else if(tn?.reparacion?.tipo&&!zs)await pon("rId9",e=>esquemaRep({...tn.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
+  let relMB=null;if(MB&&ext("rIdMB1")){try{medios["word/media/mbesq.png"]=await esquemaRep({...mb.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},ext("rIdMB1"));relMB=rel.replace("</Relationships>",'<Relationship Id="rIdMB1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/mbesq.png"/></Relationships>')}catch(err){console.warn("esquema MB",err)}}
   await pon("rId12",async e=>(await firmaRep(realizo,e))||await vacia(e,"image/png"));
   // la de portada es JPEG: si la imagen nueva es PNG, se guarda igual con su contenido (Word lo reconoce por el contenido)
   const extra={};for(const n of Object.keys(E).filter(n=>/^word\/(footer|header)\d+\.xml$/.test(n))){const d=new DOMParser().parseFromString(await txt(n),"application/xml");const ts=[...d.getElementsByTagNameNS(WNS,"t")];
     const i=ts.findIndex(t=>/Informe N°/.test(t.textContent));if(i<0)continue;let j=i+1;const out=[];while(j<ts.length&&!/Pag/i.test(ts[j].textContent)){out.push(ts[j]);j++}
     if(out.length){out[0].textContent=r.consecutivo||"";out.slice(1).forEach(t=>t.textContent="");extra[n]=new TextEncoder().encode(new XMLSerializer().serializeToString(d))}}
   const salida=ents.map(e=>extra[e.name]?{name:e.name,data:extra[e.name]}:e.name==="word/document.xml"?{name:e.name,data:new TextEncoder().encode(new XMLSerializer().serializeToString(doc))}:medios[e.name]?{name:e.name,data:medios[e.name]}:{name:e.name,raw:e});
+  if(relMB){const k=salida.findIndex(x=>x.name==="word/_rels/document.xml.rels");if(k>=0)salida[k]={name:salida[k].name,data:new TextEncoder().encode(relMB)};salida.push({name:"word/media/mbesq.png",data:medios["word/media/mbesq.png"]})}
   const z=await zipEscribir(salida);return new Blob([z],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})}
 async function accionInforme(r,btn){const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{const blob=await generarInforme(r);const nom=`INFORME_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}.docx`;
