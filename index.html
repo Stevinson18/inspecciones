@@ -1829,7 +1829,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v90";
+const LOCAL=!!window.__LOCAL;const APPV="v91";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3017,7 +3017,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
   const conFechas=(it,t)=>{if(!t||!(it?.fechasExtra||[]).length||/se realizó los días/.test(t))return t;return`${t.replace(/\s+$/,"")}${/[.!?]$/.test(t.trim())?"":"."} La inspección se realizó los días ${fechasTxt([it.inspFecha||r.fecha,...it.fechasExtra])}.`};
   // procedimientos vigentes (desde 10/07/2026): P-027 PAUT v05, P-015 PT v01, P-014 MT v01, P-039 Scan C v02
 const procDe=h=>/PAUT/.test(h)?"TE-END-P-027":/SC-ZS|Scan C/i.test(h)?"TE-END-P-039":/MT/.test(h)?"TE-END-P-014":/PT/.test(h)?"TE-END-P-015":"";
-async function cabecera(h,it,obs,esq,rep){obs=conFechas(it,obs);{const pr=procDe(h);if(pr)C(h,"F17",pr)}C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);{const e=num(r.espesor);if(e!=null){if(/^(5\.1|12|13|15|16)\./.test(h))C(h,"AF13",e);else if(/^14\./.test(h))C(h,"AH13",e)}}const a=ANCLAS_REP[h]||{};
+async function cabecera(h,it,obs,esq,rep){obs=conFechas(it,obs);if(/^3\.SC-ZS CAM2/.test(h))C(h,"AI6",r.consecutivo||"",true);/* la plantilla trae el N° de informe escrito a mano en esta hoja */{const pr=procDe(h);if(pr)C(h,"F17",pr)}C(h,"AH9",serial(it.inspFecha||r.fecha));C(h,"H9",r.tipoReparacion);{const e=num(r.espesor);if(e!=null){if(/^(5\.1|12|13|15|16)\./.test(h))C(h,"AF13",e);else if(/^14\./.test(h))C(h,"AH13",e)}}const a=ANCLAS_REP[h]||{};
     if(a.realizo)C(h,a.realizo,realizoDe(it));if(/PT|MT/.test(h)&&!/PAUT|Scan/.test(h))ponMed(h,it);if(obs&&a.tabla)C(h,"A"+a.tabla.obs,obs);
     if(esq&&a.esq&&rep?.tipo){P(h,a.esq,await esquemaRep({...rep,diametro:r.diametro,vista:rep.vista||it.act},meta,a.esq),"png");if(a.escap)C(h,a.escap,capEsq(it,rep))}
     if(a.firma){const fb=await firmaRep(realizoDe(it),a.firma);P(h,a.firma,fb,"png")}}
