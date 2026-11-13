@@ -670,11 +670,13 @@ function layoutCE(rep){
   const BW=28,SG=12,BG=36,AR=170;
   const it=[];let fit=0,cam=0;
   const band=l=>it.push({k:"b",l,w:BW}), gap=w=>it.push({k:"g",w});
-  const vent=i=>{fit++;const nv=rep.vDren?.[i]?`AS VENTEO DRENAJE #${fit}`:`AS VENTEO #${fit}`;if(cams){cam++;band(`AS C1 - CAM #${cam}`);gap(SG);band(nv);gap(SG);band(`AS C2 - CAM #${cam}`)}else band(nv);gap(BG)};
+  // numeración: venteos y drenajes por separado (esquemas nuevos); los guardados antes conservan la numeración seguida
+  const sep=!!rep.numSep;let nV=0,nD=0;
+  const vent=i=>{fit++;nV++;const n_=sep?nV:fit;const nv=rep.vDren?.[i]?`AS VENTEO DRENAJE #${n_}`:`AS VENTEO #${n_}`;if(cams){cam++;band(`AS C1 - CAM #${cam}`);gap(SG);band(nv);gap(SG);band(`AS C2 - CAM #${cam}`)}else band(nv);gap(BG)};
   // ubicación de cada venteo y drenaje; la numeración sigue el orden a lo largo del tubo
   const posV=[...Array(v)].map((_,i)=>rep.posV?.[i]||(i<Math.ceil(v/2)?"antes":"despues"));
   const posD=[...Array(d)].map((_,i)=>rep.posD?.[i]||"entre");
-  const drain=()=>{fit++;band(`AS DRENAJE VENTEO #${fit}`);gap(BG)};
+  const drain=()=>{fit++;nD++;band(sep?`AS DRENAJE #${nD}`:`AS DRENAJE VENTEO #${fit}`);gap(BG)};
   const grp=g=>{posV.forEach((p,i)=>{if(p===g)vent(i)});posD.forEach(p=>{if(p===g)drain()})};
   grp("antes");
   band("AS TIE IN #1");gap(BG);
@@ -1197,7 +1199,7 @@ function renderPos(r){
   box.innerHTML=h?`<p class="note" style="margin:2px 0 8px">¿Dónde va cada venteo y drenaje? El esquema los numera en el orden en que quedan sobre el tubo.</p><div class="grid3">${h}</div>`:"";
   box.querySelectorAll("select,input").forEach(s=>s.disabled=readOnly);
 }
-function readPos(){return{vDren:[...document.querySelectorAll("#posBox [data-vd]")].map(s=>s.checked),posV:[...document.querySelectorAll("#posBox [data-pv]")].map(s=>s.value),posD:[...document.querySelectorAll("#posBox [data-pd]")].map(s=>s.value)}}
+function readPos(){return{numSep:true,vDren:[...document.querySelectorAll("#posBox [data-vd]")].map(s=>s.checked),posV:[...document.querySelectorAll("#posBox [data-pv]")].map(s=>s.value),posD:[...document.querySelectorAll("#posBox [data-pd]")].map(s=>s.value)}}
 // ---- biseles: tipo de camisa y longitudes ----
 function buildBiseles(rep){
   const r=rep||{};
@@ -1827,7 +1829,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v84";
+const LOCAL=!!window.__LOCAL;const APPV="v85";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
