@@ -1829,7 +1829,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v87";
+const LOCAL=!!window.__LOCAL;const APPV="v88";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3151,7 +3151,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
           // esquema de ubicación: el de la reparación con solo las zonas de este reporte resaltadas (reemplaza el dibujo fijo de la plantilla)
           if(it.reparacion?.tipo){const anE={fr:"<xdr:from><xdr:col>0</xdr:col><xdr:colOff>30000</xdr:colOff><xdr:row>52</xdr:row><xdr:rowOff>20000</xdr:rowOff></xdr:from>",to:"<xdr:to><xdr:col>24</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>56</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>",cx:4300000,cy:880000};
             quitar(h,{fr:anE.fr,to:anE.to,maxCol:23});const repE={...it.reparacion,zsNo:zsAreas(it.reparacion).filter(a=>!par.includes(a)),diametro:r.diametro};P(h,anE,await esquemaRep(repE,{tipoReparacion:r.tipoReparacion},anE),"png")}
-          const circ=a=>{const m=String(a||"").match(/\bC(\d)\b/);return /VENTEO|DRENAJE|TIE IN/i.test(a||"")||!m?"":"C"+m[1]};
+          const circ=a=>a&&a!=="-"?String(a):"";// la parte que se inspeccionó en este reporte
           [["E47","A57","CIRCUNFERENCIAL","Circunf"],["X47","O57","CIRCUNFERENCIAL","Circunf"]].forEach(([c1,c2,l1,l2],s_)=>{const cc=circ(par[s_]);C(h,c1,cc?`${l1} ${s_+1}: ${cc}`:"",true);C(h,c2,cc?`${l2} ${s_+1}: ${cc}`:"",true)});
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(zsLectDe(it,"SCANC")[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
