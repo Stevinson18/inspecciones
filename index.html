@@ -1829,7 +1829,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v85";
+const LOCAL=!!window.__LOCAL;const APPV="v86";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3137,15 +3137,20 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
           C(h,"N48",`Registro medición de espesores en ${ilic?"zona de Cascota #"+(k+1):lab.toLowerCase()}`);
           const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg){P(h,an.reg,await fotoRep({...im,noStamp:im.noStamp!==false},"campo",an.reg),"jpeg");paq(h,`Registro ${a}`,im,an.reg)}
           C(h,"AT64","si");quitar(h,an.esq);await barrido(h,"SCANA")}}}
-    if(it.act==="Zona sana"&&zsT(it).includes("SCANC")){const base="3.SC-ZS CAM2";if(hoja[base]){const areas=zsAreasIt(it),hs=[base];for(let k=2;k<areas.length;k+=2)hs.push(await clonarHoja(base,`3.SC-ZS CAM2 (${k/2+1})`));
+    if(it.act==="Zona sana"&&zsT(it).includes("SCANC")){const base="3.SC-ZS CAM2";if(hoja[base]){const areas=zsAreasIt(it);
+        // cada reporte Scan C lleva dos zonas: las de una misma camisa juntas (C1 y C2 - CAM #n) y las de venteo/drenaje/tie in en reportes aparte
+        const pares=[],cam=new Map(),otras=[];areas.forEach(a=>{const m=a.match(/CAM\s*#(\d+)/i);if(m){if(!cam.has(m[1]))cam.set(m[1],[]);cam.get(m[1]).push(a)}else otras.push(a)});
+        for(const g of cam.values())for(let i=0;i<g.length;i+=2)pares.push(g.slice(i,i+2));
+        const vent=otras.filter(a=>/VENTEO|DRENAJE/i.test(a)),rest=otras.filter(a=>!/VENTEO|DRENAJE/i.test(a));vent.forEach(a=>pares.push([a]));for(let i=0;i<rest.length;i+=2)pares.push(rest.slice(i,i+2));
+        const hs=[base];for(let k=1;k<pares.length;k++)hs.push(await clonarHoja(base,`3.SC-ZS CAM2 (${k+1})`));
         const imgs=fot("ZSI"),pl=plan(it,"SCANC");
-        for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=areas.slice(2*p,2*p+2);
+        for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=pares[p]||[];
           const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
           await cabecera(h,it,obsSC,false,null);C(h,"A50",conFechas(it,obsSC));
           ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(zsLectDe(it,"SCANC")[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
-            const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[2*p+s_]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_]),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}}
+            const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[areas.indexOf(ar)]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_]),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}}
     if(it.act==="Zona sana"){let hMT="4.MT-ZS cam2";
       if(zsT(it).includes("MT")){// MT al metal base de las áreas sanas: su propia hoja MT (copia si otra actividad ya usó la de la plantilla)
         const n=usoMTZS++;if(n){hMT=`4.MT-ZS cam2 #${n+1}`;if(!hoja[hMT]){await clonarHoja("4.MT-ZS cam2",hMT);if(AREA_FOTOS["4.MT-ZS cam2"])AREA_FOTOS[hMT]=AREA_FOTOS["4.MT-ZS cam2"]}}
