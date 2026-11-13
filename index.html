@@ -1829,7 +1829,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v86";
+const LOCAL=!!window.__LOCAL;const APPV="v87";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3003,7 +3003,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
   // pie del esquema según lo que se dibuja
   // temperatura e intensidad de luz: las de la actividad; si no tiene, las del mismo punto (misma jornada)
   const medDe=(it,k)=>it[k]||r.items.find(x=>x[k]&&x.inspFecha===it.inspFecha)?.[k]||r.items.find(x=>x[k])?.[k]||"";
-  const ponMed=(h,it)=>{const t=medDe(it,"tSup");C(h,"AI20",t?`${t} °C`:"-");
+  const ponMed=(h,it)=>{const t=medDe(it,"tSup");C(h,"AI20",t?`${t} °C`:"< 52 °C");
     if(/MT/.test(h)&&mtFluor(it)){// MT fluorescente: la luz blanca queda <20 lux (plantilla) y la UV-A va en µW/cm²
       const uv=medDe(it,"luzUV")||(!(it.tecnicas||[]).includes("PT")?it.luz:"");if(uv)C(h,"AH22",`${uv} µW/cm²`)}
     else{const l=medDe(it,"luz");if(l)C(h,"AI21",`${l} lux`)}};
@@ -3148,14 +3148,20 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
           const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
           await cabecera(h,it,obsSC,false,null);C(h,"A50",conFechas(it,obsSC));
           ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);
+          // esquema de ubicación: el de la reparación con solo las zonas de este reporte resaltadas (reemplaza el dibujo fijo de la plantilla)
+          if(it.reparacion?.tipo){const anE={fr:"<xdr:from><xdr:col>0</xdr:col><xdr:colOff>30000</xdr:colOff><xdr:row>52</xdr:row><xdr:rowOff>20000</xdr:rowOff></xdr:from>",to:"<xdr:to><xdr:col>24</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>56</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>",cx:4300000,cy:880000};
+            quitar(h,{fr:anE.fr,to:anE.to,maxCol:23});const repE={...it.reparacion,zsNo:zsAreas(it.reparacion).filter(a=>!par.includes(a)),diametro:r.diametro};P(h,anE,await esquemaRep(repE,{tipoReparacion:r.tipoReparacion},anE),"png")}
+          const circ=a=>{const m=String(a||"").match(/\bC(\d)\b/);return /VENTEO|DRENAJE|TIE IN/i.test(a||"")||!m?"":"C"+m[1]};
+          [["E47","A57","CIRCUNFERENCIAL","Circunf"],["X47","O57","CIRCUNFERENCIAL","Circunf"]].forEach(([c1,c2,l1,l2],s_)=>{const cc=circ(par[s_]);C(h,c1,cc?`${l1} ${s_+1}: ${cc}`:"",true);C(h,c2,cc?`${l2} ${s_+1}: ${cc}`:"",true)});
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(zsLectDe(it,"SCANC")[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
             const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[areas.indexOf(ar)]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_]),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}}
     if(it.act==="Zona sana"){let hMT="4.MT-ZS cam2";
       if(zsT(it).includes("MT")){// MT al metal base de las áreas sanas: su propia hoja MT (copia si otra actividad ya usó la de la plantilla)
         const n=usoMTZS++;if(n){hMT=`4.MT-ZS cam2 #${n+1}`;if(!hoja[hMT]){await clonarHoja("4.MT-ZS cam2",hMT);if(AREA_FOTOS["4.MT-ZS cam2"])AREA_FOTOS[hMT]=AREA_FOTOS["4.MT-ZS cam2"]}}
-        const areas=zsAreasIt(it),dim=`${num(it.zsDim?.axial)??200} × ${num(it.zsDim?.perim)??200} mm`;
-        const hs=await tabla([hMT],areas.map(a=>[a,"NA",dim,"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
+        const areas=zsAreasIt(it),dim=`${num(it.zsDim?.axial)??200} × ${num(it.zsDim?.perim)??200} mm`,OD=odOf(r.diametro),per=OD?`${Math.round(Math.PI*OD*25.4)}`:dim;
+        const lonZ=a=>/VENTEO|DRENAJE|TIE IN/i.test(a)?dim:/\bC\d\b/.test(a)?per:dim;
+        const hs=await tabla([hMT],areas.map(a=>[a,"NA",lonZ(a),"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
         for(const h of hs){await cabecera(h,it,`Observaciones: Inspección MT fluorescente al metal base de ${areas.length>1?"las zonas sanas":"la zona sana"} (${areas.join(", ")}) ${desZS(r,it)}.${it.novedad?"":" No se identificaron indicaciones relevantes."}${it.observaciones?" "+it.observaciones:""}`,true,it.reparacion);
           C(h,"H9","Tubería");C(h,"T9","Metal base - zona sana");ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([hMT],fot("MT"),"campo")}
@@ -3244,7 +3250,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     let x=nuevas[dn]??await txt(dn);
     // la imagen de barrido de la plantilla se quita para que no asome detrás de la nueva
     for(const b of quitarZ[h]||[]){const num=(k,t)=>+(t.match(new RegExp(`<xdr:${k}>(\\d+)`))||[])[1];const c0=num("col",b.fr),r0=num("row",b.fr),r1=num("row",b.to);
-      x=x.replace(/<xdr:(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/xdr:\1>/g,m=>{const fr=(m.match(/<xdr:from>[\s\S]*?<\/xdr:from>/)||[""])[0];const c=num("col",fr),r=num("row",fr);return c>=c0-1&&r>=r0-2&&r<=r1+1?"":m})}
+      x=x.replace(/<xdr:(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/xdr:\1>/g,m=>{const fr=(m.match(/<xdr:from>[\s\S]*?<\/xdr:from>/)||[""])[0];const c=num("col",fr),r=num("row",fr);return c>=c0-1&&(b.maxCol==null||c<=b.maxCol)&&r>=r0-2&&r<=r1+1?"":m})}
     let rl=nuevas[rn]??(E[rn]?await txt(rn):'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>');let add="";
     for(const p of ps){n++;let med=medUsado.get(p.bytes);if(!med){med=`rep${n}.${p.ext}`;medios.push([med,p.bytes]);medUsado.set(p.bytes,med)}const r_=`rIdR${n}`;
       rl=rl.replace("</Relationships>",`<Relationship Id="${r_}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${med}"/></Relationships>`);
