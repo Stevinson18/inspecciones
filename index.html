@@ -913,7 +913,7 @@ function drawRepair(rep,meta,P,compact){
     const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
     const MB=!!rep.mb;// MT al metal base: se resalta toda la pieza, no los biseles
     const shell=(xx,yy,w,h,label,sup)=>{
-      if(MB){R(xx,yy,w,h,{f:"#e3f4e6",s:"#2e9e4f",sw:2.6});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:"#1d5c30"});return}
+      if(MB){const off=(rep.mbNo||[]).includes(label);R(xx,yy,w,h,off?{f:"#e4e7e9",s:"#b5bcc0",sw:1.4}:{f:"#e3f4e6",s:"#2e9e4f",sw:2.6});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:off?"#8d969b":"#1d5c30"});return}
       R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2});
       R(xx+1,sup?yy+1:yy+h-1-h*0.28,w-2,h*0.28,{f:P.shellHi});
       const a=xx+5,b=xx+w-5;
@@ -934,7 +934,8 @@ function drawRepair(rep,meta,P,compact){
         if(!compact){const cy_=(top1+hS+top2)/2+4;T(x-3,cy_,"C1",{s:11,w:700,c:"#b42318",a:"end"});T(x+w+3,cy_,"C2",{s:11,w:700,c:"#b42318",a:"start"})}}
       x+=w+GAP;});
     if(!compact){
-      if(MB){S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#e3f4e6",s:"#2e9e4f",sw:2.2});T(58,74,"Metal base inspeccionado MT fluorescente (100 %)",{a:"start",s:12,w:600});S.push(`</g>`)}else{
+      if(MB){const hayNo=(rep.mbNo||[]).length;S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#e3f4e6",s:"#2e9e4f",sw:2.2});T(58,74,hayNo?"Metal base inspeccionado MT fluorescente":"Metal base inspeccionado MT fluorescente (100 %)",{a:"start",s:12,w:600});
+        if(hayNo){R(360,62,32,16,{f:"#e4e7e9",s:"#b5bcc0",sw:1.4});T(398,74,"No inspeccionado",{a:"start",s:12,w:600})}S.push(`</g>`)}else{
       S.push(`<g data-fijo="135">`);L(20,70,52,70,{s:P.l1,sw:3});T(58,74,"Biseles L1",{a:"start",s:12,w:600});
       L(150,70,182,70,{s:P.l2,sw:3});T(188,74,"Biseles L2",{a:"start",s:12,w:600});S.push(`</g>`)}
     }
@@ -1233,7 +1234,7 @@ function buildBiseles(rep){
   const r=rep||{};
   $("repParams").innerHTML=`<label class="f"><span class="label">Tipo de camisa</span><select class="field" id="bTipo"><option value="directa">Directa</option><option value="puenteada">Puenteada (une 2 camisas existentes)</option><option value="anillos">Sobre anillos</option><option value="seccionada">Seccionada</option><option value="cascota">Cascota (ilícita) · bisel recto</option></select></label>
   <label class="f"><span class="label">Unidad de longitud</span><select class="field" id="bUni"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
-  <div id="bBody" style="grid-column:1/-1;min-width:0"></div>`;
+  <div id="bBody" style="grid-column:1/-1;min-width:0"></div><div id="bMB" style="grid-column:1/-1;min-width:0"></div>`;
   $("bTipo").value=r.tipoCamisa||"seccionada";$("bUni").value=r.unidad||"cm";
   bisBody(r);
 }
@@ -1250,7 +1251,12 @@ function bisBody(r){
     b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Secciones directas</span><input class="field mono" type="number" min="1" max="12" id="bND" value="${nd}"></label><label class="f"><span class="label">Secciones sobre camisa</span><input class="field mono" type="number" min="0" max="12" id="bNS" value="${ns}"></label></div><p class="note" style="margin:10px 0 6px">Longitud de cada sección</p><div class="grid3" id="bLens"></div>`;
     bisLens(r?.largosDir||[],r?.largosSob||[]);
   }
+  mbSel(r?.mbNo);
 }
+// MT metal base: qué medias cañas (CPS / CPI de cada sección) se inspeccionaron; las demás salen en gris y no van en la tabla
+function mbSel(no){const b=$("bMB");if(!b)return;if(formItems[active]?.act!=="MT metal base camisa"||$("bTipo")?.value==="cascota"){b.innerHTML="";return}
+  const ks=mbRows({...readBiseles(),mbNo:[]});const N=new Set(no||[]);
+  b.innerHTML=`<span class="label">Metal base inspeccionado</span><p class="note">Desmarca las partes que no se inspeccionaron: salen en gris en el esquema y no van en la tabla.</p><div class="eqrow" style="flex-wrap:wrap;gap:6px 14px">${ks.map(([l,,k])=>`<label class="check"><input type="checkbox" data-mbk="${esc(k)}"${N.has(k)?"":" checked"}> ${esc(l)}</label>`).join("")}</div>`}
 function bisLens(ld,ls){
   const nd=nInt($("bND").value,3,1,12), ns=nInt($("bNS").value,nd-1,0,12);
   let h="";
@@ -1267,6 +1273,7 @@ function readBiseles(){
   else{r.nDir=nInt($("bND")?.value,3,1,12);r.nSob=nInt($("bNS")?.value,r.nDir-1,0,12);
     r.largosDir=[...document.querySelectorAll("#bLens [data-ld]")].map(i=>v(i.value)).slice(0,r.nDir);
     r.largosSob=[...document.querySelectorAll("#bLens [data-ls]")].map(i=>v(i.value)).slice(0,r.nSob)}
+  const mb=[...document.querySelectorAll("#bMB [data-mbk]")];if(mb.length)r.mbNo=mb.filter(c=>!c.checked).map(c=>c.dataset.mbk);
   return r;
 }
 function buildParams(rep){
@@ -1794,7 +1801,8 @@ function exHtml(it){if(!conTec(it.act)||it.reparacion?.tipo!=="Camisa puenteada"
     ${e.tipo==="circ"?`<label class="f"><span class="label">Contra</span><select class="field" data-ex="${n}" data-exf="contra"${ro}>${EX_CONTRA.map(o=>`<option${(e.contra||"Lado tubo")===o?" selected":""}>${o}</option>`).join("")}</select></label>`:"<span></span>"}
     <label class="f"><span class="label">Longitud (mm)</span><input class="field mono" data-ex="${n}" data-exf="len" inputmode="decimal" value="${esc(e.len??"")}"${ro}></label>
     ${readOnly?"":`<button class="btn small ghost" type="button" data-exdel="${n}" aria-label="Quitar">✕</button>`}</div>`).join("")}
-  ${readOnly?"":`<button class="btn small" type="button" data-exadd="1">+ Agregar soldadura existente</button>`}`:""}`}
+  ${readOnly?"":`<div class="row-btns"><button class="btn small" type="button" data-exadd="1">+ Agregar soldadura existente</button>${exJuntas(it.exSold).length?`<button class="btn small ghost" type="button" data-indadd="ex">+ Indicación en una existente</button>`:""}</div>`}
+  ${(()=>{const d=(it.ind||[]).filter(x=>String(x.j).startsWith("EX·"));return d.length?`<p class="note">Indicaciones en existentes: ${d.map(x=>`${esc(x.j.slice(3))} (${esc(x.interp||"sin interpretación")}, ${esc(x.res||"Aceptable")})`).join("; ")}. Se editan en "Indicaciones encontradas".</p>`:""})()}`:""}`}
 function refreshEx(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`),it=formItems[i];if(!card||!it)return;const b=card.querySelector(".exbox");if(b){const h=exHtml(it);b.innerHTML=h;b.hidden=!h}}
 const pautOk=(it,t)=>!(it?.pautSin||{})[t];
 const juntasPAUT=(rep,tipoA,it)=>juntasDe(rep,tipoA,it).filter(j=>pautOk(it,j.tipo==="long"?"LONG":"CIRC")&&!noTec(it,"PAUT",j.id)).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
@@ -1825,7 +1833,8 @@ function soldHtml(it){
 const IND_CAMPOS={PT:[["ini","Inicio (mm)"],["lon","Longitud (mm)"]],MT:[["ini","Inicio (mm)"],["lon","Longitud (mm)"]],
   PAUT:[["ini","Inicio (mm)"],["lon","Long (mm)"],["prof","Prof (mm)"],["alt","Alt (mm)"],["idx","Index (mm)"],["tcg","% TCG"]]};
 const IND_TIPOS=["Lineal","Redondeada","Porosidad","Falta de fusión","Falta de penetración","Grieta","Socavado","Escoria","Concavidad","Laminación"];
-function indHtml(it){if(!conTec(it.act)||!it.reparacion?.tipo)return"";const tecs=(it.tecnicas||[]).filter(t=>IND_CAMPOS[t]);if(!tecs.length)return"";
+const indTecs=it=>[...new Set([...(it.tecnicas||[]).filter(t=>IND_CAMPOS[t]),...(exOn(it)?["PAUT"]:[])])];
+function indHtml(it){if(!conTec(it.act)||!it.reparacion?.tipo)return"";const tecs=indTecs(it);if(!tecs.length)return"";
   const js=juntasDe(it.reparacion,tipoAForm(),it),L=it.ind||[],ro=readOnly?" disabled":"";
   const sel=(k,v,ops,n)=>`<select class="field" data-ind="${n}" data-ik="${k}"${ro}>${ops.map(o=>`<option${o===v?" selected":""}>${esc(o)}</option>`).join("")}${v&&!ops.includes(v)?`<option selected>${esc(v)}</option>`:""}</select>`;
   return`<span class="label">Indicaciones encontradas</span><p class="note">Si una junta tiene indicación, agrégala aquí: sale en su fila del reporte con sus medidas y resultado. Las demás juntas quedan "OK".</p>
@@ -1848,8 +1857,8 @@ $("itemsBox").addEventListener("click",e=>{const a=e.target.closest("[data-exadd
   if(ev==="change"){if(t.dataset.exf==="tipo")refreshEx(i);refreshFotos(i);refreshInd(i)}scheduleDraft()}));
 function refreshInd(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`),it=formItems[i];if(!card||!it)return;const b=card.querySelector(".indbox");if(b)b.innerHTML=indHtml(it)}
 $("itemsBox").addEventListener("click",e=>{const a=e.target.closest("[data-indadd],[data-inddel]");if(!a||readOnly)return;const i=+a.closest(".itcard").dataset.i,it=formItems[i];if(!it)return;
-  if(a.dataset.indadd){const tecs=(it.tecnicas||[]).filter(t=>IND_CAMPOS[t]);const js=juntasDe(it.reparacion,tipoAForm(),it);it.ind=[...(it.ind||[]),{tec:tecs[0],j:js[0]?.id||"",res:"Aceptable"}]}
-  else it.ind=(it.ind||[]).filter((_,n)=>n!==+a.dataset.inddel);refreshInd(i);scheduleDraft()});
+  if(a.dataset.indadd){const tecs=indTecs(it);const ex=a.dataset.indadd==="ex";const js=ex?exJuntas(it.exSold).map(j=>"EX·"+j.id):juntasDe(it.reparacion,tipoAForm(),it).map(j=>j.id);it.ind=[...(it.ind||[]),{tec:ex?"PAUT":tecs[0],j:js[0]||"",res:"Aceptable"}]}
+  else it.ind=(it.ind||[]).filter((_,n)=>n!==+a.dataset.inddel);refreshInd(i);refreshEx(i);if(a.dataset.indadd==="ex")setTimeout(()=>{const c=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"] .indbox .eqcard:last-of-type`);c?.scrollIntoView({behavior:"smooth",block:"center"})},50);scheduleDraft()});
 ["input","change"].forEach(ev=>$("itemsBox").addEventListener(ev,e=>{const n=e.target.dataset?.ind;if(n==null)return;const i=+e.target.closest(".itcard").dataset.i,it=formItems[i];if(!it?.ind?.[n])return;
   it.ind[n]={...it.ind[n],[e.target.dataset.ik]:e.target.value};if(ev==="change"&&e.target.dataset.ik==="tec")refreshInd(i);scheduleDraft()}));
 function refreshSold(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`), it=formItems[i]; if(!card||!it)return;
@@ -1887,7 +1896,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v100";
+const LOCAL=!!window.__LOCAL;const APPV="v101";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2439,7 +2448,7 @@ $("repParams").addEventListener("input",e=>{
     if(id==="bTipo")bisBody(readBiseles());
     else if(id==="bND"||id==="bNS"){
       if(id==="bND")$("bNS").value=Math.max(0,nInt(e.target.value,3,1,12)-1);
-      const c=readBiseles();bisLens(c.largosDir,c.largosSob)}
+      const c=readBiseles();bisLens(c.largosDir,c.largosSob);mbSel(c.mbNo)}
   }
   updateDrawing();
 });
@@ -2985,11 +2994,12 @@ function bisRows(rep){const u=rep.unidad||"cm",mmv=v=>{const n=num(v);return n==
   else{const nd=nInt(rep.nDir,3,1,12),ns=nInt(rep.nSob,nd-1,0,12);for(let i=0;i<nd;i++)add(`S${i+1} `,mmv(rep.largosDir?.[i]));for(let j=0;j<ns;j++)add(`S${nd+j+1} `,mmv(rep.largosSob?.[j]))}
   return out}
 // MT al metal base de la camisa: una fila por media caña (CPS / CPI) de cada sección, con su longitud en mm
-function mbRows(rep){const u=rep.unidad||"cm",mmv=v=>{const n=num(v);return n==null?"-":Math.round(n*(U2MM[u]||10))};const out=[];const add=(pre,len)=>["CPS","CPI"].forEach(p=>out.push([`${pre}${p}`,len]));
-  if(/^(directa|puenteada)$/.test(rep.tipoCamisa))add(rep.tipoCamisa==="puenteada"?"Camisa puenteada ":"Camisa ",mmv(rep.largoCamisa));
+function mbRows(rep){const u=rep.unidad||"cm",mmv=v=>{const n=num(v);return n==null?"-":Math.round(n*(U2MM[u]||10))};const out=[];const add=(pre,len,tag=pre)=>["CPS","CPI"].forEach(p=>out.push([`${pre}${p}`,len,`${tag}${p}`]));
+  if(/^(directa|puenteada)$/.test(rep.tipoCamisa))add(rep.tipoCamisa==="puenteada"?"Camisa puenteada ":"Camisa ",mmv(rep.largoCamisa),"");
   else if(rep.tipoCamisa==="anillos"){add("A1 ",mmv(rep.largoAnillo));add("A2 ",mmv(rep.largoAnillo));add("SC ",mmv(rep.largoSobre))}
   else{const nd=nInt(rep.nDir,3,1,12),ns=nInt(rep.nSob,nd-1,0,12);for(let i=0;i<nd;i++)add(`S${i+1} `,mmv(rep.largosDir?.[i]));for(let j=0;j<ns;j++)add(`S${nd+j+1} `,mmv(rep.largosSob?.[j]))}
-  return out}
+  const no=new Set(rep.mbNo||[]);return out.filter(x=>!no.has(x[2]))}
+const mbTxt=rep=>{if(!(rep?.mbNo||[]).length)return"al 100 % del metal base de las secciones";const l=mbRows(rep).map(x=>x[0]);return`al 100 % del metal base de ${l.length>1?l.slice(0,-1).join(", ")+" y "+l.at(-1):l[0]||"las secciones"}`};
 // --- revisión de lo que falta (para el reporte final) ---
 function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo A";
   if(!r.consecutivo)f.push("Consecutivo / informe N°");if(!r.pk)f.push("PK");if(!r.diametro)f.push("Diámetro");if(!r.espesor)f.push("Espesor de camisa");if(!r.nominal)f.push("Espesor nominal de la línea");
@@ -3161,7 +3171,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       if(n){hMT=`4.MT-ZS cam2 #${n+1}`;if(!hoja[hMT]){await clonarHoja("4.MT-ZS cam2",hMT);if(AREA_FOTOS["4.MT-ZS cam2"])AREA_FOTOS[hMT]=AREA_FOTOS["4.MT-ZS cam2"]}}
       const tp=String(equipo(it,"MT")?.tipoPart||"").toLowerCase(),tpT=/visib/.test(tp)?" visibles":/fluor/.test(tp)?" fluorescentes":"";
       const hs=await tabla([hMT],mbRows(rep).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
-      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por partículas magnéticas${tpT} al 100 % del metal base de las secciones de la ${descCamisa(r,repCam||rep)}${it.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);
+      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por partículas magnéticas${tpT} ${mbTxt(rep)} de la ${descCamisa(r,repCam||rep)}${it.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);
         C(h,"H9","Camisa");C(h,"T9","Metal base camisa");if(num(r.espesor)!=null)C(h,"AH13",num(r.espesor));C(h,"V13","100 %");C(h,"Y13","");ponEq(h,EQ_MT,equipo(it,"MT"))}
       await fotosEn([hMT],fot("MT"),lugarIt)}
     if(conTec(it.act)&&it.reparacion?.tipo){fixTec(it);const H12=it.act==="12H";const dupN=ITS.slice(0,ITS.indexOf(it)).filter(x=>conTec(x.act)&&(x.act==="12H")===H12&&x.reparacion?.tipo).length;const suf=dupN?` #${dupN+1}`:"";
@@ -3723,7 +3733,7 @@ async function generarInforme(r){REP_PT=r;
     [112,h12&&js.length&&concH("12H","12 Horas",h12)]];
   if(MB){const rows=[...new Map(mbs.flatMap(x=>mbRows(x.reparacion).map(([id,len])=>[id,{x,id,len}]))).values()];const tp=String(equipos.find(e=>e.id===mb.equipos?.MT)?.campos?.tipoPart||"").toLowerCase(),tpT=/visib/.test(tp)?" visibles":" fluorescentes";
     const antes=(cands,nodes)=>{const ref=cands.find(n=>n&&n.isConnected);nodes.forEach(n=>ref?ref.parentNode.insertBefore(n,ref):body.appendChild(n))};
-    setT(MB.proc,`Inspección mediante partículas magnéticas${tpT} al 100 % del metal base de las secciones de la ${elem}${mb.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""} ${enPK}.`);
+    setT(MB.proc,`Inspección mediante partículas magnéticas${tpT} ${mbTxt(mb.reparacion)} de la ${elem}${mb.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""} ${enPK}.`);
     {const ref=[K[40],K[39],K[38]].find(n=>n&&n.isConnected);ref?ref.after(MB.proc):antes(K.slice(41,60),[MB.proc])}
     setT(MB.ident[0],`Identificación del metal base de las secciones de la ${elem} inspeccionado por partículas magnéticas ${enPK}`);
     const tb=MB.ident.find(n=>n.localName==="tbl");if(tb){const h=celdasDe(filasDe(tb)[0])[1];if(h)celda(h,"Parte")}if(tb)llenar(tb,1,rows.map(q=>{const m=q.id.match(/^(\S+)\s+(CPS|CPI)$/)||[];return{g:m[1]&&m[1]!=="Camisa"?`Sección ${m[1]}`:"Camisa",c:["",`Metal base media caña ${m[2]==="CPI"?"inferior":"superior"}${q.len!=="-"?` (${q.len} mm)`:""}`,q.id]}}),true);
@@ -3733,7 +3743,7 @@ async function generarInforme(r){REP_PT=r;
     antes(K.slice(58,80),MB.ident);
     setT(MB.res[0],`Resultados de la inspección por partículas magnéticas${tpT} al metal base de las secciones de la ${elem} ${enPK}`);
     const tr=MB.res.find(n=>n.localName==="tbl");if(tr)llenar(tr,1,rows.map(q=>({c:[q.id,"MT",ok(q.x)]})));antes(K.slice(93,102),MB.res);
-    setT(MB.conc,`En la inspección mediante partículas magnéticas${tpT} al 100 % del metal base de las secciones de la ${elem} ${enPK}, ${mbs.some(x=>x.novedad)?"se registraron novedades (ver observaciones)":"no se identificaron indicaciones relevantes causales de rechazo"}.`);antes(K.slice(110,116),[MB.conc]);
+    setT(MB.conc,`En la inspección mediante partículas magnéticas${tpT} ${mbTxt(mb.reparacion)} de la ${elem} ${enPK}, ${mbs.some(x=>x.novedad)?"se registraron novedades (ver observaciones)":"no se identificaron indicaciones relevantes causales de rechazo"}.`);antes(K.slice(110,116),[MB.conc]);
     // numeración de los esquemas en el orden del documento
     [K[48],K[56],MB.cap,K[64]].filter(n=>n&&n.isConnected).forEach((p,i)=>setT(p,tx(p).replace(/^Esquema\s*\d+\.?/,`Esquema ${i+1}.`)))}
   conc.forEach(([i,t])=>{if(t)setT(K[i],t);else{K[i].remove();K[i+1]?.localName==="p"&&!tx(K[i+1]).trim()&&K[i+1].remove()}});
