@@ -1839,7 +1839,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v92";
+const LOCAL=!!window.__LOCAL;const APPV="v93";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -1935,12 +1935,14 @@ async function fotoMeta(file,campo){
   return{t,gps};
 }
 // renglones del estampado: fecha, sistema y línea con diámetro, PK y coordenada (de la foto o del punto)
-function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":"campo";const it=formItems[i];return(it?.act==="Biseles"||it?.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo"}
+function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":k==="UBC"?"ubiC":"campo";const it=formItems[i];return(it?.act==="Biseles"||it?.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo"}
 // fecha del estampe: la del día de inspección de la actividad; si no hay, la de la foto
 function stampFor(f,lugar,pt,fi){
   fi=f.fi||fi;const d=/^\d{4}-\d{2}-\d{2}$/.test(fi||"")?new Date(fi+"T12:00:00"):new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
   const sis=pt?pt.sistema||"":$("iSistema").value, lin=pt?pt.linea||"":lineaVal(), pk=pt?pt.pk||"":$("iPk").value.trim(), dia=pt?pt.diametro||"":$("iDiam").value.trim();
   const cC=pt?pt.coord:$("iCoord").value,cP=pt?pt.coordPatio:$("iCoordPatio").value;
+  // punto en patio: todas las fotos llevan la coordenada de patio (menos la foto de ubicación en campo)
+  if(lugar!=="ubiC"&&(pt?pt.lugar:$("iLugar")?.value)==="Patio")lugar="patio";
   const u=(lugar==="patio"?parseCoord(cP)||parseCoord(cC):parseCoord(cC)||parseCoord(cP))||f.gps;
   return[`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`,
     [sis,lin?lin+(dia?` ${dia}"`:""):(dia?`${dia}"`:"")].filter(Boolean).join(" · "),
@@ -2483,7 +2485,7 @@ async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst
     out.push({r0,c0,cap:gen.test(cap)&&cap.length<25?"":cap,bytes,type,fi})}
   return out.sort((p,q)=>p.r0-q.r0||p.c0-q.c0)}
 const esAnexo=n=>/ANEX/i.test(n);
-window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt};
+window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt,stampFor};
 function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
   let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
   if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"${extSel.selH?.has(k)?" checked":""}><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
@@ -2591,7 +2593,7 @@ $("itemsBox").addEventListener("input",e=>{if(e.target.dataset.zsl!=null){const 
 $("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing()});
 // el cálculo de 0 horas depende del diámetro, el espesor y el tipo de camisa del punto
 ["iDiam","iEsp","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>{syncCards();formItems.forEach((_,i)=>refreshH0(i))}));
-["iSistema","iLinea","iLineaOtra","iDiam","iPk","iCoord","iCoordPatio"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>refreshAllFotos())));
+["iSistema","iLinea","iLineaOtra","iDiam","iPk","iCoord","iCoordPatio","iLugar"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,()=>refreshAllFotos())));
 ["iEsp","iNom","iDiam"].forEach(id=>$(id).addEventListener("change",()=>refreshAllPl()));
 ["iBase","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>formItems.forEach((_,i)=>refreshSold(i))));
 ["iEsp","iMat","iNom","iMatTub"].forEach(id=>$(id).addEventListener("change",()=>{if(!$("drawWrap").hidden)updateDrawing()}));
