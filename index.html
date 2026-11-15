@@ -214,6 +214,7 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 #pasteZone:focus{border-color:var(--ink,#16324a)}
 #pasteZone img{max-height:120px}
 .exrow{display:grid;grid-template-columns:1.4fr 1fr 1fr .9fr auto;border-bottom:1px dashed var(--line);padding-bottom:8px;gap:8px;align-items:end;margin:6px 0}@media(max-width:560px){.exrow{grid-template-columns:1fr 1fr}}
+.ffecha{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted);margin:2px 0}.ffecha input{font:inherit;font-size:.8rem;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-width:0;flex:1}.ffecha.propia input{border-color:#d97706}
 .extfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:6px 0}
 .extf{display:flex;flex-direction:column;gap:4px;border:2px solid var(--line);border-radius:8px;padding:4px;font-size:13px;cursor:pointer;background:var(--bg)}
 .extf.on{border-color:#d97706;background:rgba(217,119,6,.12)}
@@ -1910,7 +1911,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v102";
+const LOCAL=!!window.__LOCAL;const APPV="v103";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -1943,6 +1944,7 @@ function fotosHtml(it,i,only){
       return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
       ${s.id&&(!s.raw||s.pegada)&&!readOnly&&assets?`<button type="button" class="fstog off" data-frest="${gr.k}" data-j="${j}" title="Borra el estampe que trae la foto y le pone el de la app con los datos del punto">↻ Re‑estampar</button>`:""}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
+      ${s.id&&s.raw&&!s.noStamp?`<label class="ffecha${s.fi?" propia":""}" title="Fecha que sale en el estampe de esta foto"><span>Fecha</span><input type="date" data-ffecha="${gr.k}" data-j="${j}" value="${esc(s.fi||fechaIt(i)||"")}"${readOnly?" disabled":""}></label>`:""}
       <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}>${medidaHtml(it,i,s.desc||s.cap,j,gr.k)}</div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
 }
@@ -2003,7 +2005,7 @@ async function fotoMeta(file,campo){
   // la foto de ubicación (campo o patio) fija la coordenada de ese lugar
   if(campo){if(gps){$(campo).value=`${gps.lat.toFixed(6)}, ${gps.lon.toFixed(6)}`;scheduleDraft();setTimeout(refreshAllFotos,0)}
   }
-  return{t,gps};
+  return{t,gps,exif:!!ex.fecha};
 }
 // renglones del estampado: fecha, sistema y línea con diámetro, PK y coordenada (de la foto o del punto)
 function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":k==="UBC"?"ubiC":"campo";const it=formItems[i];return(it?.act==="Biseles"||it?.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo"}
@@ -2084,6 +2086,9 @@ let fotoTarget=null;
 function pedirFoto(i,k,j,modo){if(!assets||readOnly)return;fotoTarget={i,k,j};fileIn.value="";
   if(modo==="cam")fileIn.setAttribute("capture","environment");else fileIn.removeAttribute("capture");fileIn.click()}
 fileIn.addEventListener("change",()=>{const f=fileIn.files?.[0], t=fotoTarget; if(f&&t)subirFoto(t,f)});
+// fecha propia de cada foto (corrige el estampe cuando la foto es de otro día)
+document.addEventListener("change",e=>{const t=e.target.closest?.("[data-ffecha]");if(!t||readOnly)return;const i=foOf(t),k=t.dataset.ffecha,j=+t.dataset.j;const fi=/^\d{4}-\d{2}-\d{2}$/.test(t.value)&&t.value!==fechaIt(i)?t.value:"";
+  setFoto(i,k,j,{fi});refreshFotos(i);scheduleDraft();toast(fi?`Foto ${j+1}: el estampe sale con fecha ${fi.split("-").reverse().join("/")}`:`Foto ${j+1}: usa la fecha de la actividad`)});
 // pegar fotos copiadas (de un Excel, de WhatsApp, de una captura…). Si vienen varias, llenan las casillas libres siguientes
 let pegarMulti=null;
 async function pegarFoto(i,k,j){if(!assets||readOnly)return;
@@ -2102,7 +2107,7 @@ async function subirFoto(t,f,extra){const key=`${t.i}|${t.k}|${t.j}`;
     let r;try{r=await assets.upload(blob,{type:"image/jpeg"})}catch(e){if(e?.code==="store_unavailable"){await new Promise(z=>setTimeout(z,1500));r=await assets.upload(blob,{type:"image/jpeg"})}else throw e}
     const prev=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.id;
     if(prev)fotosQuitadas.add(prev);
-    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"||t.k==="PAUTX"||t.k==="SCI"?{noStamp:true}:{}),pegada:0,...(extra||{})});scheduleDraft();
+    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"||t.k==="PAUTX"||t.k==="SCI"?{noStamp:true}:{}),pegada:0,fi:"",...(t.i==="P"&&meta.exif&&(d=>d!==fechaIt("P")?{fi:d}:{})(new Date(meta.t).toLocaleDateString("sv"))||{}),...(extra||{})});scheduleDraft();
     {const cap=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.cap;const m=MEDIDA(cap,t.k,own(t.i));if(m&&t.i!=="P")leerMedida(blob,t.i,m)}
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
@@ -2474,6 +2479,7 @@ $("form").addEventListener("click",e=>{
   const fcm=e.target.closest("[data-fcam],[data-fgal]");
   if(fcm){pedirFoto(foOf(fcm),fcm.dataset.fcam||fcm.dataset.fgal,+fcm.dataset.j,fcm.dataset.fcam?"cam":"gal");return}
   const fps=e.target.closest("[data-fpaste]");if(fps){pegarFoto(foOf(fps),fps.dataset.fpaste,+fps.dataset.j);return}
+  if(e.target.closest("[data-ffecha]"))return;
   const rs=e.target.closest("[data-frest]");
   if(rs){const i=foOf(rs),k=rs.dataset.frest,j=+rs.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
     if(!rs.dataset.ok){rs.dataset.ok="1";rs.textContent="¿Borrar su estampe? Toca otra vez";return}rs.disabled=true;rs.textContent="Re‑estampando…";
@@ -3161,7 +3167,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
   // el bisel recto se describe con las cascotas de la reparación (número y Ø)
   const bisCas=bisCas0&&bisCas0.act==="Ilícitas"?{...bisCas0,reparacion:{tipo:"Biseles",tipoCamisa:"cascota",nCas:nInt(bisCas0.reparacion?.cascotas,1,1,12),diamCas:bisCas0.reparacion?.largos?.cas||[],unidad:bisCas0.reparacion?.unidad||"pulg"}}:bisCas0;
   const ptCas=r.items.find(x=>x.act==="0H"&&(x.tecnicas||[]).includes("PT")&&x.reparacion?.tipo);let bisUsado=false;
-  const fotDe=(x,k)=>fotoSlots(x=x===bisCas?bisCas0:x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:x.inspFecha||r.fecha}));
+  const fotDe=(x,k)=>fotoSlots(x=x===bisCas?bisCas0:x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:f.fi||x.inspFecha||r.fecha}));
   const filasBisCas=()=>bisRows(bisCas.reparacion).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(bisCas),"-"]);
   const nCas=x=>nInt(x?.reparacion?.cascotas??x?.reparacion?.nCas,1,1,12);
   let usoMTZS=0;const HOJAS_H={h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3","13F.PT-CAM -4","14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3","14F.MT-SOLD -4","16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3","16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6","15.PAUT-CIRC-CAM -1","15F.PAUT-CIRC-CAM -2"],
@@ -3171,7 +3177,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     return[{...x,_ex:true,tecnicas:["PAUT"],reparacion:rep,soldadores:Object.fromEntries(js.map(j=>[j.id,"NA"])),ind:(x.ind||[]).filter(EXI).map(d=>({...d,tec:"PAUT",j:d.j.slice(3)})),pautSin:{},juntasNoT:{},juntasNo:[],sinAnillos:false,fotos:{PAUTI:x.fotos?.PAUTX||[]}}]};
   const ITS=r.items.flatMap(x=>{const v=exVirt(x);if(!v.length&&!(x.ind||[]).some(EXI))return[x];return[{...x,ind:(x.ind||[]).filter(d=>!EXI(d))},...v]});
   for(let it of ITS){
-    const lugarIt=(it.act==="Biseles"||it.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:it.inspFecha||r.fecha}));
+    const lugarIt=(it.act==="Biseles"||it.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:x.fi||it.inspFecha||r.fecha}));
     if(it===bisCas0&&it.act==="Ilícitas")it=bisCas;
     if(it===bisCas){bisUsado=true;// bisel recto de la cascota: reporte propio (hojas de biseles), separado del PT a las soldaduras
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
