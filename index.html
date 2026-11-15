@@ -1770,7 +1770,7 @@ setTimeout(()=>{if(!document.getElementById("fcapSug"))document.body.insertAdjac
 const FOTO_MT=["Verificación de magnetismo residual","Verificación intensidad de luz","Verificación del campo magnético","Inspección MT","Inspección MT","Inspección MT"];
 // juntas del esquema: longitudinales (lados superior / inferior) y circunferenciales (lados según qué unen)
 // juntas que NO se inspeccionaron en esta actividad (p. ej. otro inspector las hizo otro día)
-const esAnillo=j=>/^A\d /.test(j.id)||j.lados[0]==="Lado anillo";
+const esAnillo=j=>/^A\d /.test(j.id)||String(j.lados[0]).startsWith("Lado anillo");
 // juntas que NO se hicieron con una técnica en particular (p. ej. anillos con PT y MT pero sin PAUT)
 const dbIds=rep=>/abajo|derecha/i.test(rep?.exLado||"")?{A1T:"C1",A2A1:"C2",SCA2:"C3",SCEX:"C4"}:{SCEX:"C1",SCA2:"C2",A2A1:"C3",A1T:"C4"};
 const noTec=(it,t,id)=>(it?.juntasNoT?.[t]||[]).includes(id);
@@ -1790,7 +1790,7 @@ function juntasDe(rep,tipoA,it){
   else if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"){L("A1 ");L("A2 ");L("SC ");
     let n=1;if(!tipoA){C("C1","Lado anillo","Lado tubo");C("C2","Lado anillo","Lado tubo");n=3}
     C(`C${n}`,"Lado sobre camisa","Lado anillo");C(`C${n+1}`,"Lado sobre camisa","Lado anillo")}
-  else if(t==="Camisa doble anillo sobre existente"){L("SC ");L("A2 ");L("A1 ");const q=dbIds(rep),cs=[[q.SCEX,"Lado sobre camisa","Lado camisa existente"],[q.SCA2,"Lado sobre camisa","Lado anillo"],[q.A2A1,"Lado anillo","Lado anillo"],[q.A1T,"Lado anillo","Lado tubo"]].sort((a,b)=>+a[0].slice(1)-+b[0].slice(1));cs.forEach(c=>C(...c))}
+  else if(t==="Camisa doble anillo sobre existente"){L("SC ");L("A2 ");L("A1 ");const q=dbIds(rep),cs=[[q.SCEX,"Lado sobre camisa","Lado camisa existente"],[q.SCA2,"Lado sobre camisa","Lado anillo"],[q.A2A1,"Lado anillo A2","Lado anillo A1"],[q.A1T,"Lado anillo","Lado tubo"]].sort((a,b)=>+a[0].slice(1)-+b[0].slice(1));cs.forEach(c=>C(...c))}
   else if(t==="Camisa puenteada"){L("");C("C1","Lado sobre camisa","Lado camisa existente");C("C2","Lado sobre camisa","Lado camisa existente")}
   else if(t==="Ilícita"){for(let i=1;i<=nInt(rep.cascotas,3,1,12);i++)C(`Cascota #${i}`,"Lado cascota","Lado tubo")}
   for(let k=1;k<=nInt(it?.juntasTT,0,0,40);k++)out.push({id:`J${k}`,tipo:"circ",tope:true,lados:["Lado tubo","Lado tubo"]});
@@ -1909,10 +1909,12 @@ function fotoGrupos(it,tipoA=tipoAForm()){
   return g;
 }
 function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
-  if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
+  if(gr.byCap){const usados=new Set();return gr.caps.map(c=>{let f=cur.find(x=>x?.cap===c);
+    if(!f&&/ · Lado anillo A\d$/.test(c)){const o=cur.find(x=>x?.cap===c.replace(/ A\d$/,""));if(o&&!usados.has(o)){usados.add(o);f=o}}
+    return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v104";
+const LOCAL=!!window.__LOCAL;const APPV="v105";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -1955,7 +1957,7 @@ function refreshFotos(i){
 function setFoto(i,k,j,patch){const it=own(i);if(!it)return;it.fotos={...(it.fotos||{})};
   const gr=fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]};const sl=fotoSlots(it,gr);while(sl.length<=j)sl.push({cap:"",id:null});
   sl[j]={...sl[j],...patch};
-  if(gr.byCap){const otros=((it.fotos||{})[k]||[]).filter(x=>x&&!gr.caps.includes(x.cap));it.fotos[k]=[...sl,...otros]}else it.fotos[k]=sl;}
+  if(gr.byCap){const viejos=new Set(gr.caps.filter(c=>/ · Lado anillo A\d$/.test(c)).map(c=>c.replace(/ A\d$/,"")));const otros=((it.fotos||{})[k]||[]).filter(x=>x&&!gr.caps.includes(x.cap)&&!viejos.has(x.cap));it.fotos[k]=[...sl,...otros]}else it.fotos[k]=sl;}
 function fotoSub(it,tipoA){const gs=fotoGrupos(it,tipoA).filter(g=>g.min||((it.fotos||{})[g.k]||[]).some(f=>f?.id));if(!gs.length)return"";
   const NOM={GEN:"Fotos",ZSI:"Imág. ZS",PAUTI:"Imág. PAUT",PAUTX:"Imág. PAUT exist."};const parts=gs.map(g=>{const n=fotoSlots(it,g).filter(f=>f?.id).length;return{t:`${NOM[g.k]||g.k} ${n}${g.min?"/"+g.min:""}`,low:g.min&&n<g.min}});
   return`<span class="sub2${parts.some(p=>p.low)?" lowf":""}">📷 ${esc(parts.map(p=>p.t).join(" · "))}</span>`}
@@ -3101,7 +3103,7 @@ const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales n
   // páginas de fotos: si no alcanzan las de la plantilla, se copia la última hoja de fotos (solo su página de fotos)
   const AREA_FOTOS={"4.MT-ZS cam2":{area:"$A$68:$AK$116",pag:"AH68",tot:["AJ10","AJ68"],base:2}};
   // pie de los registros PAUT: un recuadro por junta con sus dos lados
-  const LADO={"Lado superior":"LS","Lado inferior":"LI","Lado camisa":"LC","Lado tubo":"LT","Lado anillo":"LA","Lado sobrecamisa":"LSC","Lado sobre camisa":"LSC","Lado camisa existente":"LCE","Lado cascota":"LCA"};
+  const LADO={"Lado superior":"LS","Lado inferior":"LI","Lado camisa":"LC","Lado tubo":"LT","Lado anillo":"LA","Lado anillo A1":"LA1","Lado anillo A2":"LA2","Lado sobrecamisa":"LSC","Lado sobre camisa":"LSC","Lado camisa existente":"LCE","Lado cascota":"LCA"};
   const capPaut=(n,f,g)=>{const[id,l1]=(f.cap||"").split(" · ");if(!l1)return`Imagen ${n}. ${f.desc||f.cap||"Registro PAUT"}`;const ls=[l1,g&&(g.cap||"").startsWith(id+" · ")?g.cap.split(" · ")[1]:null].filter(Boolean).map(x=>LADO[x]||x).join("/");
     return`Imagen ${n}. Registro PAUT soldadura ${/L\d+$/.test(id.trim())?"Longitudinal":"Circunferencial"} ${id.replace(/\s+/g,"")} (${ls})`};
   async function fotosEn(nombres,lista,lugarF,llenar){let i=0;const hs=nombres.filter(h=>ANCLAS_REP[h]?.fotos&&hoja[h]);if(!hs.length)return;const base=hs[hs.length-1],af=AREA_FOTOS[base];let extra=0;
@@ -3220,7 +3222,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
           for(const h of hs){await cabecera(h,it,obsTxt(it,que("ultrasonido phased array")+" (longitudinales)","PAUT",lg.map(j=>j.id)),true,rep);t9(h,"Sold. Longitudinales");if(it._ex){C(h,"H9","Camisa existente");C(h,"T9","Sold. Longitudinales existentes")}ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"LONG");ponEq(h,PL_UT,pl);altura(h,pl);await barrido(h,"TOPE")}
           await fotosEn(sfx({h0:["16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6"],h12:["16F.PAUT-LONG-CAM -4 -12H","16F.PAUT-LONG-CAM -5 -12H","16F.PAUT-LONG-CAM -6 -12H"]}),[...imgs.filter(x=>it._ex?lg.some(j=>String(x.cap).startsWith(j.id+" ·")):/L\d/.test(x.cap)),...fot("PAUT")],"campo",true)}
         if(cc.length){// circunferenciales: en vez de observaciones va el lado de la inspección (p. ej. LT X LA X), primero el lado aguas arriba
-          const AB={"Lado tubo":"LT","Lado anillo":"LA","Lado camisa":"LC","Lado sobre camisa":"LC","Lado sobrecamisa":"LSC","Lado camisa existente":"LCE","Lado cascota":"LCA"};
+          const AB={"Lado tubo":"LT","Lado anillo":"LA","Lado anillo A1":"LA1","Lado anillo A2":"LA2","Lado camisa":"LC","Lado sobre camisa":"LC","Lado sobrecamisa":"LSC","Lado camisa existente":"LCE","Lado cascota":"LCA"};
           const ladosC=j=>{const n=+(String(j.id).match(/C(\d+)\s*$/)||[])[1]||1;const l=n%2?[j.lados[1],j.lados[0]]:[j.lados[0],j.lados[1]];return[AB[l[0]]||"-","X",AB[l[1]]||"-","X"]};
           const filaC=j=>filaU(j).map(f=>[...f.slice(0,11),...ladosC(j)]);
           const hs=await tabla([sfx({h0:"15.PAUT-CIRC-CAM -1",h12:"15.PAUT-CIRC-CAM -1 12H"})],cc.flatMap(filaC),[...cols.slice(0,11),"AH","AI","AJ","AK"],h=>C(h,"AH30","LADO DE LA INSPECCIÓN"));
