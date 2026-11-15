@@ -1839,7 +1839,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v94";
+const LOCAL=!!window.__LOCAL;const APPV="v95";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3589,12 +3589,16 @@ async function generarInforme(r){REP_PT=r;
     if(!secs.length)secs=[["-",null]];secs=secs.slice(0,11);const n=secs.length,quita=11-n;
     // columnas sobrantes fuera (y el ancho se reparte entre las que quedan)
     const grid=t.getElementsByTagNameNS(WNS,"tblGrid")[0],gc=kids(grid,"gridCol");let libre=0;gc.slice(3+n,14).forEach(g=>{libre+=+g.getAttributeNS(WNS,"w")||+g.getAttribute("w:w")||0;g.remove()});
-    gc.slice(3,3+n).forEach(g=>{const w=+(g.getAttribute("w:w")||0);g.setAttribute("w:w",String(Math.round(w+libre/n)))});
+    // piezas y columna de unidades, todas del mismo ancho (tabla pareja)
+    {const resto=kids(grid,"gridCol").slice(3),tot=resto.reduce((a,g)=>a+(+(g.getAttribute("w:w")||0)),0)+libre;resto.forEach(g=>g.setAttribute("w:w",String(Math.round(tot/resto.length))))}
     f.forEach((tr,ri)=>{const cs=celdasDe(tr);const ini=ri===1?2:3;if(ri===0){const gs=cs[2].getElementsByTagNameNS(WNS,"gridSpan")[0];if(gs)gs.setAttribute("w:val",String(n+1));celda(cs[2],tn&&!desc?"Tubería nueva":elem.charAt(0).toUpperCase()+elem.slice(1));return}
       cs.slice(ini+n,ini+11).forEach(c=>c.remove());const w=cs[ini]&&cs[ini].getElementsByTagNameNS(WNS,"tcW")[0];
       const val=k=>ri===1?secs[k][0]:ri===2?(secs[k][2]??(r.diametro||"-")):ri===3?(secs[k][1]!=null?(secs[k][1]/1000).toFixed(3).replace(".",","):"-"):ri===4?(r.espesor||"-"):"API 5L";
       for(let k=0;k<n;k++)celda(cs[ini+k],val(k));if(ri===5&&cs[ini+11])celda(cs[ini+11],r.material||"-")});
-    {const v=celdasDe(f[2]),e=celdasDe(f[4]),m=celdasDe(f[5]);celda(v[1],r.diametro||"-");celda(e[1],r.nominal||"-");celda(m[2],r.materialTub||"-")}}
+    {const v=celdasDe(f[2]),e=celdasDe(f[4]),m=celdasDe(f[5]);celda(v[1],r.diametro||"-");celda(e[1],r.nominal||"-");celda(m[2],r.materialTub||"-")}
+    // el ancho de cada celda (tcW) se ajusta a las columnas de la tabla; si no, Word deja las columnas disparejas
+    {const W=kids(grid,"gridCol").map(g=>+(g.getAttribute("w:w")||0));filasDe(t).forEach(tr=>{let c=0;celdasDe(tr).forEach(tc=>{const sp=+(tc.getElementsByTagNameNS(WNS,"gridSpan")[0]?.getAttribute("w:val")||1);const w=W.slice(c,c+sp).reduce((a,b)=>a+b,0);c+=sp;
+      const tw=tc.getElementsByTagNameNS(WNS,"tcW")[0];if(tw&&w){tw.setAttribute("w:w",String(w));tw.setAttribute("w:type","dxa")}})})}}
   {const lt=repCam?num(repCam.longTotal):null;const ltmm=lt!=null?Math.round(lt*(U2MM[repCam.longUnidad||"m"]||1000)):null;
     if(desc&&ltmm)setT(K[22],`En la zona de las anomalías se instaló la ${elem} con una longitud total de ${ltmm} mm.`);
     else if(tn&&!desc){const rp=tn.reparacion||{};setT(K[22],`Se inspeccionó${etapaTxt} el metal base de la tubería nueva (${tubosDe(rp).join(", ")}): ${num(rp.extremo)??110} mm en cada extremo en todo el perímetro y ${num(rp.centro)??3000} mm en el centro.`)}
