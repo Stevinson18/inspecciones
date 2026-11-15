@@ -1334,7 +1334,7 @@ function zsHtml(it){
   const HORAS=["12:00","1:00","2:00","3:00","4:00","5:00","6:00","7:00","8:00","9:00","10:00","11:00"];
   const grid=tec=>{const L=zsLectDe(it,tec);return`<span class="label">${tec==="SCANA"?"Scan A":"Scan C"} · espesores medidos (mm) · ${NPOS} ${tec==="SCANA"?"posiciones":"posiciones horarias"} por área</span>`+areas.map(a=>{const v=L[a]||[];const ns=v.map(mmNum).filter(x=>x!=null);const mn=ns.length?Math.min(...ns):null;
     return`<div class="zsA"><span class="label">${esc(a)}${mn!=null?` · mín ${String(mn).replace(".",",")} mm (${(mn/25.4).toFixed(3).replace(".",",")}")`:""}</span>
-    <div class="grid4">${[...Array(NPOS)].map((_,k)=>`<label class="f"><span class="label">${tec==="SCANA"?k+1:HORAS[k]}</span><input class="field mono" data-zsl="${esc(a)}" data-zt="${tec}" data-k="${k}" value="${esc(v[k]||"")}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>`).join("")}</div></div>`}).join("")};
+    <div class="grid4">${[...Array(NPOS)].map((_,k)=>`<label class="f"><span class="label">${tec==="SCANA"?k+1:HORAS[k]}</span><input class="field mono" data-zsl="${esc(a)}" data-zt="${tec}" data-k="${k}" value="${esc(v[k]||"")}" inputmode="decimal" placeholder="0,00" autocomplete="off"></label>`).join("")}</div>${tec==="SCANC"?`<label class="f" style="max-width:320px;margin-top:6px"><span class="label">Costura longitudinal ubicada @ (hora)</span><input class="field mono" data-zscost="${esc(a)}" value="${esc(it.zsCost?.[a]||"")}" placeholder="00:39 · vacío si no tiene" autocomplete="off"></label>`:""}</div>`}).join("")};
   const scans=ts.filter(t=>t!=="MT");
   return sel+selZ+(ts.includes("MT")?`<p class="note">MT al metal base de ${areas.length>1?"las áreas":"el área"} (${esc(areas.join(", "))}): sale en su hoja MT con fotos propias.</p>`:"")+(scans.length?`<div class="grid2"><label class="f"><span class="label">Barrido axial (mm)</span><input class="field mono" data-zsd="axial" value="${esc(D.axial??"200")}" inputmode="decimal"></label><label class="f"><span class="label">Barrido perimetral (mm)</span><input class="field mono" data-zsd="perim" value="${esc(D.perim??"200")}" inputmode="decimal"></label></div>`:"")+scans.map(grid).join("");
 }
@@ -1347,6 +1347,7 @@ function zsSync(c,i){
   if(zl.length){const L={...(it.zsLect||{})},LA={...(it.zsLectA||{})},o={...(it.zsMin||{})};zl.forEach(inp=>{const a=inp.dataset.zsl,T=inp.dataset.zt==="SCANA"?LA:L;(T[a]=[...(T[a]||[])])[+inp.dataset.k]=inp.value.trim()});
     // el espesor mínimo (pulg) sale de las lecturas en mm (de las dos técnicas si se hicieron ambas)
     zsAreasIt(it).forEach(a=>{const ns=[...(zsT(it).includes("SCANC")?L[a]||[]:[]),...(zsT(it).includes("SCANA")?LA[a]||[]:[])].map(mmNum).filter(x=>x!=null);if(ns.length)o[a]=(Math.min(...ns)/25.4).toFixed(3)});it.zsLect=L;it.zsLectA=LA;it.zsMin=o}
+  const zc=c.querySelectorAll("[data-zscost]");if(zc.length){const o={...(it.zsCost||{})};zc.forEach(inp=>o[inp.dataset.zscost]=inp.value.trim());it.zsCost=o}
   const zd=c.querySelectorAll("[data-zsd]");if(zd.length){const D={...(it.zsDim||{})};zd.forEach(inp=>D[inp.dataset.zsd]=inp.value.trim());it.zsDim=D}
 }
 // vuelve a dibujar las casillas si cambian las áreas del esquema (sin perder lo escrito)
@@ -1911,7 +1912,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v103";
+const LOCAL=!!window.__LOCAL;const APPV="v104";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2667,7 +2668,7 @@ $("iFecha").addEventListener("focus",()=>{fechaPrev=$("iFecha").value});
 $("itemsBox").addEventListener("change",e=>{if(e.target.dataset.f==="inspFecha"){syncCards();refreshAllFotos()}});
 $("iFecha").addEventListener("change",()=>{syncCards();refreshAllFotos()});
 $("iFecha").addEventListener("change",()=>{const nv=$("iFecha").value;document.querySelectorAll('#itemsBox [data-f="inspFecha"]').forEach(x=>{if(!x.value||x.value===fechaPrev)x.value=nv});fechaPrev=nv;syncCards()});
-$("itemsBox").addEventListener("input",e=>{if(e.target.dataset.zsl!=null){const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i);return}if(e.target.dataset.zs==null)return;const c=e.target.closest(".itcard");if(!c)return;zsSync(c,+c.dataset.i);if(+c.dataset.i===active&&!$("drawWrap").hidden)updateDrawing()});
+$("itemsBox").addEventListener("input",e=>{if(e.target.dataset.zsl!=null||e.target.dataset.zscost!=null||e.target.dataset.zsd!=null){const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i);return}if(e.target.dataset.zs==null)return;const c=e.target.closest(".itcard");if(!c)return;zsSync(c,+c.dataset.i);if(+c.dataset.i===active&&!$("drawWrap").hidden)updateDrawing()});
 $("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing()});
 // el cálculo de 0 horas depende del diámetro, el espesor y el tipo de camisa del punto
 ["iDiam","iEsp","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>{syncCards();formItems.forEach((_,i)=>refreshH0(i))}));
@@ -3272,6 +3273,8 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
             quitar(h,{fr:anE.fr,to:anE.to,maxCol:23});const repE={...it.reparacion,zsNo:zsAreas(it.reparacion).filter(a=>!par.includes(a)),diametro:r.diametro};P(h,anE,await esquemaRep(repE,{tipoReparacion:r.tipoReparacion},anE),"png")}
           const circ=a=>a&&a!=="-"?String(a):"";// la parte que se inspeccionó en este reporte
           [["E47","K47","A57","E57"],["X47","AC47","O57","S57"]].forEach(([l1,v1,l2,v2],s_)=>{const cc=circ(par[s_]);C(h,l1,cc?`CIRCUNFERENCIAL ${s_+1}:`:"",true);C(h,v1,cc,true);C(h,l2,cc?`Circunf ${s_+1}:`:"",true);C(h,v2,cc,true)});
+          // ubicación de la costura longitudinal de cada zona (debajo de su circunferencial)
+          [["E48",par[0]],["X48",par[1]]].forEach(([c_,ar])=>{const cs=String((ar&&it.zsCost?.[ar])||"").trim();C(h,c_,cs?`Costura longitudinal ubicada @${cs.replace(/^@\s*/,"")}`:"",true)});
           for(let s_=0;s_<2;s_++){const ar=par[s_],col=s_?"V":"C";C(h,s_?"AA31":"H31",ar||"-",true);
             const v=(zsLectDe(it,"SCANC")[ar]||[]).map(num);for(let q=0;q<12;q++)C(h,col+(34+q),v[q]??"",true);calcEsp(h,col+"46",col+"47",col+"48",`${col}34:${s_?"W":"D"}45`,v);
             const im=ar&&(imgs.find(x=>x.cap===ar)||imgs[areas.indexOf(ar)]);if(im&&a.fotos?.[s_]){P(h,a.fotos[s_],await fotoRep({...im,noStamp:im.noStamp!==false},"campo",a.fotos[s_],true),"jpeg");paq(h,`${ar}`,im,a.fotos[s_])}}}}}
