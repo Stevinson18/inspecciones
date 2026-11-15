@@ -213,7 +213,7 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 #pasteZone{min-height:140px;border:2px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg);font-weight:600;outline:none;overflow:hidden}
 #pasteZone:focus{border-color:var(--ink,#16324a)}
 #pasteZone img{max-height:120px}
-.exrow{display:grid;grid-template-columns:1.4fr 1.2fr 1fr .9fr auto;gap:8px;align-items:end;margin:6px 0}@media(max-width:560px){.exrow{grid-template-columns:1fr 1fr}}
+.exrow{display:grid;grid-template-columns:1.4fr 1fr 1fr .9fr auto;border-bottom:1px dashed var(--line);padding-bottom:8px;gap:8px;align-items:end;margin:6px 0}@media(max-width:560px){.exrow{grid-template-columns:1fr 1fr}}
 .extfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:6px 0}
 .extf{display:flex;flex-direction:column;gap:4px;border:2px solid var(--line);border-radius:8px;padding:4px;font-size:13px;cursor:pointer;background:var(--bg)}
 .extf.on{border-color:#d97706;background:rgba(217,119,6,.12)}
@@ -997,15 +997,22 @@ function drawRepair(rep,meta,P,compact){
     const exDraw=(x,w,t,izq)=>{const h1=ph+INC,h2=ph+2*INC;
       // u se mide desde el extremo interno (el que queda bajo la puenteada) hacia afuera
       const VIS=compact?8:30,uE=conV?Math.max((izq?VA:VB)*k,LAP*(izq?VA:VB)*k+VIS):Math.min(w*0.5,Math.max(0,izq?(x+w)-(xp-VIS):(xp+wp+VIS)-x)),X_=u=>izq?x+w-u:x+u,box=(u0,u1,h)=>{const a=Math.min(X_(u0),X_(u1)),b=Math.max(X_(u0),X_(u1));sleeve(a,cy-h/2,b-a,h)};
-      if(/anillos/i.test(t)){const rw=Math.max(18,(w-uE)*0.28);box(0,uE+rw*0.6,h1);box(w-rw,w,h1);box(uE,w-rw*0.5,h2)}
+      // piezas (en u) para dibujar luego las soldaduras existentes inspeccionadas
+      if(/anillos/i.test(t)){const rw=Math.max(18,(w-uE)*0.28);box(0,uE+rw*0.6,h1);box(w-rw,w,h1);box(uE,w-rw*0.5,h2);return{X_,h1,h2,in:[0,uE],sc:[uE,w-rw*0.5],out:[w-rw*0.5,w]}}
       else if(/armadillo/i.test(t)){const Lz=w-uE,dw=Lz/3.8,gp=dw*0.4;box(0,uE+dw,h1);box(uE+dw+gp,uE+2*dw+gp,h1);box(uE+2*dw+2*gp,w,h1);
-        box(uE+0.7*dw,uE+dw+gp+0.3*dw,h2);box(uE+2*dw+gp-0.3*dw,uE+2*dw+2*gp+0.3*dw,h2)}
-      else box(0,w,hE)};
-    exDraw(sx,w1,t1,true);
-    exDraw(xe2,w2,t2,false);
+        box(uE+0.7*dw,uE+dw+gp+0.3*dw,h2);box(uE+2*dw+gp-0.3*dw,uE+2*dw+2*gp+0.3*dw,h2);return{X_,h1,h2,in:[0,uE+dw],sc:[uE+0.7*dw,uE+dw+gp+0.3*dw],out:[uE+2*dw+2*gp,w]}}
+      box(0,w,hE);return{X_,h1:hE,h2:hE,in:[0,w],sc:[0,w],out:[0,w]}};
+    const G1=exDraw(sx,w1,t1,true),G2=exDraw(xe2,w2,t2,false);
     if(rep.cascota!==false){S.push(`<ellipse cx="${gc.toFixed(1)}" cy="${cy-ph/2-4}" rx="${Math.min(28,g/2.5).toFixed(1)}" ry="9" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);T(gc,cy-ph/2-1,"Cascota",{s:9,w:600})}
     sleeve(xp,cy-hP/2,wp,hP,{op:.62});
     seam(xp,xp+wp,cy-12,cy+4);
+    // soldaduras de las camisas existentes inspeccionadas (rojo): longitudinales sobre su pieza, circunferenciales en su unión
+    if(rep.exSold?.length){const RJ="#d92d20";
+      exJuntas(rep.exSold).forEach((j,n)=>{const ps=exPos(j);if(!ps)return;const[c,q]=ps.split("|"),G=c==="2"?G2:G1;
+        if(j.tipo==="long"){const pz=G[q]||G.in,h=q==="sc"?G.h2:G.h1,a=Math.min(G.X_(pz[0]),G.X_(pz[1])),b=Math.max(G.X_(pz[0]),G.X_(pz[1])),l2=/L2\s*$/i.test(j.id),y=l2?cy+h/2-7:cy-h/2+7;
+          L(a+2,y,b-2,y,{s:RJ,sw:3,...(l2?{d:"7 4"}:{})});if(!compact)c==="2"?T(b+4,y+4,j.id,{a:"start",s:10,w:700,c:RJ}):T(a-4,y+4,j.id,{a:"end",s:10,w:700,c:RJ})}
+        else{const u={"in-t":G.in[0],"sc-in":G.sc[0],"sc-out":G.sc[1],"out-t":G.out[1]}[q]??G.in[0],h=/^sc/.test(q)?G.h2:G.h1,x=G.X_(u);
+          L(x,cy-h/2-3,x,cy+h/2+3,{s:RJ,sw:3.4});if(!compact)T(x+(c==="2"?4:-4),cy+h/2+13,j.id,{a:c==="2"?"start":"end",s:10,w:700,c:RJ})}})}
     if(!compact){
       T(gc+g*0.45,cy-17,"L1",{s:13,w:700});T(gc+g*0.45,cy+18,"L2",{s:12,c:P.muted});
       T(gc-10,cy+21,"Sentido flujo",{s:11,w:700,c:"#1f4aa0"});L(xp+18,cy+28,xp+wp-30,cy+28,{s:P.zs,sw:2.5});
@@ -1149,7 +1156,7 @@ function rowHtml(r){
     const obs=it.observaciones?`<div class="obs ${it.novedad&&st!=="entregado"?"bad":""}">${it.novedad?"⚠ ":""}${esc(it.observaciones)}</div>`:"";
     const rp=repOf(r,it);
     const zmin=zsMinOf(it), zsTxt=it.act==="Zona sana"&&zmin!=null?`<span class="sub2">Esp. mín ${String(zmin).replace(".",",")}"${r.nominal?` · nominal ${esc(r.nominal)}"`:""}</span>`:"";
-    const repCell=rp?`<div class="actrep"><button class="thumb" type="button" data-edit="${esc(r.id)}" data-i="${i}" aria-label="Ver esquema: ${esc(repLabel(rp))}">${drawRepair({...rp,vista:it.act},r,PAL_VAR,true)}</button><span class="sub2">${esc(repLabel(rp))}</span>${zsTxt}${(c=>c&&!c.ok?`<span class="warnline">⚠ Longitud total no cuadra con las piezas</span>`:"")(checkLen(rp))}</div>`:`<span class="muted">Sin esquema</span>${zsTxt}`;
+    const repCell=rp?`<div class="actrep"><button class="thumb" type="button" data-edit="${esc(r.id)}" data-i="${i}" aria-label="Ver esquema: ${esc(repLabel(rp))}">${drawRepair({...rp,vista:it.act,...(exOn(it)?{exSold:it.exSold}:{})},r,PAL_VAR,true)}</button><span class="sub2">${esc(repLabel(rp))}</span>${zsTxt}${(c=>c&&!c.ok?`<span class="warnline">⚠ Longitud total no cuadra con las piezas</span>`:"")(checkLen(rp))}</div>`:`<span class="muted">Sin esquema</span>${zsTxt}`;
     return `<div class="act ${st==="vencido"?"late":""}">
       <div class="cell"><span class="chip ${actClass(it.act)}">${esc(it.act)}</span></div>
       <div class="cell">${esc(it.inspectores||"—")}${fotoSub(it,r.tipoReparacion==="Camisa Tipo A")}${it.inspFecha&&it.inspFecha!==r.fecha?`<span class="sub2">Inspección: ${dmy(it.inspFecha)}</span>`:""}${h0Sub(it)}</div>
@@ -1790,6 +1797,10 @@ function juntasDe(rep,tipoA,it){
 // soldaduras de camisas existentes (camisa puenteada): las escribe el inspector; reporte PAUT aparte con soldador N/A
 const EX_CONTRA=["Lado tubo","Lado anillo","Lado camisa"];
 function exJuntas(L){const vis=new Set();return(L||[]).map(e=>({...e,id:String(e.id||"").trim()})).filter(e=>e.id&&!vis.has(e.id)&&vis.add(e.id)).map(e=>({id:e.id,tipo:e.tipo==="circ"?"circ":"long",ex:true,len:e.len,lados:e.tipo==="circ"?["Lado camisa existente",e.contra||"Lado tubo"]:["Lado superior","Lado inferior"]}))}
+// dónde va cada soldadura existente en el esquema: "camisa|pieza" (1 = izquierda, 2 = derecha; in = anillo o extremo del lado de la puenteada)
+const EX_POS={long:[["in","Anillo/extremo del lado de la puenteada"],["sc","Sobre camisa"],["out","Anillo exterior"]],circ:[["in-t","Anillo (lado puenteada) – tubo"],["sc-in","Sobre camisa – anillo (lado puenteada)"],["sc-out","Sobre camisa – anillo exterior"],["out-t","Anillo exterior – tubo"]]};
+function exPos(e){if(e.pos==="no")return null;if(e.pos)return e.pos;const id=String(e.id||""),c=/EX\s*2|E2\b|EXIST\w*\s*2/i.test(id)?"2":"1",inN=c==="1"?"2":"1";
+  if(e.tipo==="circ")return`${c}|${/SC/i.test(id)?"sc-in":"in-t"}`;const a=(id.match(/A\s*(\d)/i)||[])[1];return`${c}|${/SC/i.test(id)?"sc":a&&a!==inN?"out":"in"}`}
 const exOn=it=>conTec(it?.act)&&it.reparacion?.tipo==="Camisa puenteada"&&!!it.utEx;
 const exCaps=it=>exJuntas(it.exSold).flatMap(j=>j.lados.map(l=>`${j.id} · ${l}`));
 function exHtml(it){if(!conTec(it.act)||it.reparacion?.tipo!=="Camisa puenteada")return"";const ro=readOnly?" disabled":"",on=!!it.utEx,L=it.exSold||[];
@@ -1800,7 +1811,8 @@ function exHtml(it){if(!conTec(it.act)||it.reparacion?.tipo!=="Camisa puenteada"
     <label class="f"><span class="label">Tipo</span><select class="field" data-ex="${n}" data-exf="tipo"${ro}><option value="long"${e.tipo!=="circ"?" selected":""}>Longitud.</option><option value="circ"${e.tipo==="circ"?" selected":""}>Circunf.</option></select></label>
     ${e.tipo==="circ"?`<label class="f"><span class="label">Contra</span><select class="field" data-ex="${n}" data-exf="contra"${ro}>${EX_CONTRA.map(o=>`<option${(e.contra||"Lado tubo")===o?" selected":""}>${o}</option>`).join("")}</select></label>`:"<span></span>"}
     <label class="f"><span class="label">Longitud (mm)</span><input class="field mono" data-ex="${n}" data-exf="len" inputmode="decimal" value="${esc(e.len??"")}"${ro}></label>
-    ${readOnly?"":`<button class="btn small ghost" type="button" data-exdel="${n}" aria-label="Quitar">✕</button>`}</div>`).join("")}
+    ${readOnly?"":`<button class="btn small ghost" type="button" data-exdel="${n}" aria-label="Quitar">✕</button>`}
+    <label class="f" style="grid-column:1/-1"><span class="label">Dónde va en el esquema</span><select class="field" data-ex="${n}" data-exf="pos"${ro}>${(()=>{const cur=exPos(e)||"no";return[["1","Exist. 1"],["2","Exist. 2"]].flatMap(([c,cl])=>EX_POS[e.tipo==="circ"?"circ":"long"].map(([q,ql])=>[`${c}|${q}`,`${cl} · ${ql}`])).concat([["no","No dibujar"]]).map(([v,l])=>`<option value="${v}"${cur===v?" selected":""}>${esc(l)}</option>`).join("")})()}</select></label></div>`).join("")}
   ${readOnly?"":`<div class="row-btns"><button class="btn small" type="button" data-exadd="1">+ Agregar soldadura existente</button>${exJuntas(it.exSold).length?`<button class="btn small ghost" type="button" data-indadd="ex">+ Indicación en una existente</button>`:""}</div>`}
   ${(()=>{const d=(it.ind||[]).filter(x=>String(x.j).startsWith("EX·"));return d.length?`<p class="note">Indicaciones en existentes: ${d.map(x=>`${esc(x.j.slice(3))} (${esc(x.interp||"sin interpretación")}, ${esc(x.res||"Aceptable")})`).join("; ")}. Se editan en "Indicaciones encontradas".</p>`:""})()}`:""}`}
 function refreshEx(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`),it=formItems[i];if(!card||!it)return;const b=card.querySelector(".exbox");if(b){const h=exHtml(it);b.innerHTML=h;b.hidden=!h}}
@@ -1849,12 +1861,14 @@ function indHtml(it){if(!conTec(it.act)||!it.reparacion?.tipo)return"";const tec
   ${readOnly?"":`<button class="btn small" type="button" data-indadd="1">+ Agregar indicación</button>`}<datalist id="indTipos">${IND_TIPOS.map(t=>`<option value="${t}">`).join("")}</datalist>`}
 $("itemsBox").addEventListener("click",e=>{const a=e.target.closest("[data-exadd],[data-exdel]");if(!a||readOnly)return;const i=+a.closest(".itcard").dataset.i,it=formItems[i];if(!it)return;
   if(a.dataset.exadd){const L=it.exSold||[];it.exSold=[...L,{id:"",tipo:L.at(-1)?.tipo||"long"}]}else it.exSold=(it.exSold||[]).filter((_,n)=>n!==+a.dataset.exdel);
-  refreshEx(i);refreshFotos(i);refreshInd(i);scheduleDraft()});
+  refreshEx(i);refreshFotos(i);refreshInd(i);refreshRepThumb(i);if(i===active)updateDrawing();scheduleDraft()});
 ["input","change"].forEach(ev=>$("itemsBox").addEventListener(ev,e=>{const t=e.target;if(!t.closest?.(".exbox"))return;const i=+t.closest(".itcard").dataset.i,it=formItems[i];if(!it)return;
-  if(t.dataset.exon){if(ev!=="change")return;it.utEx=t.checked;if(t.checked&&!(it.exSold||[]).length)it.exSold=[{id:"",tipo:"long"}];refreshEx(i);refreshFotos(i);refreshInd(i);scheduleDraft();return}
+  if(t.dataset.exon){if(ev!=="change")return;it.utEx=t.checked;if(t.checked&&!(it.exSold||[]).length)it.exSold=[{id:"",tipo:"long"}];refreshEx(i);refreshFotos(i);refreshInd(i);refreshRepThumb(i);if(i===active)updateDrawing();scheduleDraft();return}
   if(t.dataset.exk){it[t.dataset.exk]=t.value;scheduleDraft();return}
   const n=t.dataset.ex;if(n==null)return;it.exSold=(it.exSold||[]).map((x,k)=>k===+n?{...x,[t.dataset.exf]:t.value}:x);
-  if(ev==="change"){if(t.dataset.exf==="tipo")refreshEx(i);refreshFotos(i);refreshInd(i)}scheduleDraft()}));
+  if(t.dataset.exf==="tipo")it.exSold=it.exSold.map((x,k)=>k===+n?{...x,pos:""}:x);
+  if(ev==="change"){if(t.dataset.exf==="tipo")refreshEx(i);refreshFotos(i);refreshInd(i);refreshRepThumb?.(i);if(i===active)updateDrawing()}scheduleDraft()}));
+function refreshRepThumb(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`),it=formItems[i];const b=card?.querySelector(".itrep");if(b&&it)b.innerHTML=repSummaryHtml(it,i)}
 function refreshInd(i){const card=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"]`),it=formItems[i];if(!card||!it)return;const b=card.querySelector(".indbox");if(b)b.innerHTML=indHtml(it)}
 $("itemsBox").addEventListener("click",e=>{const a=e.target.closest("[data-indadd],[data-inddel]");if(!a||readOnly)return;const i=+a.closest(".itcard").dataset.i,it=formItems[i];if(!it)return;
   if(a.dataset.indadd){const tecs=indTecs(it);const ex=a.dataset.indadd==="ex";const js=ex?exJuntas(it.exSold).map(j=>"EX·"+j.id):juntasDe(it.reparacion,tipoAForm(),it).map(j=>j.id);it.ind=[...(it.ind||[]),{tec:ex?"PAUT":tecs[0],j:js[0]||"",res:"Aceptable"}]}
@@ -1896,7 +1910,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v101";
+const LOCAL=!!window.__LOCAL;const APPV="v102";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2206,7 +2220,7 @@ function defaultRep(act,gg){
 }
 function repSummaryHtml(it,i){
   const rep=it.reparacion?.tipo?{...it.reparacion,diametro:$("iDiam").value.trim()}:null;
-  return `${rep?`<button class="thumb" type="button" data-rep="${i}" aria-label="Ver esquema">${drawRepair({...rep,vista:it.act},metaForm(),PAL_VAR,true)}</button>`:""}<span class="sub2">${rep?esc(repLabel(rep)):"Sin esquema"}</span>${readOnly&&!rep?"":`<button class="btn small" type="button" data-rep="${i}">${rep?"Ver esquema":"Agregar esquema"}</button>`}`;
+  return `${rep?`<button class="thumb" type="button" data-rep="${i}" aria-label="Ver esquema">${drawRepair({...rep,vista:it.act,...(exOn(it)?{exSold:it.exSold}:{})},metaForm(),PAL_VAR,true)}</button>`:""}<span class="sub2">${rep?esc(repLabel(rep)):"Sin esquema"}</span>${readOnly&&!rep?"":`<button class="btn small" type="button" data-rep="${i}">${rep?"Ver esquema":"Agregar esquema"}</button>`}`;
 }
 function inspBoxHtml(v){
   const sel=inspList(v);
@@ -2340,7 +2354,7 @@ function updateLtCheck(rep){
 function updateDrawing(){
   const rep=readRep();
   $("drawWrap").hidden=!rep;
-  if(rep)$("drawing").innerHTML=drawRepair({...rep,vista:formItems[active]?.act},metaForm(),PAL_VAR,false);
+  const fa=formItems[active];if(rep)$("drawing").innerHTML=drawRepair({...rep,vista:fa?.act,...(fa&&exOn({...fa,reparacion:rep})?{exSold:fa.exSold}:{})},metaForm(),PAL_VAR,false);
   $("btnImg").hidden=!rep||!downloads;
   updateLtCheck(rep);
   if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;if(formItems[active].act==="Ilícitas"&&rep?.tipo==="Ilícita")formItems.forEach(x=>{if(x!==formItems[active]&&x.reparacion?.tipo==="Ilícita"&&(x.act==="Zona sana"||x.act==="0H"))x.reparacion=JSON.parse(JSON.stringify(rep))});refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>{refreshFotos(active);refreshSold(active)},400)}
@@ -2732,7 +2746,7 @@ $("btnNew").addEventListener("click",()=>openForm(null));
 // descargar esquema como PNG
 $("btnImg").addEventListener("click",async()=>{
   const rep=readRep(); if(!rep||!downloads)return;
-  const svg=drawRepair({...rep,vista:formItems[active]?.act},metaForm(),PAL_PNG,false);
+  const fa=formItems[active];const svg=drawRepair({...rep,vista:fa?.act,...(fa&&exOn({...fa,reparacion:rep})?{exSold:fa.exSold}:{})},metaForm(),PAL_PNG,false);
   const img=new Image();
   img.onload=async()=>{
     const c=document.createElement("canvas");c.width=1440;c.height=560;
@@ -3771,7 +3785,7 @@ async function generarInforme(r){REP_PT=r;
   await pon("rId8",async e=>ubc?await fotoRep(ubc,"campo",e):await vacia(e,"image/jpeg"));
   if(zs?.reparacion?.tipo)await pon("rId9",e=>esquemaRep({...zs.reparacion,zsNo:zs.zsNo||[],diametro:r.diametro},{pk:r.pk,linea:r.linea,consecutivo:r.consecutivo,tipoReparacion:r.tipoReparacion},e));
   if(bis?.reparacion?.tipo)await pon("rId10",e=>esquemaRep({...bis.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
-  if(repCam)await pon("rId11",e=>esquemaRep({...repCam,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
+  if(repCam){const xe=A.find(x=>x.reparacion===repCam&&exOn(x));await pon("rId11",e=>esquemaRep({...repCam,diametro:r.diametro,...(xe?{exSold:xe.exSold}:{})},{tipoReparacion:r.tipoReparacion},e))}
   else if(tn?.reparacion?.tipo&&!zs)await pon("rId9",e=>esquemaRep({...tn.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
   let relMB=null;if(MB&&ext("rIdMB1")){try{medios["word/media/mbesq.png"]=await esquemaRep({...mb.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},ext("rIdMB1"));relMB=rel.replace("</Relationships>",'<Relationship Id="rIdMB1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/mbesq.png"/></Relationships>')}catch(err){console.warn("esquema MB",err)}}
   await pon("rId12",async e=>(await firmaRep(realizo,e))||await vacia(e,"image/png"));
