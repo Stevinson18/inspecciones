@@ -984,16 +984,18 @@ function drawRepair(rep,meta,P,compact){
     // dos camisas existentes y una sobre camisa que las une tapando el espacio entre ellas
     const e1=LN(lg.ex1?.[0]), e2=LN(lg.ex2?.[0]), pu=LN(lg.pu?.[0]), knownP=!!(e1&&e2&&pu);
     const E1=knownP?e1:1.6, E2=knownP?e2:1.6, PU=knownP?pu:1;
-    const gapU=PU*0.5, k=Math.min((x1-x0-120)/(E1+E2+gapU),300/PU);
+    // con lo que queda a la vista del anillo (o extremo) de cada existente, la puenteada va de anillo a anillo y el espacio sale a escala
+    const VA=LN(lg.vx1?.[0]),VB=LN(lg.vx2?.[0]),LAP=0.75,conV=!!(knownP&&VA&&VB&&PU-LAP*(VA+VB)>0&&VA<E1&&VB<E2);
+    const gapU=conV?PU-LAP*(VA+VB):PU*0.5, k=Math.min((x1-x0-120)/(E1+E2+gapU),(conV?380:300)/PU);
     let w1=E1*k, w2=E2*k, g=gapU*k, wp=PU*k;
-    if(wp<220){wp=220;g=110}
+    if(!conV&&wp<220){wp=220;g=110}
     // cada camisa existente se dibuja según su tipo (directa / tipo A, sobre anillos o armadillo).
     // La puenteada monta sobre el anillo (o la sección directa) del extremo de cada existente, nunca sobre su sobre camisa
     const t1=rep.ex1Tipo||"Directa",t2=rep.ex2Tipo||"Directa";
-    const tot=w1+g+w2, sx=(W-tot)/2, xe2=sx+w1+g, xp=sx+w1+g/2-wp/2, hE=ph+INC, hP=ph+2*INC, gc=sx+w1+g/2;RA=xp;RB=xp+wp;
+    const tot=w1+g+w2, sx=(W-tot)/2, xe2=sx+w1+g;let xp=sx+w1+g/2-wp/2;const hE=ph+INC, hP=ph+2*INC, gc=sx+w1+g/2;if(conV)xp=sx+w1-LAP*VA*k;RA=xp;RB=xp+wp;
     const exDraw=(x,w,t,izq)=>{const h1=ph+INC,h2=ph+2*INC;
       // u se mide desde el extremo interno (el que queda bajo la puenteada) hacia afuera
-      const uE=Math.min(w*0.45,Math.max(0,izq?(x+w)-(xp-(compact?6:18)):(xp+wp+(compact?6:18))-x)),X_=u=>izq?x+w-u:x+u,box=(u0,u1,h)=>{const a=Math.min(X_(u0),X_(u1)),b=Math.max(X_(u0),X_(u1));sleeve(a,cy-h/2,b-a,h)};
+      const uE=conV?(izq?VA:VB)*k:Math.min(w*0.45,Math.max(0,izq?(x+w)-(xp-(compact?6:18)):(xp+wp+(compact?6:18))-x)),X_=u=>izq?x+w-u:x+u,box=(u0,u1,h)=>{const a=Math.min(X_(u0),X_(u1)),b=Math.max(X_(u0),X_(u1));sleeve(a,cy-h/2,b-a,h)};
       if(/anillos/i.test(t)){const rw=Math.max(18,(w-uE)*0.28);box(0,uE+rw*0.6,h1);box(w-rw,w,h1);box(uE,w-rw*0.5,h2)}
       else if(/armadillo/i.test(t)){const Lz=w-uE,dw=Lz/3.8,gp=dw*0.4;box(0,uE+dw,h1);box(uE+dw+gp,uE+2*dw+gp,h1);box(uE+2*dw+2*gp,w,h1);
         box(uE+0.7*dw,uE+dw+gp+0.3*dw,h2);box(uE+2*dw+gp-0.3*dw,uE+2*dw+2*gp+0.3*dw,h2)}
@@ -1011,7 +1013,8 @@ function drawRepair(rep,meta,P,compact){
       // nombre, tipo y longitud de cada existente debajo del tubo, para que no se monten sobre el dibujo
       const tl=t=>t==="Tipo A"?"tipo A":t.toLowerCase(),yb=cy+hP/2+20,ex1x=Math.min(v1,xp-70),ex2x=Math.max(v2,xp+wp+70);
       T(ex1x,yb,"Camisa existente 1",{s:12,w:600});T(ex2x,yb,"Camisa existente 2",{s:12,w:600});
-      T(ex1x,yb+15,(knownP?`${e1} ${U} · `:"")+tl(t1),{s:11,c:P.muted});T(ex2x,yb+15,(knownP?`${e2} ${U} · `:"")+tl(t2),{s:11,c:P.muted})
+      T(ex1x,yb+15,(knownP?`${e1} ${U} · `:"")+tl(t1),{s:11,c:P.muted});T(ex2x,yb+15,(knownP?`${e2} ${U} · `:"")+tl(t2),{s:11,c:P.muted});
+      if(VA)T(ex1x,yb+29,`${/anillos/i.test(t1)?"anillo":"extremo"} a la vista: ${VA} ${U}`,{s:10,c:P.muted});if(VB)T(ex2x,yb+29,`${/anillos/i.test(t2)?"anillo":"extremo"} a la vista: ${VB} ${U}`,{s:10,c:P.muted})
       T(xp-5,cy-hE/2+15,"C1",{a:"end",s:13,w:700,c:P.bad});T(xp+wp+5,cy-hE/2+15,"C2",{a:"start",s:13,w:700,c:P.bad});
       T(gc,cy+hP/2+20,"Camisa puenteada"+(knownP?` · ${pu} ${U}`:""),{s:12,w:600});
     }
@@ -1198,7 +1201,7 @@ function renderLens(unit,lg){
   else if(tipo.startsWith("Camisa sobre anillos")){h+=inp("an",0,"Cada anillo",lg.an?.[0]);h+=inp("sc",0,"Sobre camisa",lg.sc?.[0])}
   else if(tipo==="Camisa directa"){h+=inp("cd",0,"Longitud de la camisa",lg.cd?.[0]);const nc=nInt($("rp_capas")?.value,0,0,3);for(let k=0;k<nc;k++)h+=inp("sup",k,`Sobrecamisa ${k+1} (encima)`,lg.sup?.[k])}
   else if(tipo==="Camisa doble anillo sobre existente"){h+=inp("sc",0,"Sobre camisa",lg.sc?.[0]);h+=inp("a2",0,"Anillo 2 (sobre anillo 1)",lg.a2?.[0]);h+=inp("a1",0,"Anillo 1 (sobre el tubo)",lg.a1?.[0]);h+=inp("ex",0,"Camisa existente a la vista",lg.ex?.[0])}
-  else if(tipo==="Camisa puenteada"){h+=inp("ex1",0,"Camisa existente 1",lg.ex1?.[0]);h+=inp("ex2",0,"Camisa existente 2",lg.ex2?.[0]);h+=inp("pu",0,"Sobre camisa a instalar",lg.pu?.[0])}
+  else if(tipo==="Camisa puenteada"){h+=inp("ex1",0,"Camisa existente 1",lg.ex1?.[0]);h+=inp("ex2",0,"Camisa existente 2",lg.ex2?.[0]);h+=inp("pu",0,"Sobre camisa a instalar",lg.pu?.[0]);h+=inp("vx1",0,"Existente 1: anillo a la vista",lg.vx1?.[0]);h+=inp("vx2",0,"Existente 2: anillo a la vista",lg.vx2?.[0])}
   else if(tipo==="Ilícita"){const n=nInt($("rp_cascotas")?.value,3,1,12);for(let i=0;i<n;i++)h+=inp("cas",i,`Ø cascota ${i+1}`,lg.cas?.[i])}
   box.innerHTML=`<div class="drawbar" style="margin:2px 0 8px"><span class="label">${tipo==="Ilícita"?"Diámetro de cada cascota":"Longitud de cada pieza"}</span><label class="check" style="font-size:.85rem">Unidad <select class="field" id="lUni" style="padding:4px 8px"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label></div><div class="grid3">${h}</div>`;
   $("lUni").value=unit||"cm";
@@ -1881,7 +1884,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v99";
+const LOCAL=!!window.__LOCAL;const APPV="v100";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
