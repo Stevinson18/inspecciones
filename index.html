@@ -893,7 +893,10 @@ function drawRepair(rep,meta,P,compact){
     const u=rep.unidad||"cm";
     const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
     let secs=[];
-    if(rep.tipoCamisa==="anillos"){
+    const exIzq=/arriba|izquierda/i.test(rep.exLado||"");
+    if(rep.tipoCamisa==="anilloex"){// un anillo y la sobre camisa que llega a la camisa existente (que hace de segundo anillo)
+      const a1={n:1,tag:"A1",cap:"Anillo 1",sobre:false,len:num(rep.largoAnillo)},sc={n:2,tag:"SC",cap:"Sobre camisa",sobre:true,len:num(rep.largoSobre)};secs=exIzq?[sc,a1]:[a1,sc];
+    } else if(rep.tipoCamisa==="anillos"){
       secs=[{n:1,tag:"A1",cap:"Anillo 1",sobre:false,len:num(rep.largoAnillo)},{n:3,tag:"SC",cap:"Sobre camisa",sobre:true,len:num(rep.largoSobre)},{n:2,tag:"A2",cap:"Anillo 2",sobre:false,len:num(rep.largoAnillo)}];
     } else if(/^(directa|puenteada)$/.test(rep.tipoCamisa)){
       secs=[{n:1,tag:"",cap:rep.tipoCamisa==="puenteada"?"Camisa puenteada":"Camisa directa",sobre:false,len:num(rep.largoCamisa)}];
@@ -906,11 +909,11 @@ function drawRepair(rep,meta,P,compact){
     }
     const allKnown=secs.every(s=>s.len);
     const wts=secs.map(s=>allKnown?s.len:(s.sobre?0.45:1));
-    const GAP=compact?10:16, avail=W-80-GAP*(secs.length-1), tw=wts.reduce((a,b)=>a+b,0);
+    const GAP=compact?10:16, avail=W-80-(rep.tipoCamisa==="anilloex"?(compact?50:170):0)-GAP*(secs.length-1), tw=wts.reduce((a,b)=>a+b,0);
     let ws=wts.map(w=>Math.max(compact?12:46,avail*w/tw));
     const sw0=ws.reduce((a,b)=>a+b,0); if(sw0>avail)ws=ws.map(w=>w*avail/sw0);
     if(secs.length===1)ws=[Math.min(ws[0],380)];
-    let x=(W-(ws.reduce((a,b)=>a+b,0)+GAP*(secs.length-1)))/2;
+    let x=(W-(ws.reduce((a,b)=>a+b,0)+GAP*(secs.length-1)))/2+(rep.tipoCamisa==="anilloex"?(exIzq?1:-1)*(compact?25:85):0);
     // las sobre camisas tienen mayor diámetro que las directas
     const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
     const MB=!!rep.mb;// MT al metal base: se resalta toda la pieza, no los biseles
@@ -931,6 +934,8 @@ function drawRepair(rep,meta,P,compact){
       shell(x,top2,w,h,`${pre}CPI`,false);
       if(!(REPMODE&&LTv&&secs.length===1)){T(x+w/2,top2+hS+22,s.cap||`Sección ${s.n}`,{s:13,w:700});
       T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":""),{s:11,c:P.muted})}
+      // camisa existente (gris, no inspeccionada) junto a la sobre camisa
+      if(rep.tipoCamisa==="anilloex"&&s.tag==="SC"){const ew=compact?30:130,eh=h*0.78,ex=exIzq?x-ew-6:x+w+6;[top1+hS-h+(h-eh)/2,top2+(h-eh)/2].forEach((ey,q)=>{R(ex,ey,ew,eh,{f:"#d5dadd",s:"#9aa3a8",sw:1.2});if(!compact)T(ex+ew/2,ey+eh/2+4,q?"":"Camisa existente",{s:10,w:600,c:"#5f6b71"})})}
       // camisa puenteada: las camisas existentes a lado y lado (gris, no inspeccionadas)
       if(rep.tipoCamisa==="puenteada"){const ew=compact?30:Math.min(130,x-34),eh=h*0.78;[[x-ew-6,"Camisa existente 1"],[x+w+6,"Camisa existente 2"]].forEach(([ex,lab])=>{[top1+hS-h+(h-eh)/2,top2+(h-eh)/2].forEach((ey,q)=>{R(ex,ey,ew,eh,{f:"#d5dadd",s:"#9aa3a8",sw:1.2});if(!compact)T(ex+ew/2,ey+eh/2+4,q?"":lab,{s:10,w:600,c:"#5f6b71"})})});
         if(!compact){const cy_=(top1+hS+top2)/2+4;T(x-3,cy_,"C1",{s:11,w:700,c:"#b42318",a:"end"});T(x+w+3,cy_,"C2",{s:11,w:700,c:"#b42318",a:"start"})}}
@@ -942,6 +947,7 @@ function drawRepair(rep,meta,P,compact){
       L(150,70,182,70,{s:P.l2,sw:3});T(188,74,"Biseles L2",{a:"start",s:12,w:600});S.push(`</g>`)}
     }
     titulo=MB?"Metal base de la camisa · MT":"Biseles";
+    if(rep.tipoCamisa==="anilloex")resumen=`Anillo + camisa existente ${exIzq?"a la izquierda":"a la derecha"} · anillo ${num(rep.largoAnillo)??"—"} ${u} · sobre camisa ${num(rep.largoSobre)??"—"} ${u}`;else
     if(rep.tipoCamisa==="anillos")resumen=`Camisa sobre anillos · anillos ${num(rep.largoAnillo)??"—"} ${u} · sobre camisa ${num(rep.largoSobre)??"—"} ${u}`;
     else if(/^(directa|puenteada)$/.test(rep.tipoCamisa))resumen=`${rep.tipoCamisa==="puenteada"?"Camisa puenteada (une 2 camisas existentes)":"Camisa directa"} · ${num(rep.largoCamisa)??"—"} ${u}`;
     else{const nd=nInt(rep.nDir,3,1,12), ns=nInt(rep.nSob,nd-1,0,12);resumen=`Camisa seccionada · ${nd} directas + ${ns} sobre camisa`}
@@ -1107,8 +1113,8 @@ const repLabel=rep=>{if(!rep?.tipo)return"";const t=rep.tipo;
   if(t==="Zona sana")return`Zona sana · ${nInt(rep.zonas,2,1,8)} áreas`;
   if(t==="Tubería nueva"){const n=nInt(rep.tubos,1,1,20);return`Tubería nueva · extremos ${String(rep.extremo||110).replace(".",",")} mm + centro ${String(rep.centro||3000).replace(".",",")} mm${n>1?` · ${n} tubos`:""}`}
   if(t==="Biseles"&&rep.tipoCamisa==="cascota"){const n=nInt(rep.nCas,1,1,12);return`Biseles rectos · ${n} ${n===1?"cascota":"cascotas"}`}
-  if(t==="Biseles"&&rep.mb)return`MT metal base · ${rep.tipoCamisa==="anillos"?"sobre anillos":rep.tipoCamisa==="directa"?"camisa directa":rep.tipoCamisa==="puenteada"?"camisa puenteada":`${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`}`;
-  if(t==="Biseles")return rep.tipoCamisa==="anillos"?"Biseles · sobre anillos":rep.tipoCamisa==="directa"?"Biseles · camisa directa":rep.tipoCamisa==="puenteada"?"Biseles · camisa puenteada":`Biseles · ${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`;
+  if(t==="Biseles"&&rep.mb)return`MT metal base · ${rep.tipoCamisa==="anilloex"?"anillo + existente":rep.tipoCamisa==="anillos"?"sobre anillos":rep.tipoCamisa==="directa"?"camisa directa":rep.tipoCamisa==="puenteada"?"camisa puenteada":`${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`}`;
+  if(t==="Biseles")return rep.tipoCamisa==="anilloex"?"Biseles · anillo + existente":rep.tipoCamisa==="anillos"?"Biseles · sobre anillos":rep.tipoCamisa==="directa"?"Biseles · camisa directa":rep.tipoCamisa==="puenteada"?"Biseles · camisa puenteada":`Biseles · ${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`;
   if(t==="Corte y empalme")return`Corte y empalme · ${nInt(rep.venteos,2,0,8)} V · ${nInt(rep.drenajes,1,0,6)} D${rep.camisas===false?"":" · camisas"}`;
   return rep.nota?`Otra · ${rep.nota}`:"Otra"};
 
@@ -1273,7 +1279,7 @@ function readPos(){return{numSep:true,vDren:[...document.querySelectorAll("#posB
 // ---- biseles: tipo de camisa y longitudes ----
 function buildBiseles(rep){
   const r=rep||{};
-  $("repParams").innerHTML=`<label class="f"><span class="label">Tipo de camisa</span><select class="field" id="bTipo"><option value="directa">Directa</option><option value="puenteada">Puenteada (une 2 camisas existentes)</option><option value="anillos">Sobre anillos</option><option value="seccionada">Seccionada</option><option value="cascota">Cascota (ilícita) · bisel recto</option></select></label>
+  $("repParams").innerHTML=`<label class="f"><span class="label">Tipo de camisa</span><select class="field" id="bTipo"><option value="directa">Directa</option><option value="puenteada">Puenteada (une 2 camisas existentes)</option><option value="anillos">Sobre anillos</option><option value="anilloex">Sobre anillo + camisa existente</option><option value="seccionada">Seccionada</option><option value="cascota">Cascota (ilícita) · bisel recto</option></select></label>
   <label class="f"><span class="label">Unidad de longitud</span><select class="field" id="bUni"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
   <div id="bBody" style="grid-column:1/-1;min-width:0"></div><div id="bMB" style="grid-column:1/-1;min-width:0"></div>`;
   $("bTipo").value=r.tipoCamisa||"seccionada";$("bUni").value=r.unidad||"cm";
@@ -1285,6 +1291,8 @@ function bisBody(r){
     b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Número de cascotas</span><input class="field mono" type="number" min="1" max="12" id="bNC" value="${n}"></label></div><div class="grid3" id="bCas">${[...Array(n)].map((_,i)=>`<label class="f"><span class="label">Ø cascota ${i+1}</span><input class="field mono" data-lc="${i}" inputmode="decimal" value="${esc(r?.diamCas?.[i]??"")}"></label>`).join("")}</div>`;
   } else if(/^(directa|puenteada)$/.test($("bTipo").value)){
     b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Longitud de la camisa</span><input class="field mono" id="bLC" inputmode="decimal" value="${esc(r?.largoCamisa??"")}"></label></div>`;
+  } else if($("bTipo").value==="anilloex"){
+    b.innerHTML=`<div class="grid3"><label class="f"><span class="label">Longitud del anillo</span><input class="field mono" id="bLA" inputmode="decimal" value="${esc(r?.largoAnillo??"")}"></label><label class="f"><span class="label">Longitud de la sobre camisa</span><input class="field mono" id="bLS" inputmode="decimal" value="${esc(r?.largoSobre??"")}"></label><label class="f"><span class="label">¿A qué lado queda la camisa existente?</span><select class="field" id="bEL"><option${/arriba|izquierda/i.test(r?.exLado||"")?"":" selected"}>Aguas abajo (derecha)</option><option${/arriba|izquierda/i.test(r?.exLado||"")?" selected":""}>Aguas arriba (izquierda)</option></select></label></div>`;
   } else if($("bTipo").value==="anillos"){
     b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Longitud de cada anillo directo</span><input class="field mono" id="bLA" inputmode="decimal" value="${esc(r?.largoAnillo??"")}"></label><label class="f"><span class="label">Longitud de la sobre camisa</span><input class="field mono" id="bLS" inputmode="decimal" value="${esc(r?.largoSobre??"")}"></label></div>`;
   } else {
@@ -1311,6 +1319,7 @@ function readBiseles(){
   if(r.tipoCamisa==="cascota"){r.nCas=nInt($("bNC")?.value,1,1,12);r.diamCas=[...document.querySelectorAll("#bCas [data-lc]")].map(i=>v(i.value)).slice(0,r.nCas)}
   else if(/^(directa|puenteada)$/.test(r.tipoCamisa)){r.largoCamisa=v($("bLC")?.value)}
   else if(r.tipoCamisa==="anillos"){r.largoAnillo=v($("bLA")?.value);r.largoSobre=v($("bLS")?.value)}
+  else if(r.tipoCamisa==="anilloex"){r.largoAnillo=v($("bLA")?.value);r.largoSobre=v($("bLS")?.value);r.exLado=$("bEL")?.value||"Aguas abajo (derecha)"}
   else{r.nDir=nInt($("bND")?.value,3,1,12);r.nSob=nInt($("bNS")?.value,r.nDir-1,0,12);
     r.largosDir=[...document.querySelectorAll("#bLens [data-ld]")].map(i=>v(i.value)).slice(0,r.nDir);
     r.largosSob=[...document.querySelectorAll("#bLens [data-ls]")].map(i=>v(i.value)).slice(0,r.nSob)}
@@ -1954,7 +1963,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v106";
+const LOCAL=!!window.__LOCAL;const APPV="v107";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2372,7 +2381,7 @@ function checkLen(rep){
   if(t==="Camisa sobre anillos"||t==="Camisa sobre anillos sobre venteo"||(t==="Biseles"&&rep.tipoCamisa==="anillos")){
     const A=t==="Biseles"?toMm(rep.largoAnillo,u):toMm(lg.an?.[0],u), S=t==="Biseles"?toMm(rep.largoSobre,u):toMm(lg.sc?.[0],u); if(A==null||S==null)return null;
     max=2*A+S-2*COVER_MM; min=S; desc=`anillos de ${fmt(A)} mm, sobre camisa de ${fmt(S)} mm y traslape mínimo de 2" (50,8 mm) en cada anillo`;
-  } else if(t==="Camisa armadillo"||(t==="Biseles"&&!/^(directa|puenteada)$/.test(rep.tipoCamisa))){
+  } else if(t==="Camisa armadillo"||(t==="Biseles"&&!/^(directa|puenteada|anilloex)$/.test(rep.tipoCamisa))){
     let D,Sx;
     if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,30);D=[...Array(d)].map((_,i)=>toMm(lg.dir?.[i],u));Sx=[...Array(d-1)].map((_,i)=>toMm(lg.sob?.[i],u))}
     else{const d=nInt(rep.nDir,3,1,12),s=nInt(rep.nSob,d-1,0,12);D=[...Array(d)].map((_,i)=>toMm(rep.largosDir?.[i],u));Sx=[...Array(s)].map((_,i)=>toMm(rep.largosSob?.[i],u))}
@@ -2676,6 +2685,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
       const cam=cur?.tipo&&/Camisa/.test(cur.tipo)?cur:formItems.map(x=>x.reparacion).find(x=>x?.tipo&&/Camisa/.test(x.tipo));const b=defaultRep(e.target.value);
       if(cam){const lg=cam.largos||{};b.unidad=cam.unidad||"cm";if(cam.tipo==="Camisa directa"){b.tipoCamisa="directa";b.largoCamisa=lg.cd?.[0]||""}
         else if(cam.tipo==="Camisa puenteada"){b.tipoCamisa="puenteada";b.largoCamisa=lg.pu?.[0]||""}
+        else if(cam.tipo==="Camisa sobre anillo y camisa existente"){b.tipoCamisa="anilloex";b.largoAnillo=lg.a1?.[0]||"";b.largoSobre=lg.sc?.[0]||"";b.exLado=cam.exLado||"Aguas abajo (derecha)"}
         else if(/anillos/.test(cam.tipo)){b.tipoCamisa="anillos";b.largoAnillo=lg.an?.[0]||"";b.largoSobre=lg.sc?.[0]||""}
         else if(cam.tipo==="Camisa armadillo"){const d=nInt(cam.directas,3,1,30);b.tipoCamisa="seccionada";b.nDir=Math.min(d,12);b.nSob=Math.min(d-1,12);b.largosDir=(lg.dir||[]).slice(0,12);b.largosSob=(lg.sob||[]).slice(0,12)}}
       formItems[i].reparacion=b;if(i===active)loadRep(b);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i);toast("Metal base camisa: tomé las secciones de la camisa. Revisa las longitudes en el esquema.")}
@@ -3055,12 +3065,14 @@ function bisRows(rep){const u=rep.unidad||"cm",mmv=v=>{const n=num(v);return n==
   const add=(pre,len)=>["CPS","CPI"].forEach(p=>["L1","L2"].forEach(l=>out.push([`Bisel ${pre}${p} - ${l}`,len])));
   if(/^(directa|puenteada)$/.test(rep.tipoCamisa))add("",mmv(rep.largoCamisa));
   else if(rep.tipoCamisa==="anillos"){add("A1 ",mmv(rep.largoAnillo));add("A2 ",mmv(rep.largoAnillo));add("SC ",mmv(rep.largoSobre))}
+  else if(rep.tipoCamisa==="anilloex"){add("A1 ",mmv(rep.largoAnillo));add("SC ",mmv(rep.largoSobre))}
   else{const nd=nInt(rep.nDir,3,1,12),ns=nInt(rep.nSob,nd-1,0,12);for(let i=0;i<nd;i++)add(`S${i+1} `,mmv(rep.largosDir?.[i]));for(let j=0;j<ns;j++)add(`S${nd+j+1} `,mmv(rep.largosSob?.[j]))}
   return out}
 // MT al metal base de la camisa: una fila por media caña (CPS / CPI) de cada sección, con su longitud en mm
 function mbRows(rep){const u=rep.unidad||"cm",mmv=v=>{const n=num(v);return n==null?"-":Math.round(n*(U2MM[u]||10))};const out=[];const add=(pre,len,tag=pre)=>["CPS","CPI"].forEach(p=>out.push([`${pre}${p}`,len,`${tag}${p}`]));
   if(/^(directa|puenteada)$/.test(rep.tipoCamisa))add(rep.tipoCamisa==="puenteada"?"Camisa puenteada ":"Camisa ",mmv(rep.largoCamisa),"");
   else if(rep.tipoCamisa==="anillos"){add("A1 ",mmv(rep.largoAnillo));add("A2 ",mmv(rep.largoAnillo));add("SC ",mmv(rep.largoSobre))}
+  else if(rep.tipoCamisa==="anilloex"){add("A1 ",mmv(rep.largoAnillo));add("SC ",mmv(rep.largoSobre))}
   else{const nd=nInt(rep.nDir,3,1,12),ns=nInt(rep.nSob,nd-1,0,12);for(let i=0;i<nd;i++)add(`S${i+1} `,mmv(rep.largosDir?.[i]));for(let j=0;j<ns;j++)add(`S${nd+j+1} `,mmv(rep.largosSob?.[j]))}
   const no=new Set(rep.mbNo||[]);return out.filter(x=>!no.has(x[2]))}
 const mbTxt=rep=>{if(!(rep?.mbNo||[]).length)return"al 100 % del metal base de las secciones";const l=mbRows(rep).map(x=>x[0]);return`al 100 % del metal base de ${l.length>1?l.slice(0,-1).join(", ")+" y "+l.at(-1):l[0]||"las secciones"}`};
@@ -3639,7 +3651,7 @@ async function generarInforme(r){REP_PT=r;
   const LAB_W={"0H":"“0 Horas”","12H":"“12 Horas”","Antes de bajado":"antes del bajado","Después de bajado":"después del bajado"};
   const preW=xs=>{const l=[...new Set(xs.map(x=>LAB_W[x.act]).filter(Boolean))];const b=l.filter(x=>/bajado/.test(x));const o=l.filter(x=>!/bajado/.test(x));if(b.length===2)o.push("antes y después del bajado");else o.push(...b);return o.length?" "+(/ y /.test(o.at(-1))?o.join(", "):yL0(o)):""};
   const adjW=xs=>{const a=[...new Set(xs.map(x=>SOLD_ACTS[x.act]?.adj||(x.act==="0H"||x.act==="12H"?"":null)))];return a.length===1&&a[0]?a[0]:""};
-  const desc=repCam?descCamisa(r,repCam):bis?descCamisa(r,{tipo:bis.reparacion?.tipoCamisa==="anillos"?"Camisa sobre anillos":bis.reparacion?.tipoCamisa==="directa"?"Camisa directa":bis.reparacion?.tipoCamisa==="puenteada"?"Camisa puenteada":"Camisa armadillo"}):"";
+  const desc=repCam?descCamisa(r,repCam):bis?descCamisa(r,{tipo:bis.reparacion?.tipoCamisa==="anilloex"?"Camisa sobre anillo y camisa existente":bis.reparacion?.tipoCamisa==="anillos"?"Camisa sobre anillos":bis.reparacion?.tipoCamisa==="directa"?"Camisa directa":bis.reparacion?.tipoCamisa==="puenteada"?"Camisa puenteada":"Camisa armadillo"}):"";
   const elem=desc||(tn?"tubería nueva (metal base)":r.tipoReparacion==="Ilícita"?"reparación de la válvula ilícita":r.tipoReparacion==="C&E"?"corte y empalme":"reparación");
   const lin=`${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in`.replace(/\s+/g," ").trim();
   const drN=String(r.dr||"").replace(/^\s*DR\s*[:.]?\s*/i,"").trim(),pkTxt=`PK ${r.pk||""}${drN?` (DR ${drN})`:""}`;
