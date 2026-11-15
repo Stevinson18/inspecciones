@@ -1839,7 +1839,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v93";
+const LOCAL=!!window.__LOCAL;const APPV="v94";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3550,8 +3550,11 @@ async function generarInforme(r){REP_PT=r;
     put(7,0,jn(um.map(c=>{const bc=v(c.bloqueCal),num=/^\d+$/.test(bc),sn=v(c.serieBloque)||(num?bc:"");return(bc||sn)&&`${num||!bc?"Escalerilla":bc}${sn?` S/N ${sn}`:""}`})));
     put(8,0,jn(ut.map(c=>[v(c.bloqueCal)&&`Bloque calibración ${v(c.bloqueCal)}`,v(c.bloqueRef)&&`referencia ${v(c.bloqueRef)}`].filter(Boolean).join(", "))));
     put(1,1,jn(mt.map(c=>[`Yoke ${v(c.tipoYoke)||""}`.trim(),v(c.marcaYoke),v(c.serieYoke)&&`S/N ${v(c.serieYoke)}`].filter(Boolean).join(" "))));
-    put(5,1,jn(mt.map(c=>[v(c.particulas)&&`Partículas ${v(c.particulas)}${v(c.tipoPart)?` (${v(c.tipoPart).toLowerCase()})`:""}${v(c.lotePart)?` lote ${v(c.lotePart)}`:""}`,v(c.limpiador)&&`limpiador ${v(c.limpiador)}${v(c.loteLimp)?` lote ${v(c.loteLimp)}`:""}`,v(c.contraste)&&!/^n\/?a$/i.test(v(c.contraste))&&`contraste ${v(c.contraste)}`].filter(Boolean).join(", "))));
-    put(1,2,jn(pt.map(c=>[v(c.marcaKit),v(c.limpiador)&&`Limpiador ${v(c.limpiador)}${v(c.loteLimp)?` lote ${v(c.loteLimp)}`:""}`,v(c.penetrante)&&`Penetrante ${v(c.penetrante)}${v(c.lotePen)?` lote ${v(c.lotePen)}`:""}`,v(c.revelador)&&`Revelador ${v(c.revelador)}${v(c.loteRev)?` lote ${v(c.loteRev)}`:""}`].filter(Boolean).join(", "))));
+    // consumibles: solo referencia y lote; varios lotes de la misma referencia van seguidos ("E-59A lote 10001 lote 10002")
+    const cons=pares=>{const m=new Map();pares.forEach(([ref,lote])=>{ref=v(ref);if(!ref||/^n\/?a$/i.test(ref))return;const k=ref.toUpperCase().replace(/[\s-]/g,"");if(!m.has(k))m.set(k,{ref,l:[]});const L=m.get(k).l;String(lote??"").split(/[,;/]|\s+y\s+/).map(x=>x.replace(/^\s*lote\s*/i,"").trim()).filter(Boolean).forEach(x=>{if(!L.includes(x))L.push(x)})});
+      return[...m.values()].map(o=>o.ref+o.l.map(x=>` lote ${x}`).join("")).join("; ")};
+    put(5,1,cons(mt.flatMap(c=>[[c.particulas,c.lotePart],[c.contraste,""]])));
+    put(1,2,cons([...pt.map(c=>[c.limpiador,c.loteLimp]),...pt.map(c=>[c.penetrante,c.lotePen]),...pt.map(c=>[c.revelador,c.loteRev])]));
     // auxiliares (luxómetro, termómetro, etc.)
     const aux=k=>jn(ax.map(c=>v(c[k])&&`S/N ${v(c[k])}`));const ad=(ri,ci,lab,k)=>{const s=aux(k);if(s)put(ri,ci,`${lab} ${s}`)};
     ad(2,1,"Indicador de campo","indicador");ad(3,1,"Termómetro láser","termometro");ad(4,1,"Lámpara luz ultravioleta","lamparaUV");ad(7,1,"Gaussímetro","gaussimetro");ad(8,1,"Luxómetro","luxometro");
