@@ -213,6 +213,11 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 #pasteZone{min-height:140px;border:2px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg);font-weight:600;outline:none;overflow:hidden}
 #pasteZone:focus{border-color:var(--ink,#16324a)}
 #pasteZone img{max-height:120px}
+.extfgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin:6px 0}
+.extf{display:flex;flex-direction:column;gap:4px;border:2px solid var(--line);border-radius:8px;padding:4px;font-size:13px;cursor:pointer;background:var(--bg)}
+.extf.on{border-color:#d97706;background:rgba(217,119,6,.12)}
+.extf img{width:100%;height:96px;object-fit:cover;border-radius:4px;background:#eee}
+.extf small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #pad{width:100%;height:auto;aspect-ratio:900/360;background:#fff;border:1px solid var(--line);border-radius:6px;touch-action:none}
 .row-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
@@ -573,7 +578,7 @@ const fmtH=h=>{h=Math.max(0,h);if(h<1)return Math.round(h*60)+" min";if(h<48)ret
 
 $("fAct").insertAdjacentHTML("beforeend",ACTS.map(([n])=>`<option>${n}</option>`).join(""));
 $("iPunto").innerHTML=`<option value="">Sin estado</option>`+PUNTO.map(p=>`<option>${p}</option>`).join("");
-$("fPunto").insertAdjacentHTML("beforeend",PUNTO.map(p=>`<option>${p}</option>`).join("")+`<option value="__none">Sin estado</option>`);
+$("fPunto").insertAdjacentHTML("beforeend",PUNTO.map(p=>`<option>${p}</option>`).join("")+`<option value="__none">Sin estado</option><option value="__arch">📦 Archivados</option>`);
 $("iRep").innerHTML=`<option value="">Sin esquema</option>`+Object.keys(REPS).map(k=>`<option>${k}</option>`).join("");
 $("iBase").innerHTML=`<option value="">Escoge la base</option>`+BASES.map(b=>`<option>${b}</option>`).join("");
 // ciudades por base (las bases sin lista muestran todas las conocidas)
@@ -652,7 +657,7 @@ function estadoIt(r,it){
 const grupo=st=>st==="vencido"?"novedad":st;
 const ORD={vencido:0,novedad:1,pendiente:2,entregado:3};
 const peorEstado=r=>r.items.map(it=>estadoIt(r,it)).sort((a,b)=>ORD[a]-ORD[b])[0]||"entregado";
-const allItems=()=>rows.flatMap(r=>r.items.map((it,i)=>({r,it,i,st:estadoIt(r,it)})));
+const allItems=()=>rows.filter(r=>!r.archivado).flatMap(r=>r.items.map((it,i)=>({r,it,i,st:estadoIt(r,it)})));
 const itName=(r,it)=>`${it.act} ${r.consecutivo||r.pk||""}`.trim();
 
 function toast(msg){const t=$("toast");t.textContent=msg;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
@@ -1051,7 +1056,8 @@ function filtered(){
     if(filtroEstado!=="todos"&&!r.items.some(it=>grupo(estadoIt(r,it))===filtroEstado)) return false;
     if(a&&!r.items.some(it=>it.act===a)) return false;
     if(m&&!(r.fecha||"").startsWith(m)) return false;
-    if(p&&(p==="__none"?!!r.estadoPunto:r.estadoPunto!==p)) return false;
+    if(p==="__arch"){if(!r.archivado)return false}else if(r.archivado)return false;
+    if(p&&p!=="__arch"&&(p==="__none"?!!r.estadoPunto:r.estadoPunto!==p)) return false;
     if(q){const hay=[r.consecutivo,r.pk,r.linea,r.lugar,r.ciudad,r.base,r.tipoReparacion,r.estadoPunto,...r.items.flatMap(it=>[it.act,it.inspectores,it.entregaQuien,it.observaciones,repLabel(it.reparacion)])].join(" ").toLowerCase();if(!hay.includes(q))return false}
     return true;
   }).sort((x,y)=>(y.fecha||"").localeCompare(x.fecha||"")||(x.pk||"").localeCompare(y.pk||""));
@@ -1135,7 +1141,7 @@ function rowHtml(r){
     <div class="cell"><span class="k label">Lugar · Ciudad</span>${esc(r.lugar||"—")}${r.ciudad?`<span class="sub2">${esc(r.ciudad)}</span>`:""}</div>
     <div class="cell"><span class="k label">Base · Reparación</span>${esc(r.base||"—")}${r.tipoReparacion?`<span class="sub2">${esc(r.tipoReparacion)}</span>`:""}</div>
     <div class="cell state"><span class="k label">Estado del punto</span>${puntoHtml(r)}</div>
-    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Reporte final sin fórmulas ni vínculos, para que otra persona agregue las hojas a su libro">🔗 Final sin vínculos</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
+    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Reporte final sin fórmulas ni vínculos, para que otra persona agregue las hojas a su libro">🔗 Final sin vínculos</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-arch="${esc(r.id)}" title="${r.archivado?"Volver a mostrar este punto en la lista":"Ocultar de la lista un punto terminado y enviado (se ve en el filtro Archivados)"}">${r.archivado?"↩ Desarchivar":"📦 Archivar"}</button>`}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
     <div class="acts">${acts||`<p class="note" style="padding:8px 0">Sin actividades registradas.</p>`}</div>
   </div>`;
 }
@@ -1144,7 +1150,7 @@ function render(){
   now=new Date();
   renderAlert();renderSummary();
   const list=filtered();
-  $("count").textContent=rows.length?`${list.length} de ${rows.length} puntos`:"";
+  {const nA=rows.filter(r=>r.archivado).length,act=rows.length-nA;$("count").textContent=rows.length?($("fPunto").value==="__arch"?`${list.length} archivados`:`${list.length} de ${act} puntos${nA?` · ${nA} archivados`:""}`):""}
   $("cols").hidden=!list.length;
   if(!rows.length){
     $("list").innerHTML=`<div class="empty"><h3>Todavía no hay puntos de trabajo</h3><p class="note">Registra el primer punto con su PK y las actividades que hiciste (zona sana, biseles, inspección de camisa…). El estado de cada informe se calcula solo.</p>${readOnly?"":`<button class="btn primary" type="button" data-new>+ Nuevo punto</button>`}</div>`;
@@ -1648,12 +1654,16 @@ async function pegarFirma(n){pegarDe=n;
   // si el navegador deja leer el portapapeles, se toma directo
   try{if(navigator.clipboard?.read){const its=await navigator.clipboard.read();for(const it of its){const t=it.types.find(x=>x.startsWith("image/"));if(t){await guardarFirma(n,await limpiarFirma(await it.getType(t)));return}}}}catch(e){}
   $("pasteT").textContent="Pegar firma de "+n;$("pasteZone").innerHTML="Toque aquí y pegue";$("pastep").hidden=false;setTimeout(()=>$("pasteZone").focus(),50)}
-$("pasteCancel").addEventListener("click",()=>{$("pastep").hidden=true;pegarCb=null});
+$("pasteCancel").addEventListener("click",()=>{$("pastep").hidden=true;pegarCb=null;pegarMulti=null});
 $("pasteZone").addEventListener("paste",async e=>{e.preventDefault();
   const its=[...(e.clipboardData?.items||[])];const im=its.find(i=>i.type.startsWith("image/"));
   let blob=im?.getAsFile();
   // algunas copias de Excel traen la imagen solo dentro del HTML
   if(!blob){const h=e.clipboardData.getData("text/html");const m=h&&h.match(/src="(data:image\/[^"]+)"/);if(m)blob=await (await fetch(m[1])).blob()}
+  if(pegarMulti){let bls=its.filter(i=>i.type.startsWith("image/")).map(i=>i.getAsFile()).filter(Boolean);
+    if(!bls.length){const h=e.clipboardData.getData("text/html")||"";for(const m of h.matchAll(/src="(data:image\/[^"]+)"/g))bls.push(await (await fetch(m[1])).blob())}
+    if(!bls.length){$("pasteZone").textContent="Lo que copió no es una imagen. En Excel haga clic sobre la foto (que se marque la imagen), copie y vuelva a pegar aquí.";return}
+    $("pastep").hidden=true;const cb=pegarMulti;pegarMulti=null;await cb(bls);return}
   if(!blob){$("pasteZone").textContent="Lo que copió no es una imagen. En Excel haga clic sobre la firma (que se marque la imagen) y copie.";return}
   $("pastep").hidden=true;if(pegarCb){const cb=pegarCb;pegarCb=null;await cb(blob);return}await guardarFirma(pegarDe,await limpiarFirma(blob))});
 $("catFirmas").addEventListener("click",async e=>{const b=e.target.closest("[data-fsub],[data-fdib],[data-fdel],[data-fpeg]");if(!b)return;
@@ -1829,7 +1839,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v91";
+const LOCAL=!!window.__LOCAL;const APPV="v92";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -1857,10 +1867,10 @@ function fotosHtml(it,i,only){
   return gs.map(gr=>{const sl=fotoSlots(it,gr), n=sl.filter(s=>s.id).length;
     return`<div class="fgrp"><div class="fhead"><span class="label">${esc(gr.t)}</span><span class="cnt${gr.min&&n<gr.min?" low":""}">${n}${gr.min?` de ${gr.min} mínimo`:n===1?" foto":" fotos"}</span></div>
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
-      const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button></div>`
+      const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button><button type="button" class="fbtn" data-fpaste="${gr.k}" data-j="${j}" title="Pega una imagen copiada (por ejemplo de un Excel o de WhatsApp)">📋 Pegar</button></div>`
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
       return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
-      ${s.id&&!s.raw&&!readOnly&&assets?`<button type="button" class="fstog off" data-frest="${gr.k}" data-j="${j}" title="Borra el estampe que trae la foto y le pone el de la app con los datos del punto">↻ Re‑estampar</button>`:""}
+      ${s.id&&(!s.raw||s.pegada)&&!readOnly&&assets?`<button type="button" class="fstog off" data-frest="${gr.k}" data-j="${j}" title="Borra el estampe que trae la foto y le pone el de la app con los datos del punto">↻ Re‑estampar</button>`:""}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
       <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}>${medidaHtml(it,i,s.desc||s.cap,j,gr.k)}</div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
@@ -2000,8 +2010,18 @@ const fileIn=document.createElement("input");fileIn.type="file";fileIn.accept="i
 let fotoTarget=null;
 function pedirFoto(i,k,j,modo){if(!assets||readOnly)return;fotoTarget={i,k,j};fileIn.value="";
   if(modo==="cam")fileIn.setAttribute("capture","environment");else fileIn.removeAttribute("capture");fileIn.click()}
-fileIn.addEventListener("change",async()=>{
-  const f=fileIn.files?.[0], t=fotoTarget; if(!f||!t)return; const key=`${t.i}|${t.k}|${t.j}`;
+fileIn.addEventListener("change",()=>{const f=fileIn.files?.[0], t=fotoTarget; if(f&&t)subirFoto(t,f)});
+// pegar fotos copiadas (de un Excel, de WhatsApp, de una captura…). Si vienen varias, llenan las casillas libres siguientes
+let pegarMulti=null;
+async function pegarFoto(i,k,j){if(!assets||readOnly)return;
+  const go=async bl=>{const it=own(i);if(!it)return;const gr=fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]};const sl=fotoSlots(it,gr);const slots=[j];
+    for(let q=j+1;q<sl.length&&slots.length<bl.length;q++)if(!sl[q].id)slots.push(q);
+    if(!gr.fixed){let q=Math.max(sl.length,j+1);while(slots.length<bl.length)slots.push(q++)}
+    for(let n=0;n<slots.length;n++){const b=bl[n];await subirFoto({i,k,j:slots[n]},new File([b],"pegada."+((b.type||"image/png").split("/")[1]||"png"),{type:b.type||"image/png",lastModified:Date.now()}),{pegada:1,noStamp:true})}
+    toast(bl.length>slots.length?`Se pegaron ${slots.length} de ${bl.length} imágenes (no hay más casillas libres).`:`${slots.length===1?"Foto pegada":slots.length+" fotos pegadas"}. Si trae un estampe malo usa ↻ Re‑estampar; si no trae, activa el estampe.`)};
+  try{if(navigator.clipboard?.read){const out=[];for(const c of await navigator.clipboard.read()){const ty=c.types.find(x=>x.startsWith("image/"));if(ty)out.push(await c.getType(ty));else if(c.types.includes("text/html")){const h=await (await c.getType("text/html")).text();for(const m of h.matchAll(/src="(data:image\/[^"]+)"/g))out.push(await (await fetch(m[1])).blob())}}if(out.length){await go(out);return}}}catch(e){}
+  pegarCb=null;pegarMulti=go;$("pasteT").textContent="Pegar foto";$("pasteZone").innerHTML="Toque aquí y pegue (mantenga presionado → Pegar, o Ctrl+V)";$("pastep").hidden=false;setTimeout(()=>$("pasteZone").focus(),50)}
+async function subirFoto(t,f,extra){const key=`${t.i}|${t.k}|${t.j}`;
   subiendo.add(key);refreshFotos(t.i);
   try{
     const meta=await fotoMeta(f,t.k==="UBP"?"iCoordPatio":t.k==="UBC"?"iCoord":null);
@@ -2009,14 +2029,14 @@ fileIn.addEventListener("change",async()=>{
     let r;try{r=await assets.upload(blob,{type:"image/jpeg"})}catch(e){if(e?.code==="store_unavailable"){await new Promise(z=>setTimeout(z,1500));r=await assets.upload(blob,{type:"image/jpeg"})}else throw e}
     const prev=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.id;
     if(prev)fotosQuitadas.add(prev);
-    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"||t.k==="SCI"?{noStamp:true}:{})});scheduleDraft();
+    setFoto(t.i,t.k,t.j,{id:r.id,raw:1,t:meta.t,gps:meta.gps,...(t.k==="ZSI"||t.k==="PAUTI"||t.k==="SCI"?{noStamp:true}:{}),pegada:0,...(extra||{})});scheduleDraft();
     {const cap=fotoSlots(own(t.i),fotoGrupos(own(t.i)).find(g=>g.k===t.k)||{k:t.k,caps:[]})[t.j]?.cap;const m=MEDIDA(cap,t.k,own(t.i));if(m&&t.i!=="P")leerMedida(blob,t.i,m)}
     // foto de ubicación sin GPS guardado: se leen las coordenadas impresas en la foto (p. ej. de Timestamp Camera)
     if((t.k==="UBC"||t.k==="UBP")&&!meta.gps){const campo=t.k==="UBP"?"iCoordPatio":"iCoord";
       if(LOCAL)leerCoordOCR(blob,campo,t.k);else leerCoordVision(blob,campo,t.k)}
   }catch(e){toast(e?.code==="quota_or_state"?"Se llenó el espacio de fotos de la página.":e?.code==="too_large"?"La foto es demasiado grande.":"No se pudo subir la foto. Revisa la señal e inténtalo otra vez.")}
   finally{subiendo.delete(key);refreshFotos(t.i)}
-});
+}
 // GPS del teléfono (funciona en la app instalada; dentro de Claude está bloqueado)
 function gpsA(campo){
   if(!navigator.geolocation){toast("Este equipo no da ubicación GPS.");return}
@@ -2380,11 +2400,12 @@ $("btnAddItem").addEventListener("click",addItem);
 $("form").addEventListener("click",e=>{
   const fcm=e.target.closest("[data-fcam],[data-fgal]");
   if(fcm){pedirFoto(foOf(fcm),fcm.dataset.fcam||fcm.dataset.fgal,+fcm.dataset.j,fcm.dataset.fcam?"cam":"gal");return}
+  const fps=e.target.closest("[data-fpaste]");if(fps){pegarFoto(foOf(fps),fps.dataset.fpaste,+fps.dataset.j);return}
   const rs=e.target.closest("[data-frest]");
   if(rs){const i=foOf(rs),k=rs.dataset.frest,j=+rs.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
     if(!rs.dataset.ok){rs.dataset.ok="1";rs.textContent="¿Borrar su estampe? Toca otra vez";return}rs.disabled=true;rs.textContent="Re‑estampando…";
     (async()=>{try{const nb=await borrarEstampe(await blobFoto(s.id));if(!nb){toast("No encontré un estampe en la parte de abajo de esa foto.");refreshFotos(i);return}
-      const up=await assets.upload(nb,{type:"image/jpeg"});fotosQuitadas.add(s.id);setFoto(i,k,j,{id:up.id,raw:1,noStamp:false});refreshFotos(i);scheduleDraft();toast("Listo: la foto lleva ahora el estampe de la app con los datos del punto.")}
+      const up=await assets.upload(nb,{type:"image/jpeg"});fotosQuitadas.add(s.id);setFoto(i,k,j,{id:up.id,raw:1,noStamp:false,pegada:0});refreshFotos(i);scheduleDraft();toast("Listo: la foto lleva ahora el estampe de la app con los datos del punto.")}
     catch(err){toast("No se pudo re‑estampar: "+(err.message||err));refreshFotos(i)}})();return}
   const tg=e.target.closest("[data-fstog]");
   if(tg){const i=foOf(tg),k=tg.dataset.fstog,j=+tg.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];
@@ -2465,31 +2486,41 @@ const esAnexo=n=>/ANEX/i.test(n);
 window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt};
 function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
   let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
-  if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
-    ${extSel.x.hojas.some(h=>!h.oculta&&esAnexo(h.nombre))?`<label class="check" style="margin-top:6px"><input type="checkbox" id="extReest" checked> Re‑estampar las fotos del anexo con los datos de este punto (borra el estampe que traen)</label>`:""}
+  if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"${extSel.selH?.has(k)?" checked":""}><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
+    ${[...(extSel.selH||[])].filter(k=>esAnexo(extSel.x.hojas[k].nombre)).map(k=>{const nm=esc(extSel.x.hojas[k].nombre),fs=extSel.fx?.[k];
+      if(!fs)return`<p class="note">Leyendo las fotos de ${nm}…</p>`;if(!fs.length)return`<p class="note">${nm}: no encontré fotos.</p>`;const nf=fs.filter(f=>f.fix).length;
+      return`<div style="margin-top:8px"><span class="label">Fotos de ${nm} (${fs.length}) · marca las que tienen el estampe mal: se les borra y se les pone el de la app con los datos de este punto</span>
+      <div class="extfgrid">${fs.map((f,n)=>`<label class="extf${f.fix?" on":""}"><img src="${f.url}" alt=""><span><input type="checkbox" data-extf="${k}|${n}"${f.fix?" checked":""}> Corregir</span>${f.cap?`<small>${esc(f.cap)}</small>`:""}</label>`).join("")}</div>
+      <div class="eqrow"><span class="note">${nf} de ${fs.length} para corregir</span><button type="button" class="btn small ghost" data-extall="${k}|1">Corregir todas</button><button type="button" class="btn small ghost" data-extall="${k}|0">Ninguna</button></div></div>`}).join("")}
     <div class="eqrow" style="margin-top:6px"><button type="button" class="btn small" id="extOk">Agregar hojas marcadas</button><button type="button" class="btn small ghost" id="extNo">Cancelar</button></div></div>`;
   b.innerHTML=h||`<p class="note">Sin reportes de compañeros.</p>`;$("btnExtAdd").hidden=readOnly||!!extSel}
 $("btnExtAdd").addEventListener("click",()=>{if(!assets){toast("Para guardar el Excel necesitas permiso de edición (o la app instalada).");return}
   const fi=document.createElement("input");fi.type="file";fi.accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  fi.onchange=async()=>{const f=fi.files[0];if(!f)return;try{const x=await leerExcelExt(await f.arrayBuffer());if(!x.hojas.length)throw new Error("sin hojas");extSel={archivo:f.name,x};refreshExt()}catch(e){toast("No pude leer ese Excel (debe ser .xlsx).")}};fi.click()});
-$("extBox").addEventListener("click",async e=>{const d=e.target.closest("[data-extdel]");
+  fi.onchange=async()=>{const f=fi.files[0];if(!f)return;try{const x=await leerExcelExt(await f.arrayBuffer());if(!x.hojas.length)throw new Error("sin hojas");extSel={archivo:f.name,x,selH:new Set(),fx:{}};refreshExt()}catch(e){toast("No pude leer ese Excel (debe ser .xlsx).")}};fi.click()});
+$("extBox").addEventListener("change",async e=>{const t=e.target;if(!extSel)return;
+  if(t.dataset.exth!=null){const k=+t.dataset.exth;if(t.checked)extSel.selH.add(k);else extSel.selH.delete(k);const h=extSel.x.hojas[k];
+    if(t.checked&&esAnexo(h.nombre)&&!extSel.fx[k]){refreshExt();try{const fs_=await fotosAnexoExt(extSel.x,h);fs_.forEach(f=>{f.fix=false;f.url=URL.createObjectURL(new Blob([f.bytes],{type:f.type}))});extSel.fx[k]=fs_}catch(err){extSel.fx[k]=[]}}
+    if(esAnexo(h.nombre))refreshExt();return}
+  if(t.dataset.extf){const[k,n]=t.dataset.extf.split("|").map(Number);const f=extSel.fx[k]?.[n];if(f){f.fix=t.checked;refreshExt()}}});
+$("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-extall]");if(al&&extSel){const[k,v]=al.dataset.extall.split("|").map(Number);(extSel.fx[k]||[]).forEach(f=>f.fix=!!v);refreshExt();return}
+  const d=e.target.closest("[data-extdel]");
   if(d){if(!d.dataset.ok){d.dataset.ok="1";d.textContent="¿Quitar? Toca otra vez";return}puntoF.repsExt.splice(+d.dataset.extdel,1);refreshExt();scheduleDraft();return}
   if(e.target.id==="extNo"){extSel=null;refreshExt();return}
-  if(e.target.id==="extOk"){const ks=[...$("extBox").querySelectorAll("[data-exth]:checked")].map(c=>+c.dataset.exth);if(!ks.length){toast("Marca al menos una hoja.");return}
+  if(e.target.id==="extOk"){const ks=[...extSel.selH].sort((a,b)=>a-b);if(!ks.length){toast("Marca al menos una hoja.");return}
     const b=e.target;b.disabled=true;b.textContent="Guardando…";
     try{const todas=ks.map(k=>extSel.x.hojas[k]),anx=todas.filter(h=>esAnexo(h.nombre)),sel=todas.filter(h=>!esAnexo(h.nombre));let nF=0,msg=[];
       // anexo fotográfico: sus fotos pasan al anexo de la app (con su leyenda), no como hoja aparte
-      for(const h of anx){const fs_=await fotosAnexoExt(extSel.x,h);const arr=(puntoF.fotos.ANX??=[]);
-        const reest=$("extReest")?.checked!==false;
+      let nFix=0,nNo=0;
+      for(const h of anx){const kh=extSel.x.hojas.indexOf(h);const fs_=extSel.fx[kh]||await fotosAnexoExt(extSel.x,h);const arr=(puntoF.fotos.ANX??=[]);
         for(const f of fs_){b.textContent=`Subiendo fotos del anexo… ${++nF}`;let bl=new Blob([f.bytes],{type:f.type}),raw=false;
-          if(reest){const nb=await borrarEstampe(bl).catch(()=>null);if(nb){bl=nb;raw=true}}
+          if(f.fix){nFix++;const nb=await borrarEstampe(bl).catch(()=>null);if(nb){bl=nb;raw=true}else nNo++}
           const up=await assets.upload(bl,{type:bl.type||"image/jpeg"});const o=raw?{id:up.id,cap:f.cap||"Registro fotográfico",raw:1,noStamp:false,...(f.fi?{fi:f.fi}:{}),origen:extSel.archivo}:{id:up.id,cap:f.cap||"Registro fotográfico",noStamp:true,origen:extSel.archivo};
           const j=arr.findIndex(x=>!x?.id);if(j>=0)arr[j]={...arr[j],...o};else arr.push(o)}}
-      if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico`)}
+      if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico${nFix?` (${nFix-nNo} con estampe corregido${nNo?`; en ${nNo} no encontré estampe`:""})`:""}`)}
       if(sel.length){const pq=await paqueteExt(extSel.x,sel,extSel.archivo);const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
         const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
         const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
-      extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.")}
+      Object.values(extSel.fx||{}).flat().forEach(f=>{try{URL.revokeObjectURL(f.url)}catch(_){}});extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.")}
     catch(err){b.disabled=false;b.textContent="Agregar hojas marcadas";toast("No se pudo guardar: "+(err.message||err))}}});
 $("iAnxMin").addEventListener("change",e=>{puntoF.anexoMin=e.target.value;refreshFotos("P");scheduleDraft()});
 // al tocar una descripción sugerida se selecciona toda, para escribir encima
@@ -2610,7 +2641,7 @@ $("form").addEventListener("submit",async e=>{
   $("btnSave").disabled=true;
   try{
     data.modificado=Date.now();
-    if(editing){await db.collection("trabajos").doc(editing.id).set({...data,creado:editing.creado||Date.now()})}
+    if(editing){await db.collection("trabajos").doc(editing.id).set({...data,creado:editing.creado||Date.now(),...(editing.archivado?{archivado:true}:{})})}
     else{await db.collection("trabajos").add({...data,creado:Date.now()})}
     const li=[...items].reverse().find(it=>it.inspectores);if(li)store.set("ultimoInsp",li.inspectores);
     const lq=[...items].reverse().find(it=>it.entregaQuien);if(lq)store.set("ultimoQuien",lq.entregaQuien);
@@ -2667,6 +2698,9 @@ async function onAction(e){
   if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
   if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;
     {const d=readDraft();const abierto=!$("scrim").hidden&&editing?.id===r.id&&dirty;if(abierto||(d&&d.id===r.id&&(d.t||0)>(r.modificado||0))){toast("Este punto tiene cambios sin guardar (consecutivo, reportes de compañeros, fotos…). Ábrelo, toca Guardar y vuelve a generar.");if(!abierto&&d)showDraftBar();return}}if(t.dataset.gen==="word")return accionInforme(r,t);return accionReporte(r,t.dataset.gen,t)}
+  if(t.dataset.arch){if(!db||readOnly)return;const r=rows.find(x=>x.id===t.dataset.arch);if(!r)return;
+    if(!r.archivado&&r.items.some(it=>!it.entregaFecha)&&!t.dataset.ok){t.dataset.ok="1";t.textContent="Tiene informes sin entregar · ¿archivar? Toca otra vez";return}
+    t.disabled=true;try{await db.collection("trabajos").doc(r.id).update({archivado:!r.archivado,modificado:Date.now()});toast(r.archivado?`Punto ${r.pk||""} vuelve a la lista`:`Punto ${r.pk||""} archivado · lo encuentras en el filtro “📦 Archivados”`)}catch(e){t.disabled=false;toast("No se pudo archivar: "+(e.message||e))}return}
   const id=t.dataset.deliver||t.dataset.finish; if(!id||!db)return;
   const r=rows.find(x=>x.id===id);if(!r)return;
   t.disabled=true;
