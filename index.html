@@ -995,9 +995,12 @@ function drawRepair(rep,meta,P,compact){
     const box=(ua,ub,h,o)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));sleeve(a,cy-h/2,b-a,h,o)},sm=(ua,ub)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));seam(a,b,cy-8,cy+10)};
     const hR=ph+INC,hE=exAn?ph+2*INC:ph+INC,h1=ph+INC,hS=hE+INC;RA=Math.min(X(s0),X(a1e));RB=Math.max(X(s0),X(a1e));
     if(exAn)box(u0,u0+EX*0.3,hR,{op:.35});box(0,EX,hE,{op:.35});
-    box(a1s,a1e,h1);sm(s1,a1e);box(s0,s1,hS);sm(EX,a1s);
+    // soldaduras de la camisa existente (sin numerar): longitudinales en lo que queda a la vista y circunferenciales en sus uniones
+    {const xs=(ua,ub)=>[Math.min(X(ua),X(ub)),Math.max(X(ua),X(ub))],lw=(ua,ub)=>{const[a,b]=xs(ua,ub);if(b-a>12){L(a+4,cy-8,b-4,cy-8,{s:P.muted,sw:1.4});L(a+4,cy+10,b-4,cy+10,{s:P.muted,sw:1.2,d:"6 4"})}},cw=(u,h)=>L(X(u),cy-h/2+1,X(u),cy+h/2-1,{s:P.weld,sw:2.4});
+      lw(0,s0);if(exAn){lw(u0,0);cw(u0,hR);cw(0,hE)}else cw(0,hE)}
+    box(a1s,a1e,h1);sm(s1,a1e);box(s0,s1,hS);sm(s0,s1);
     // cascota bajo la sobre camisa, entre la existente y el anillo
-    if(rep.cascota!==false){const gx=X(EX)+(X(a1s)-X(EX))*0.2,rx=Math.min(30,Math.abs(X(a1s)-X(EX))/5);S.push(`<ellipse cx="${gx.toFixed(1)}" cy="${(cy-hS/2+14).toFixed(1)}" rx="${rx.toFixed(1)}" ry="9" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2;opacity:.9"/>`);if(!compact)T(gx,cy-hS/2+17,"Cascota",{s:9,w:600})}
+    if(rep.cascota!==false){const gx=X(EX)+(X(a1s)-X(EX))*0.2,rx=Math.min(30,Math.abs(X(a1s)-X(EX))/5);S.push(`<ellipse cx="${gx.toFixed(1)}" cy="${(cy+1).toFixed(1)}" rx="${rx.toFixed(1)}" ry="7" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);if(!compact)T(gx,cy+4,"Cascota",{s:9,w:600})}
     // zona sana: AS sobre el tubo (después del anillo) y AS sobre la camisa existente, numeradas de izquierda a derecha
     if(rep.vista==="Zona sana"){const zw=compact?12:26,xt=X(a1e)+(izq?1:-1)*(zw/2+(compact?6:16)),xe=X((Math.max(u0,0)+s0)/2),bands=[[xt,ph+4],[xe,hE+4]].sort((a,b)=>a[0]-b[0]);
       bands.forEach(([x,h],n)=>{const l=`AS C${n+1}`,off=(rep.zsNo||[]).includes(l);R(x-zw/2,cy-h/2,zw,h,{f:off?"#e4e7e9":P.zs,s:off?"#b5bcc0":P.zsEdge,sw:1.2});if(!compact)T(x,cy+h/2+15,l,{s:12,w:700,c:off?"#8d969b":P.zsEdge})})}
