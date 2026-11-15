@@ -552,7 +552,7 @@ const REPS={
   "Camisa sobre anillos sobre venteo":{params:[["tapa","¿Qué tapa la camisa?","Venteo",0,0,"sel",["Venteo","Cascotas"]],["tapaNum","Número de venteo",1,1,20]]},
   "Camisa directa":{params:[["capas","Sobrecamisas encima, una sobre otra (0 = ninguna)",0,0,3]]},
   "Camisa doble anillo sobre existente":{params:[["exTipo","Tipo de camisa existente","Camisa sobre anillos",0,0,"sel",["Camisa sobre anillos","Camisa directa","Camisa armadillo","Camisa puenteada","Otra"]],["exLado","¿A qué lado queda la camisa existente? (el flujo va a la derecha)","Aguas arriba (izquierda)",0,0,"sel",["Aguas arriba (izquierda)","Aguas abajo (derecha)"]]]},
-  "Camisa puenteada":{params:[["cascota","¿Hay cascota en el espacio?",true,0,0,"yesno"]]},
+  "Camisa puenteada":{params:[["cascota","¿Hay cascota en el espacio?",true,0,0,"yesno"],["ex1Tipo","Tipo de camisa existente 1 (izquierda)","Directa",0,0,"sel",["Directa","Sobre anillos","Armadillo","Tipo A"]],["ex2Tipo","Tipo de camisa existente 2 (derecha)","Directa",0,0,"sel",["Directa","Sobre anillos","Armadillo","Tipo A"]]]},
   "Zona sana":{params:[["zonas","Áreas sanas",2,1,8]],act:"Zona sana"},
   "Biseles":{params:[],act:"Biseles"},
   "Tubería nueva":{params:[["ids","Identificación de los tubos (ej: 269, 270)","",0,0,"txt"],["tubos","Tubos inspeccionados",1,1,20],["extremo","Cada extremo (mm, todo el perímetro)","110",0,0,"num"],["centro","Centro (mm)","3000",0,0,"num"],["largoTubo","Largo del tubo (m, opcional)","",0,0,"num"]],act:"Tubería nueva"},
@@ -987,9 +987,15 @@ function drawRepair(rep,meta,P,compact){
     const gapU=PU*0.5, k=Math.min((x1-x0-120)/(E1+E2+gapU),300/PU);
     let w1=E1*k, w2=E2*k, g=gapU*k, wp=PU*k;
     if(wp<220){wp=220;g=110}
-    const tot=w1+g+w2, sx=(W-tot)/2, xe2=sx+w1+g, xp=sx+w1+g/2-wp/2, hE=ph+INC, hP=ph+2*INC, gc=sx+w1+g/2;RA=xp;RB=xp+wp;
-    sleeve(sx,cy-hE/2,w1,hE);
-    sleeve(xe2,cy-hE/2,w2,hE);
+    // cada camisa existente se dibuja según su tipo (directa / tipo A, sobre anillos o armadillo)
+    const t1=rep.ex1Tipo||"Directa",t2=rep.ex2Tipo||"Directa",alta=t=>/anillos|armadillo/i.test(t);
+    const tot=w1+g+w2, sx=(W-tot)/2, xe2=sx+w1+g, xp=sx+w1+g/2-wp/2, hE=ph+INC, hP=ph+((alta(t1)||alta(t2))?3:2)*INC, gc=sx+w1+g/2;RA=xp;RB=xp+wp;
+    const exDraw=(x,w,t)=>{const h1=ph+INC,h2=ph+2*INC;
+      if(/anillos/i.test(t)){const rw=Math.max(18,w*0.26);sleeve(x,cy-h1/2,rw,h1);sleeve(x+w-rw,cy-h1/2,rw,h1);sleeve(x+rw*0.5,cy-h2/2,w-rw,h2)}
+      else if(/armadillo/i.test(t)){const dw=w/3.6,gp=(w-3*dw)/2;[0,1,2].forEach(i=>sleeve(x+i*(dw+gp),cy-h1/2,dw,h1));[0,1].forEach(i=>{const a=x+dw+i*(dw+gp)-dw*0.3;sleeve(a,cy-h2/2,gp+dw*0.6,h2)})}
+      else sleeve(x,cy-hE/2,w,hE)};
+    exDraw(sx,w1,t1);
+    exDraw(xe2,w2,t2);
     if(rep.cascota!==false){S.push(`<ellipse cx="${gc.toFixed(1)}" cy="${cy-ph/2-4}" rx="${Math.min(28,g/2.5).toFixed(1)}" ry="9" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);T(gc,cy-ph/2-1,"Cascota",{s:9,w:600})}
     sleeve(xp,cy-hP/2,wp,hP,{op:.62});
     seam(xp,xp+wp,cy-12,cy+4);
@@ -998,12 +1004,14 @@ function drawRepair(rep,meta,P,compact){
       T(gc-10,cy+21,"Sentido flujo",{s:11,w:700,c:"#1f4aa0"});L(xp+18,cy+28,xp+wp-30,cy+28,{s:P.zs,sw:2.5});
       S.push(`<path d="M${xp+wp-30},${cy+23} L${xp+wp-18},${cy+28} L${xp+wp-30},${cy+33} Z" style="fill:${P.zs}"/>`);
       const v1=(sx+xp)/2, v2=(xp+wp+xe2+w2)/2, n1=xp-sx>120?"Camisa existente 1":"Existente 1", n2=xe2+w2-xp-wp>120?"Camisa existente 2":"Existente 2";
-      T(v1,cy+(knownP?-2:4),n1,{s:12,w:600});T(v2,cy+(knownP?-2:4),n2,{s:12,w:600});
-      if(knownP){T(v1,cy+14,`${e1} ${U}`,{s:11,c:P.muted});T(v2,cy+14,`${e2} ${U}`,{s:11,c:P.muted})}
+      // nombre, tipo y longitud de cada existente debajo del tubo, para que no se monten sobre el dibujo
+      const tl=t=>t==="Tipo A"?"tipo A":t.toLowerCase(),yb=cy+hP/2+20,ex1x=Math.min(v1,xp-70),ex2x=Math.max(v2,xp+wp+70);
+      T(ex1x,yb,"Camisa existente 1",{s:12,w:600});T(ex2x,yb,"Camisa existente 2",{s:12,w:600});
+      T(ex1x,yb+15,(knownP?`${e1} ${U} · `:"")+tl(t1),{s:11,c:P.muted});T(ex2x,yb+15,(knownP?`${e2} ${U} · `:"")+tl(t2),{s:11,c:P.muted})
       T(xp-5,cy-hE/2+15,"C1",{a:"end",s:13,w:700,c:P.bad});T(xp+wp+5,cy-hE/2+15,"C2",{a:"start",s:13,w:700,c:P.bad});
       T(gc,cy+hP/2+20,"Camisa puenteada"+(knownP?` · ${pu} ${U}`:""),{s:12,w:600});
     }
-    titulo="Camisa puenteada";DL=" (C1 a C2)";resumen=`Une 2 camisas existentes${rep.cascota!==false?" · con cascota":""} · soldaduras C1–C2`;
+    titulo="Camisa puenteada";DL=" (C1 a C2)";resumen=`Une 2 camisas existentes (${[rep.ex1Tipo,rep.ex2Tipo].map(t=>t==="Tipo A"?"tipo A":(t||"Directa").toLowerCase()).join(" / ")})${rep.cascota!==false?" · con cascota":""} · soldaduras C1–C2`;
   } else if(tipo==="Camisa directa"){
     // una sola camisa sobre el tubo; Tipo B con soldaduras de compromiso C1/C2, Tipo A sin ellas
     const nc=nInt(rep.capas,0,0,3),stepX=Math.min(52,(x1-x0)*0.08),stepY=16;
@@ -1869,7 +1877,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
   if(gr.byCap)return gr.caps.map(c=>{const f=cur.find(x=>x?.cap===c);return{...(f||{}),cap:c,id:f?.id||null}});
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v98";
+const LOCAL=!!window.__LOCAL;const APPV="v99";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
