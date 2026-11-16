@@ -407,6 +407,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
           <select class="field" id="iLugar"><option>Campo</option><option>Patio</option><option>Campo y Patio</option></select></label>
         <label class="f"><span class="label">Base asignada</span><select class="field" id="iBase"></select></label>
         <label class="f"><span class="label">Compañero(s) Nivel I (opcional, sale en el Word)</span><input class="field" id="iNivel1" list="dlInsp" autocomplete="off" placeholder="Ej: Martín Castillo"></label>
+        <label class="f"><span class="label">Quién entrega el Word (Elaboró y firma)</span><select class="field" id="iEntrega"><option value="">Automático: el último inspector que terminó</option></select></label>
         <label class="f"><span class="label">Ciudad</span><select class="field" id="iCiudadSel"></select><input type="hidden" id="iCiudad"></label>
         <label class="f" id="wCiudadOtra" hidden><span class="label">Escribe la ciudad</span><input class="field" id="iCiudadOtra" placeholder="Ej: Sogamoso" autocomplete="off"></label>
         <label class="f"><span class="label">Tipo de reparación</span><select class="field" id="iTipoRep"></select></label>
@@ -1965,7 +1966,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v109";
+const LOCAL=!!window.__LOCAL;const APPV="v110";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2441,7 +2442,7 @@ function openForm(r,addAct,actIdx){
   $("iDiam").value=r?r.diametro||"":store.get("ultimoDiam")||"";
   $("iLugar").value=r?.lugar||"Campo";
   $("iCiudad").value=r?r.ciudad||"":store.get("ultimaCiudad")||"";
-  const bs=r?r.base||"":store.get("ultimaBase")||""; $("iBase").value=BASES.includes(bs)?bs:"";$("iNivel1").value=r?.nivel1||"";
+  const bs=r?r.base||"":store.get("ultimaBase")||""; $("iBase").value=BASES.includes(bs)?bs:"";$("iNivel1").value=r?.nivel1||"";{const se=$("iEntrega"),v=r?.entregaWord||"";se.innerHTML=`<option value="">Automático: el último inspector que terminó</option>`+[...new Set([...INSPECTORES,...(v?[v]:[])])].map(n=>`<option${n===v?" selected":""}>${esc(n)}</option>`).join("")}
   setCiudad($("iCiudad").value);
   $("iTipoRep").value=TIPOS_REP.includes(r?.tipoReparacion)?r.tipoReparacion:"";lastG=$("iTipoRep").value;
   $("iEsp").value=ESPESORES.includes(r?.espesor)?r.espesor:"";
@@ -2471,7 +2472,7 @@ function closeForm(){$("scrim").hidden=true;editing=null;dirty=false;clearTimeou
 // ---- borrador: lo que se escribe en la ficha se guarda solo, para no perderlo si la página se recarga ----
 const DRAFT_KEY="borradorPunto";
 let dirty=false, draftT=null;
-const FIELDS=["iCons","iFecha","iPk","iSistema","iLinea","iLineaOtra","iDiam","iLugar","iCiudad","iBase","iNivel1","iTipoRep","iEsp","iMat","iNom","iMatTub","iCoord","iCoordPatio","iPunto","iTerm"];
+const FIELDS=["iCons","iFecha","iPk","iSistema","iLinea","iLineaOtra","iDiam","iLugar","iCiudad","iBase","iNivel1","iEntrega","iTipoRep","iEsp","iMat","iNom","iMatTub","iCoord","iCoordPatio","iPunto","iTerm"];
 function captureForm(){return{id:editing?.id||null,active,f:Object.fromEntries(FIELDS.map(k=>[k,$(k).value])),items:readItems(),pf:puntoF.fotos||{},px:puntoF.repsExt||[],pm:puntoF.anexoMin||"",t:Date.now()}}
 function saveDraft(){if($("scrim").hidden||readOnly||!dirty)return;try{store.set(DRAFT_KEY,JSON.stringify(captureForm()))}catch(e){}}
 function scheduleDraft(){dirty=true;clearTimeout(draftT);draftT=setTimeout(saveDraft,500)}
@@ -2764,7 +2765,7 @@ $("form").addEventListener("submit",async e=>{
     diametro:$("iDiam").value.replace(",",".").trim(),
     lugar:$("iLugar").value,
     ciudad:$("iCiudad").value.trim(),
-    base:$("iBase").value,nivel1:$("iNivel1").value.trim(),
+    base:$("iBase").value,nivel1:$("iNivel1").value.trim(),entregaWord:$("iEntrega").value,
     estadoPunto:$("iPunto").value,
     terminadoEn:$("iPunto").value==="Terminado"?$("iTerm").value:"",
     items
@@ -3661,7 +3662,9 @@ async function generarInforme(r){REP_PT=r;
   const enPK=`en el ${pkTxt} del ${lin}`;
   const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} – ${DEPTO[r.ciudad]}`:r.ciudad):"";
   const fechas=fechasTxt(A.flatMap(x=>[x.inspFecha||r.fecha,...(x.fechasExtra||[])]).concat(A.length?[]:[r.fecha]).concat(await fechasExt(r)));
-  const insp=[...new Set([...A.flatMap(x=>inspList(x.inspectores)),...(await inspExt(r))])];const realizo=realizoDe(A[0]||{})||insp[0]||"";
+  const insp=[...new Set([...A.flatMap(x=>inspList(x.inspectores)),...(await inspExt(r))])];// quien entrega el Word: el escogido en la ficha, o el inspector de la última actividad que se terminó (fecha más reciente)
+  const ultima=[...A].map((x,k)=>[x,k]).filter(([x])=>realizoDe(x)).sort((a,b)=>String(a[0].inspFecha||r.fecha||"").localeCompare(String(b[0].inspFecha||r.fecha||""))||a[1]-b[1]).at(-1)?.[0];
+  const realizo=(r.entregaWord||"").trim()||(ultima&&realizoDe(ultima))||insp[0]||"";
   const tec=x=>x?.tecnicas||[];const usaH=t=>[h0,h12].some(x=>tec(x).includes(t));const zsTs=zs?zsT(zs):[];
   const scanA=zsTs.includes("SCANA"),scanC=zsTs.includes("SCANC")||tec(tn).includes("SCANC"),mt=zsTs.includes("MT")||usaH("MT")||tec(tn).includes("MT")||A.some(x=>x.act==="Ilícitas"&&tec(x).includes("MT")),pt=!!bis||usaH("PT"),paut=usaH("PAUT");
   const hoy=new Date(),p2=n=>String(n).padStart(2,"0"),hoyTxt=`${p2(hoy.getDate())}/${p2(hoy.getMonth()+1)}/${hoy.getFullYear()}`;
