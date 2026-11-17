@@ -1971,7 +1971,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v112";
+const LOCAL=!!window.__LOCAL;const APPV="v113";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2584,6 +2584,8 @@ async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/s
   const media={},hojas=[];const res=(base,t)=>{if(t.startsWith("/"))return t.slice(1);const o=[];for(const q of (base.replace(/[^/]+$/,"")+t).split("/")){if(q==="..")o.pop();else if(q!==".")o.push(q)}return o.join("/")};
   const PA=[...wb.matchAll(/<definedName [^>]*>[^<]*<\/definedName>/g)].map(m=>m[0]).filter(d=>/_xlnm\.Print_Area/.test(d));
   for(const h of sel){let xml=await T(h.file);
+    // auditoría del encabezado tal como venía (fórmulas, vínculos a otros libros, valores escritos a mano)
+    let cabO=null;try{cabO=auditCab(xml.replace(/<c ([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g,(m,at,end,body)=>{if(end==="/>"||!/\bt="s"/.test(at))return m;const v=(body.match(/<v[^>]*>(\d+)<\/v>/)||[])[1];const q=SI[+v];return q==null?m:`<c ${at.replace(/\s*\bt="s"/,"")} t="inlineStr">${(body.match(/<f>[\s\S]*?<\/f>/)||[""])[0]}<is>${q}</is></c>`}))}catch(e){}
     // textos compartidos → texto en la celda; fórmulas → su último resultado (así no dependen del otro libro)
     xml=xml.replace(/<c ([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g,(m,at,end,body)=>{if(end==="/>")return m;const t=(at.match(/\bt="([^"]+)"/)||[])[1];const v=(body.match(/<v[^>]*>([\s\S]*?)<\/v>/)||[])[1];const a2=at.replace(/\s*\bt="[^"]*"/,"");
       // encabezado (proyecto, cliente, línea, PK, informe, diámetro…): si viene de Matriz1 se deja la fórmula para que tome los datos de este punto (menos elemento, parte y fecha, fila 9)
@@ -2602,7 +2604,7 @@ async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/s
       dib={xml:dx,imgs}}
     if(!dib)xml=xml.replace(/<drawing [^>]*\/>/,"");
     const pa=PA.find(d=>new RegExp(`localSheetId="${h.i}"`).test(d));const area=pa?[...pa.matchAll(/\$[A-Z]+\$\d+:\$[A-Z]+\$\d+/g)].map(q=>q[0]).join(","):"";
-    hojas.push({nombre:h.nombre,xml,dib,area,cab:cabExt(xml)})}
+    hojas.push({nombre:h.nombre,xml,dib,area,cab:cabExt(xml),...(cabO?{cabO}:{})})}
   return{v:1,archivo,fecha:Date.now(),styles:await T("xl/styles.xml"),media,hojas}}
 // hoja de anexo fotográfico de otro Excel: cada imagen (sin logos del encabezado) con el texto que tiene debajo como leyenda
 async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst=await T("xl/sharedStrings.xml");const SI=[...sst.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map(m=>dxe((m[1]||"").replace(/<rPh[\s\S]*?<\/rPh>/g,"").replace(/<[^>]+>/g,"")));
@@ -3100,13 +3102,13 @@ const mbTxt=rep=>{if(!(rep?.mbNo||[]).length)return"al 100 % del metal base de l
 const _nrmId=t=>String(t||"").toUpperCase().replace(/[\s_.-]+/g,"");
 const _numX=v=>{const m=String(v??"").replace(",",".").match(/-?\d+(\.\d+)?/);return m?+m[0]:null};
 const _tipoHojaExt=n=>{const u=String(n).toUpperCase();return/ANEX/.test(u)?"ANX":/SC-ZS|SCAN\s*C|SCAN\s*A|ESPESOR/.test(u)?"ZS":/MT-ZS|METAL\s*BASE/.test(u)?"MTZS":/BIS/.test(u)?"BIS":/PAUT/.test(u)?"PAUT":/\bMT|MT-|MT\./.test(u)?"MT":/\bPT|PT-|PT\./.test(u)?"PT":"?"};
-function cabExt(xml){const out={},sinF=[];
+function auditCab(xml){const out={},sinF=[],extL=[];
   for(let rn=6;rn<=15;rn++){const m=xml.match(new RegExp(`<row r="${rn}"[^>]*>([\\s\\S]*?)</row>`));if(!m)continue;
-    const cs=[...m[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map(q=>({ref:q[1]+rn,f:/<f>/.test(q[3]||""),t:dxe(String(q[3]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim()})).filter(q=>q.t||q.f);
-    cs.forEach((q,i)=>{const sig=cs.slice(i+1).filter(v=>!/^(in|mm)$/i.test(v.t));const toma=(k,n_=1)=>{const vs=sig.slice(0,n_);if(!vs.length)return;out[k]=vs.map(v=>v.t).join(" ");vs.forEach(v=>{if(!v.f&&v.t)sinF.push(k)})};
+    const cs=[...m[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map(q=>({ref:q[1]+rn,f:/<f>/.test(q[3]||""),ext:/<f>[^<]*\[\d+\][^<]*<\/f>/.test(q[3]||""),t:dxe(String(q[3]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim()})).filter(q=>q.t||q.f);
+    cs.forEach((q,i)=>{const sig=cs.slice(i+1).filter(v=>!/^(in|mm)$/i.test(v.t));const toma=(k,n_=1)=>{const vs=sig.slice(0,n_);if(!vs.length)return;out[k]=vs.map(v=>v.t).join(" ");vs.forEach(v=>{if(!v.f&&v.t&&v.t!=="-"&&k!=="elem")sinF.push(k);if(v.ext)extL.push(k)})};
       if(/^INFORME\s*N/i.test(q.t))toma("informe");else if(/^PK\s*:?$/i.test(q.t))toma("pk");else if(/DI[ÁA]METRO\s*L[IÍ]NEA/i.test(q.t))toma("diam");
-      else if(/^ESP\s*NOM\s*L/i.test(q.t))toma("espL");else if(/ESP\s*NOM\s*PARTE/i.test(q.t))toma("espP");else if(/ESPECIF\s*\.?\s*MATERIAL/i.test(q.t)&&!/NUEVO|EXIST/i.test(q.t))toma("mat",2)})}
-  return{...out,sinF:[...new Set(sinF)]}}
+      else if(/^ESP\s*NOM\s*L/i.test(q.t))toma("espL");else if(/ESP\s*NOM\s*PARTE/i.test(q.t))toma("espP");else if(/ESPECIF\s*\.?\s*MATERIAL/i.test(q.t)&&!/NUEVO|EXIST/i.test(q.t))toma("mat",2);else if(/LONGITUD\s+ELEMENTO/i.test(q.t))toma("long");else if(/ELEM\s*INSPECCIONADO/i.test(q.t))toma("elem")})}
+  return{...out,sinF:[...new Set(sinF)],extL:[...new Set(extL)]}}
 async function desviaciones(r,pqs){const d=[];const items=ligarHoras(r.items||[]);const tipoA=r.tipoReparacion==="Camisa Tipo A";
   const h0=items.find(x=>x.act==="0H"&&x.reparacion?.tipo);
   // 0 h y 12 h con nombres distintos
@@ -3116,17 +3118,24 @@ async function desviaciones(r,pqs){const d=[];const items=ligarHoras(r.items||[]
   // hojas de compañeros
   if(!pqs){pqs=[];for(const e of r.repsExt||[]){try{pqs.push({pq:JSON.parse(await (await blobFoto(e.id)).text()),archivo:e.archivo})}catch(err){}}}
   const idsDe=act=>{const it=items.find(x=>conTec(x.act)&&x.act===act&&x.reparacion?.tipo)||h0||items.find(x=>conTec(x.act)&&x.reparacion?.tipo);if(!it)return null;const ids=juntasDe(it.reparacion,tipoA).map(j=>j.id);const s_=new Set(ids.map(_nrmId));ids.filter(i=>/^SC L\d$/.test(i)).forEach(i=>s_.add(_nrmId(i.slice(3))));return s_};
-  const extIds={};
-  for(const{pq,archivo}of pqs)for(const h of pq.hojas||[]){const n=h.nombre||"",t=_tipoHojaExt(n),xml=h.xml||"",c=cabExt(xml),de=`Hoja «${n}»${archivo?` (${archivo})`:""}`;const camisa=!["ZS","MTZS","ANX","?"].includes(t);
+  const extIds={},longs=[];
+  for(const{pq,archivo}of pqs)for(const h of pq.hojas||[]){const n=h.nombre||"",t=_tipoHojaExt(n),xml=h.xml||"",c={...auditCab(xml),...(h.cabO||{})},de=`Hoja «${n}»${archivo?` (${archivo})`:""}`;const camisa=!["ZS","MTZS","ANX","?"].includes(t);
     const dif=(lab,vh,va,numerico)=>{if(vh==null||vh===""||va==null||va==="")return;const ok=numerico?Math.abs((_numX(vh)??NaN)-(_numX(va)??NaN))<0.002:_nrmId(vh).includes(_nrmId(va))||_nrmId(va).includes(_nrmId(vh));const fm=v=>numerico&&_numX(v)!=null?String(+_numX(v).toFixed(4)).replace(".",","):v;if(!ok)d.push(`${de}: ${lab} dice «${fm(vh)}» y el punto tiene «${fm(va)}». Se corrige con la Matriz1.`)};
     dif("informe",c.informe,r.consecutivo,false);dif("PK",c.pk,r.pk,false);dif("diámetro",c.diam,r.diametro,true);dif("espesor nominal de la línea",c.espL,r.nominal,true);
     dif(camisa?"espesor de la camisa":"espesor de la parte",c.espP,camisa?r.espesor:r.nominal,true);
     if(c.mat){const g=String(c.mat).match(/X\s*\d+|GR\.?\s*[A-Z]\b|\bB\b/i)?.[0];const ga=String(camisa?r.material:r.materialTub||"").match(/X\s*\d+|GR\.?\s*[A-Z]\b|\bB\b/i)?.[0];if(g&&ga&&_nrmId(g)!==_nrmId(ga))d.push(`${de}: material «${c.mat}» y el punto tiene «${camisa?r.material:r.materialTub}». Se corrige con la Matriz1.`)}
-    if(c.sinF.length){const NOMS={informe:"informe",pk:"PK",diam:"diámetro",espL:"espesor de la línea",espP:"espesor de la parte",mat:"material"};d.push(`${de}: venía sin fórmulas (${c.sinF.map(k=>NOMS[k]||k).join(", ")} escritos a mano, sin tomar de la Matriz1). Se reconecta a la Matriz1.`)}
+    if(camisa&&_numX(c.long)!=null)longs.push({n:de,v:_numX(c.long)});
+    if(h.cabO&&c.extL.length)d.push(`${de}: tiene fórmulas que apuntan a OTRO archivo de Excel (${c.extL.join(", ")}): al compartirlo se pierde el dato. Se reconecta a la Matriz1.`);
+    if(h.cabO&&c.sinF.length){const NOMS={long:"longitud del elemento",elem:"elemento inspeccionado",informe:"informe",pk:"PK",diam:"diámetro",espL:"espesor de la línea",espP:"espesor de la parte",mat:"material"};d.push(`${de}: venía sin fórmulas (${c.sinF.map(k=>NOMS[k]||k).join(", ")} escritos a mano, sin tomar de la Matriz1). Se reconecta a la Matriz1.`)}
     if(["PT","MT","PAUT"].includes(t)){const act=momExt(n,celdasExt(xml));const app=idsDe(act);const fs=tablaExt(celdasExt(xml)).map(q=>q.id).filter(Boolean);(extIds[act+t]??=new Set());fs.forEach(i=>extIds[act+t].add(_nrmId(i)));
-      if(app){const raras=[...new Set(fs.filter(i=>!app.has(_nrmId(i))))];if(raras.length)d.push(`${de}: soldaduras que no existen en el esquema de la app: ${raras.join(", ")}. Revisa la nomenclatura.`)}}}
-  ["PT","MT","PAUT"].forEach(t=>{const a=extIds["0H"+t],b=extIds["12H"+t];if(a&&b){const solo12=[...b].filter(i=>!a.has(i));if(solo12.length)d.push(`${t}: a 12 h hay soldaduras que no aparecen a 0 h (${solo12.join(", ")}). Revisa que la nomenclatura sea la misma.`)}});
-  return d.map(x=>"⚠ "+x)}
+      if(app){const raras=[...new Set(fs.filter(i=>!app.has(_nrmId(i))))];if(raras.length)d.push(`${de}: soldaduras que no están en el esquema de la app: ${raras.join(", ")}. Revisa la nomenclatura.`)}}}
+  if(longs.length>1){const cuenta={};longs.forEach(q=>cuenta[q.v]=(cuenta[q.v]||0)+1);const comun=+Object.entries(cuenta).sort((a,b)=>b[1]-a[1])[0][0];longs.filter(q=>q.v!==comun).forEach(q=>d.push(`${q.n}: longitud del elemento ${q.v} mm, las demás hojas dicen ${comun} mm.`))}
+  ["PT","MT","PAUT"].forEach(t=>{const a=extIds["0H"+t],b=extIds["12H"+t];if(a&&b){const solo12=[...b].filter(i=>!a.has(i));if(solo12.length)d.push(`${t}: a 12 h hay soldaduras que no aparecen a 0 h (${solo12.join(", ")}). Revisa si faltó inspeccionarlas a 0 h o si cambió la nomenclatura.`)}});
+  const grupos=new Map(),sueltos=[];
+  d.forEach(x=>{const m=x.match(/^Hoja «([^»]+)»(?: \(([^)]+)\))?: ([\s\S]+)$/);if(!m){sueltos.push(x);return}const k=(m[2]?m[2]+"|":"")+m[3];if(!grupos.has(k))grupos.set(k,{a:m[2],t:m[3],h:[]});grupos.get(k).h.push(m[1].trim())});
+  const totH={};pqs.forEach(({pq,archivo})=>totH[archivo||""]=(pq.hojas||[]).filter(h=>_tipoHojaExt(h.nombre||"")!=="ANX").length);
+  const out=[...grupos.values()].map(g=>{const n=g.h.length,todas=n>2&&n===totH[g.a||""];const lista=todas?"Todas las hojas":n>1?`Hojas ${(n>5?g.h.slice(0,4):g.h).map(x=>`«${x}»`).join(", ")}${n>5?` y ${n-4} más`:""}`:`Hoja «${g.h[0]}»`;return`${lista}${g.a?` (${g.a})`:""}: ${g.t}`});
+  return[...out,...sueltos].map(x=>"⚠ "+x)}
 const puntoForm=()=>({consecutivo:$("iCons").value.trim(),pk:$("iPk").value.trim(),diametro:$("iDiam").value.trim(),nominal:$("iNom").value.trim(),espesor:$("iEsp").value.trim(),material:$("iMat").value.trim(),materialTub:$("iMatTub").value.trim(),tipoReparacion:$("iTipoRep").value,items:formItems,repsExt:puntoF.repsExt||[]});
 function avisoLista(titulo,f,si,no){return new Promise(ok=>{$("revT").textContent=titulo;$("revSi").textContent=si||"Generar igual";$("revNo").textContent=no||"Volver a completar";$("revNo").hidden=no===null;confirmarLista(f).then(v=>{$("revT").textContent="Faltan datos para el reporte final";$("revSi").textContent="Generar igual";$("revNo").textContent="Volver a completar";$("revNo").hidden=false;ok(v)})})}
 function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo A";
