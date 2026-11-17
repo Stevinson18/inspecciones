@@ -1212,7 +1212,7 @@ function rowHtml(r){
     <div class="cell"><span class="k label">Lugar · Ciudad</span>${esc(r.lugar||"—")}${r.ciudad?`<span class="sub2">${esc(r.ciudad)}</span>`:""}</div>
     <div class="cell"><span class="k label">Base · Reparación</span>${esc(r.base||"—")}${r.tipoReparacion?`<span class="sub2">${esc(r.tipoReparacion)}</span>`:""}</div>
     <div class="cell state"><span class="k label">Estado del punto</span>${puntoHtml(r)}</div>
-    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Reporte final sin fórmulas ni vínculos, para que otra persona agregue las hojas a su libro">🔗 Final sin vínculos</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-arch="${esc(r.id)}" title="${r.archivado?"Volver a mostrar este punto en la lista":"Ocultar de la lista un punto terminado y enviado (se ve en el filtro Archivados)"}">${r.archivado?"↩ Desarchivar":"📦 Archivar"}</button>`}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
+    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Solo para pasarle tus hojas a un compañero que las agregue con la app (Reportes de compañeros). No es para entregar: el cliente pide el Excel con fórmulas.">🔗 Para compañero (sin fórmulas)</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}${readOnly?"":`<button class="btn small ghost" type="button" data-arch="${esc(r.id)}" title="${r.archivado?"Volver a mostrar este punto en la lista":"Ocultar de la lista un punto terminado y enviado (se ve en el filtro Archivados)"}">${r.archivado?"↩ Desarchivar":"📦 Archivar"}</button>`}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
     <div class="acts">${acts||`<p class="note" style="padding:8px 0">Sin actividades registradas.</p>`}</div>
   </div>`;
 }
@@ -1451,6 +1451,11 @@ function calcInsp(rep,diam,esp,tipoA){
   return{lon,circ,total:lon+circ,rows,D,t};
 }
 const conTec=a=>a==="0H"||a==="12H"||!!SOLD_ACTS[a];
+// la inspección de 12 h usa el mismo esquema (y por lo tanto los mismos nombres de soldaduras) que la de 0 h, salvo que se marque "esquema propio"
+const HORAS_LIG=["12H","6H","9H"];
+function repHoras(it,items){if(!it||!HORAS_LIG.includes(it.act)||it.repPropio)return it?.reparacion;const h0=(items||REP_PT?.items||[]).find(y=>y.act==="0H"&&y.reparacion?.tipo);
+  return h0&&(!it.reparacion?.tipo||it.reparacion.tipo===h0.reparacion.tipo)?h0.reparacion:it.reparacion}
+const ligarHoras=items=>items.map(x=>{const rp=repHoras(x,items);if(rp===x.reparacion)return x;const h0=items.find(y=>y.act==="0H"&&y.reparacion===rp);return{...x,reparacion:rp,soldadores:{...(h0?.soldadores||{}),...Object.fromEntries(Object.entries(x.soldadores||{}).filter(([,v])=>String(v||"").trim()))}}});
 // técnicas fijas (PT / MT a soldaduras) o permitidas (bajado: PAUT, PT, MT)
 function fixTec(it){const S=SOLD_ACTS[it?.act];if(!S)return;if(S.tec)it.tecnicas=[...S.tec];else{it.tecnicas=(it.tecnicas||[]).filter(t=>["PAUT","PT","MT"].includes(t));
   if(it.juntasTT==null){const tn=formItems.find(x=>esTN(x.act)&&x.reparacion?.tubos);it.juntasTT=tn?nInt(tn.reparacion.tubos,1,1,20)+1:2}}}
@@ -1966,7 +1971,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v110";
+const LOCAL=!!window.__LOCAL;const APPV="v111";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2142,6 +2147,10 @@ function pedirFoto(i,k,j,modo){if(!assets||readOnly)return;fotoTarget={i,k,j};fi
   if(modo==="cam")fileIn.setAttribute("capture","environment");else fileIn.removeAttribute("capture");fileIn.click()}
 fileIn.addEventListener("change",()=>{const f=fileIn.files?.[0], t=fotoTarget; if(f&&t)subirFoto(t,f)});
 // fecha propia de cada foto (corrige el estampe cuando la foto es de otro día)
+document.addEventListener("change",e=>{const t=e.target.closest?.("[data-ligh]");if(!t||readOnly)return;const i=+t.dataset.ligh,it=formItems[i];if(!it)return;
+  it.repPropio=!t.checked;if(t.checked){const h0=formItems.find(y=>y.act==="0H"&&y.reparacion?.tipo);if(h0){it.reparacion=JSON.parse(JSON.stringify(h0.reparacion));Object.entries(h0.soldadores||{}).forEach(([k,v])=>{if(!String(it.soldadores?.[k]||"").trim())(it.soldadores??={})[k]=v})}
+    if(i===active)loadRep(it.reparacion);const c=$("itemsBox")?.querySelector(`.itcard[data-i="${i}"] .itrep`);if(c)c.innerHTML=repSummaryHtml(it,i);refreshFotos(i);refreshSold(i);toast(`${it.act.replace("H"," h")}: usa el mismo esquema y nombres de soldaduras de 0 h`)}
+  else toast(`${it.act.replace("H"," h")}: ahora tiene su propio esquema. Los nombres de soldaduras pueden quedar distintos a 0 h.`);scheduleDraft()});
 document.addEventListener("change",e=>{const t=e.target.closest?.("[data-ffecha]");if(!t||readOnly)return;const i=foOf(t),k=t.dataset.ffecha,j=+t.dataset.j;const fi=/^\d{4}-\d{2}-\d{2}$/.test(t.value)&&t.value!==fechaIt(i)?t.value:"";
   setFoto(i,k,j,{fi});refreshFotos(i);scheduleDraft();toast(fi?`Foto ${j+1}: el estampe sale con fecha ${fi.split("-").reverse().join("/")}`:`Foto ${j+1}: usa la fecha de la actividad`)});
 // pegar fotos copiadas (de un Excel, de WhatsApp, de una captura…). Si vienen varias, llenan las casillas libres siguientes
@@ -2280,7 +2289,8 @@ function defaultRep(act,gg){
 }
 function repSummaryHtml(it,i){
   const rep=it.reparacion?.tipo?{...it.reparacion,diametro:$("iDiam").value.trim()}:null;
-  return `${rep?`<button class="thumb" type="button" data-rep="${i}" aria-label="Ver esquema">${drawRepair({...rep,vista:it.act,...(exOn(it)?{exSold:it.exSold}:{})},metaForm(),PAL_VAR,true)}</button>`:""}<span class="sub2">${rep?esc(repLabel(rep)):"Sin esquema"}</span>${readOnly&&!rep?"":`<button class="btn small" type="button" data-rep="${i}">${rep?"Ver esquema":"Agregar esquema"}</button>`}`;
+  const h0=HORAS_LIG.includes(it.act)&&formItems.some(y=>y.act==="0H"&&y.reparacion?.tipo);
+  return `${h0?`<label class="check" style="margin:0 0 6px"><input type="checkbox" data-ligh="${i}"${it.repPropio?"":" checked"}${readOnly?" disabled":""}> Mismo esquema y nombres de soldaduras que 0 h</label>`:""}${rep?`<button class="thumb" type="button" data-rep="${i}" aria-label="Ver esquema">${drawRepair({...rep,vista:it.act,...(exOn(it)?{exSold:it.exSold}:{})},metaForm(),PAL_VAR,true)}</button>`:""}<span class="sub2">${rep?esc(repLabel(rep)):"Sin esquema"}</span>${readOnly&&!rep?"":`<button class="btn small" type="button" data-rep="${i}">${rep?"Ver esquema":"Agregar esquema"}</button>`}`;
 }
 function inspBoxHtml(v){
   const sel=inspList(v);
@@ -2417,7 +2427,9 @@ function updateDrawing(){
   const fa=formItems[active];if(rep)$("drawing").innerHTML=drawRepair({...rep,vista:fa?.act,...(fa&&exOn({...fa,reparacion:rep})?{exSold:fa.exSold}:{})},metaForm(),PAL_VAR,false);
   $("btnImg").hidden=!rep||!downloads;
   updateLtCheck(rep);
-  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;if(formItems[active].act==="Ilícitas"&&rep?.tipo==="Ilícita")formItems.forEach(x=>{if(x!==formItems[active]&&x.reparacion?.tipo==="Ilícita"&&(x.act==="Zona sana"||x.act==="0H"))x.reparacion=JSON.parse(JSON.stringify(rep))});refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>{refreshFotos(active);refreshSold(active)},400)}
+  if(formItems[active]&&$("repBox").closest(".itcard")){formItems[active].reparacion=rep;
+    {const a=formItems[active];const lig=x=>HORAS_LIG.includes(x.act)&&!x.repPropio;const esH=x=>x.act==="0H"||lig(x);
+      if(rep?.tipo&&esH(a)&&(a.act==="0H"||lig(a)))formItems.forEach((x,k)=>{if(x!==a&&esH(x)&&(!x.reparacion?.tipo||x.reparacion.tipo===rep.tipo)){x.reparacion=JSON.parse(JSON.stringify(rep));const c=$("itemsBox")?.querySelector(`.itcard[data-i="${k}"] .itrep`);if(c)c.innerHTML=repSummaryHtml(x,k);clearTimeout(window["__rf"+k]);window["__rf"+k]=setTimeout(()=>{refreshFotos(k);refreshSold(k)},400)}})}if(formItems[active].act==="Ilícitas"&&rep?.tipo==="Ilícita")formItems.forEach(x=>{if(x!==formItems[active]&&x.reparacion?.tipo==="Ilícita"&&(x.act==="Zona sana"||x.act==="0H"))x.reparacion=JSON.parse(JSON.stringify(rep))});refreshZs(active);refreshH0(active);clearTimeout(window.__rfT);window.__rfT=setTimeout(()=>{refreshFotos(active);refreshSold(active)},400)}
 }
 function updateTermHint(){
   const term=$("iPunto").value==="Terminado";
@@ -2976,7 +2988,7 @@ const colN=c=>[...c].reduce((n,ch)=>n*26+ch.charCodeAt(0)-64,0);
 function setCelda(x,r,val){
   const re=new RegExp(`<c r="${r}"((?:\\s+[a-z]+="[^"]*")*)\\s*(?:/>|>[\\s\\S]*?</c>)`);const m=x.match(re);
   let st="";if(m){const s=m[1].match(/s="(\d+)"/);if(s)st=` s="${s[1]}"`}
-  const nueva=val&&typeof val==="object"?`<c r="${r}"${st}><f>${xe(val.f)}</f>${val.v!=null&&isFinite(val.v)?`<v>${val.v}</v>`:""}</c>`:typeof val==="number"?`<c r="${r}"${st}><v>${val}</v></c>`:`<c r="${r}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(val)}</t></is></c>`;
+  const nueva=val&&typeof val==="object"?(typeof val.v==="string"&&val.v!==""?`<c r="${r}"${st} t="str"><f>${xe(val.f)}</f><v>${xe(val.v)}</v></c>`:`<c r="${r}"${st}><f>${xe(val.f)}</f>${val.v!=null&&val.v!==""&&isFinite(val.v)?`<v>${val.v}</v>`:""}</c>`):typeof val==="number"?`<c r="${r}"${st}><v>${val}</v></c>`:`<c r="${r}"${st} t="inlineStr"><is><t xml:space="preserve">${xe(val)}</t></is></c>`;
   if(m)return x.slice(0,m.index)+nueva+x.slice(m.index+m[0].length);
   const[,col,row]=r.match(/([A-Z]+)(\d+)/);const rm=x.match(new RegExp(`<row r="${row}"[^>]*?(?:/>|>([\\s\\S]*?)</row>)`));if(!rm)return x;
   if(rm[0].endsWith("/>"))return x.slice(0,rm.index)+rm[0].slice(0,-2)+">"+nueva+"</row>"+x.slice(rm.index+rm[0].length);
@@ -3096,7 +3108,7 @@ function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo 
   return[...new Set(f)]}
 // --- armado del reporte ---
 let REP_PT=null;
-async function generarReporte(r,modo){REP_PT=r;
+async function generarReporte(r,modo){r={...r,items:ligarHoras(r.items||[])};REP_PT=r;
   const plantilla=await window.__plantilla?.();if(!plantilla)throw new Error("No hay plantilla en este equipo. Abra la app con internet y la clave de sincronización puesta para descargarla.");
   const ents=zipLeer(await plantilla.arrayBuffer());const E=Object.fromEntries(ents.map(e=>[e.name,e]));
   const txt=async n=>!E[n]&&typeof extra!=="undefined"&&extra[n]!=null?extra[n]:new TextDecoder().decode(await inflar(E[n]));
@@ -3359,6 +3371,39 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
   const ordenTipo=n=>{const u=n.toUpperCase();if(u==="MATRIZ1")return 0;if(/ANEX/.test(u))return 999;const h12=/12\s*H|-12\b|1-12|12H/.test(u)?100:0;const f=/^\d+F\.| F\d+$/.test(n)?0.5:0;
     if(/SC-ZS|SCAN\s*C/.test(u))return 10+f;if(/SCAN\s*A|ESPESOR/.test(u))return 12+f;if(/MT-ZS|METAL\s*BASE|MT-TN/.test(u))return 20+f;if(/BIS/.test(u))return 30+f;
     if(/PAUT/.test(u))return h12+(/CIRC|\bC-|SOLD C|CIRC/.test(u)?60:70)+f;if(/\bPT|PT-|PT\./.test(u))return h12+40+f;if(/\bMT|MT-|MT\./.test(u))return h12+50+f;return 500};
+  // ---- reportes de compañeros: un solo origen de datos (Matriz1), la misma nomenclatura de soldaduras y el mismo esquema ----
+  const filaCeldas=(x,rn)=>{const m=x.match(new RegExp(`<row r="${rn}"[^>]*>([\\s\\S]*?)</row>`));if(!m)return[];return[...m[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)].map(q=>({col:q[1],ref:q[1]+rn,txt:dxe(String(q[3]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim(),f:/<f>/.test(q[3]||"")}))};
+  const valM=k=>{const v=celdas.Matriz1?.[k];return typeof v==="number"||typeof v==="string"?v:null};
+  const ligar=(x,ref,k)=>new RegExp(`<c r="${ref}"`).test(x)?setCelda(x,ref,{f:"Matriz1!"+k,v:valM(k)}):x;
+  const nrmId=t=>String(t).toUpperCase().replace(/[\s_-]+/g,"");
+  function normalizarExt(x,nombre){const c=ordenTipo(nombre),camisa=c>=30&&c<999,ZS=c<30;
+    ["E6","E7","F8","T7","X7","AH7","AI6","X8","AI8","H10","T10","H9"].forEach(k=>{x=ligar(x,k,k)});
+    // espesor, longitud y material de la parte: se buscan por su rótulo y se ligan a Matriz1
+    const tras=(cs,i)=>cs.slice(i+1).filter(q=>q.txt||q.f);
+    for(const rn of [13,14,15]){const cs=filaCeldas(x,rn);cs.forEach((q,i)=>{
+      if(/ESP\s*NOM\s*PARTE/i.test(q.txt)&&camisa){const v=tras(cs,i)[0];if(v)x=ligar(x,v.ref,"AF13")}
+      if(/LONGITUD\s+ELEMENTO/i.test(q.txt)&&camisa){const v=tras(cs,i)[0];if(v&&!/^-$/.test(v.txt))x=ligar(x,v.ref,"H13")}
+      if(/ESPECIF\s*\.?\s*MATERIAL/i.test(q.txt)&&!/NUEVO|EXIST/i.test(q.txt)){const vs=tras(cs,i).filter(v=>!/^in$/i.test(v.txt));if(vs[0])x=ligar(x,vs[0].ref,ZS?"AG14":"AG15");if(vs[1])x=ligar(x,vs[1].ref,ZS?"AI14":"AI15")}})}
+    // nombres de soldaduras: los mismos de la app (0 h y 12 h iguales)
+    if(c>=40&&c<999){const h12=/12\s*H|-12\b|1-12/i.test(nombre),it0=r.items.find(y=>conTec(y.act)&&y.act===(h12?"12H":"0H")&&y.reparacion?.tipo)||r.items.find(y=>conTec(y.act)&&y.reparacion?.tipo);
+      if(it0){const ids=juntasDe(repHoras(it0),tipoA,it0).map(j=>j.id);const mapa=new Map(ids.map(id=>[nrmId(id),id]));ids.filter(id=>/^SC L\d$/.test(id)).forEach(id=>{if(!mapa.has(nrmId(id.slice(3))))mapa.set(nrmId(id.slice(3)),id)});
+        x=x.replace(/<c r="(A|B|C|D)(\d+)"([^>]*?)t="inlineStr"([^>]*)><is><t([^>]*)>([^<]*)<\/t><\/is><\/c>/g,(m,col,rw,a1,a2,ta,t)=>{if(+rw<20)return m;const id=mapa.get(nrmId(dxe(t)));return id&&id!==dxe(t).trim()?`<c r="${col}${rw}"${a1}t="inlineStr"${a2}><is><t${ta}>${xe(id)}</t></is></c>`:m})}}
+    return x}
+  // el esquema de la hoja del compañero se cambia por el de la app: se ubica entre el rótulo "6. ESQUEMAS" y el pie "Esquema 1."
+  async function esquemaExt(nuevo,nombre,x,dib){const c=ordenTipo(nombre),h12=/12\s*H|-12\b|1-12/i.test(nombre);
+    const de=a_=>r.items.find(y=>y.act===a_&&y.reparacion?.tipo);
+    const it=c<30?(/METAL\s*BASE|\bMB\b/i.test(nombre)?de("MT metal base camisa"):de("Zona sana")):c<40?de("Biseles"):r.items.find(y=>conTec(y.act)&&(y.act==="12H")===h12&&y.reparacion?.tipo)||r.items.find(y=>conTec(y.act)&&y.reparacion?.tipo);
+    if(!it||!dib)return;
+    const filas=[...x.matchAll(/<c r="A(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/c>)/g)].map(m=>({r:+m[1],t:dxe(String(m[2]||"").replace(/<f>[\s\S]*?<\/f>/,"").replace(/<[^>]+>/g,"")).trim()}));
+    const r6=filas.find(q=>/^\d+\.\s*ESQUEMA/i.test(q.t))?.r;if(!r6)return;const rc=filas.find(q=>q.r>r6&&(/^Esquema\s*\d/i.test(q.t)||/^\d+\.\s/.test(q.t)))?.r||r6+10;
+    const num_=(k,t)=>+(t.match(new RegExp(`<xdr:${k}>(\\d+)`))||[])[1];let c0=99,c1=0,hay=false;
+    for(const m of dib.matchAll(/<xdr:(twoCellAnchor|oneCellAnchor)\b[\s\S]*?<\/xdr:\1>/g)){const fr=(m[0].match(/<xdr:from>[\s\S]*?<\/xdr:from>/)||[""])[0],to=(m[0].match(/<xdr:to>[\s\S]*?<\/xdr:to>/)||[""])[0];const rw=num_("row",fr);
+      if(rw>=r6&&rw<rc-1){hay=true;c0=Math.min(c0,num_("col",fr));c1=Math.max(c1,to?num_("col",to):num_("col",fr)+20)}}
+    if(!hay){c0=1;c1=35}c1=Math.min(Math.max(c1,c0+10),36);
+    const A_=(cc,rr)=>`<xdr:col>${cc}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${rr}</xdr:row><xdr:rowOff>0</xdr:rowOff>`;
+    const an={fr:`<xdr:from>${A_(c0,r6)}</xdr:from>`,to:`<xdr:to>${A_(c1,rc-2)}</xdr:to>`,cx:(c1-c0)*192221,cy:Math.max(2,rc-2-r6)*146208};
+    quitar(nuevo,{...an,maxCol:c1});const rep=repHoras(it,r.items);
+    P(nuevo,an,await esquemaRep({...rep,diametro:r.diametro,vista:it.act},meta,an),"png")}
   async function insertarExt(pq){pqN++;let st=extra["xl/styles.xml"]??await txt("xl/styles.xml");const ot=pq.styles||"";
     const blk=(x,t)=>{const m=x.match(new RegExp(`<${t}\\b[^>]*>([\\s\\S]*?)</${t}>`));return m?m[1]:""};
     const its=(inner,el)=>inner.match(new RegExp(`<${el}\\b(?:[^>]*/>|[^>]*>[\\s\\S]*?</${el}>)`,"g"))||[];
@@ -3382,6 +3427,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         extra["xl/drawings/"+nd]=hx.dib.xml;extra[`xl/drawings/_rels/${nd}.rels`]=dr+"</Relationships>";
         x=x.replace(/<drawing r:id="[^"]+"\s*\/>/,'<drawing r:id="rIdExtD"/>');r2+=`<Relationship Id="rIdExtD" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/${nd}"/>`;
         ctAdd.push(`<Override PartName="/xl/drawings/${nd}" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`)}
+      x=normalizarExt(x,hx.nombre);
       extra[`xl/worksheets/${nf}.xml`]=x;extra[`xl/worksheets/_rels/${nf}.xml.rels`]=r2+"</Relationships>";
       ctAdd.push(`<Override PartName="/xl/worksheets/${nf}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`);
       const nr="rIdC"+(++ridN);relsAdd.push(`<Relationship Id="${nr}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/${nf}.xml"/>`);rid[nr]=nf;
@@ -3394,7 +3440,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       wbxM=wbxM.replace(/(<definedName [^>]*localSheetId=")(\d+)(")/g,(m0,a,b,c)=>+b>=ins?a+(+b+1)+c:m0);
       if(hx.area){const dn=`<definedName name="_xlnm.Print_Area" localSheetId="${ins}">${hx.area.split(",").map(a=>`'${xe(nuevo.replace(/'/g,"''"))}'!${a}`).join(",")}</definedName>`;
         wbxM=/<\/definedNames>/.test(wbxM)?wbxM.replace("</definedNames>",dn+"</definedNames>"):wbxM.replace("</sheets>","</sheets><definedNames>"+dn+"</definedNames>")}
-      hoja[nuevo]=nf;visibles.add(nuevo);extHojas.add(nuevo);
+      hoja[nuevo]=nf;visibles.add(nuevo);extHojas.add(nuevo);if(hx.dib)try{await esquemaExt(nuevo,hx.nombre,x,hx.dib.xml)}catch(err){console.warn("esquema ext",err)}
       if(hx.cab?.inf&&r.consecutivo)C(nuevo,hx.cab.inf,r.consecutivo);if(hx.cab?.pk&&r.pk)C(nuevo,hx.cab.pk,r.pk)}}
   for(const e of r.repsExt||[]){if(!e?.id)continue;let pq;try{pq=JSON.parse(await (await blobFoto(e.id)).text())}catch(err){throw new Error(`No pude abrir el reporte de compañero «${e.archivo||"Excel"}»: ${err.message||err}`)}await insertarExt(pq)}
   const grupoBase=g=>g.replace(/#\d+$/,"");const esFoto=h=>/^\d+F\.|ANEXFOT/.test(h)||!!AREA_FOTOS[h]||/ F\d+$/.test(h);
@@ -3625,7 +3671,7 @@ function fechasTxt(isos){const ds=[...new Set(isos.filter(Boolean))].sort();if(!
   const anos=[...new Set(grupos.map(g=>g.y))];
   return lista(grupos.map((g,i)=>`${lista(g.d.map(p2))} de ${MESES[g.m-1]}${anos.length>1||i===grupos.length-1?` del ${g.y}`:""}`))}
 const WNS="http://schemas.openxmlformats.org/wordprocessingml/2006/main",XMLNS_="http://www.w3.org/XML/1998/namespace";
-async function generarInforme(r){REP_PT=r;
+async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r;
   const plantilla=await window.__plantillaWord?.();if(!plantilla)throw new Error("No hay plantilla del informe en este equipo. Abra la app con internet y toque 🔄 Sincronizar para descargarla.");
   const ents=zipLeer(await plantilla.arrayBuffer());const E=Object.fromEntries(ents.map(e=>[e.name,e]));
   const txt=async n=>new TextDecoder().decode(await inflar(E[n]));
@@ -3881,7 +3927,7 @@ async function accionReporte(r,modo,btn){
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{if(modo==="fotos"){const blob=await generarReporte(r,"fotos");const d=await guardar(`FOTOS_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}.zip`,blob,"Fotos");toast("Paquete de fotos listo"+d);return}
     const blob=await generarReporte(r,modo);const nom=`1_INF-${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}_${String(r.linea||"").replace(/\s+/g,"")}-REPORTES_INTEGRADOS${modo==="borrador"?"-BORRADOR":modo==="valores"?"-SIN_VINCULOS":""}.xlsx`;
-    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");const nx=(r.repsExt||[]).reduce((n,e)=>n+(e.hojas||[]).length,0);toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Reporte final sin vínculos listo":"Reporte final listo")+(nx?` · con ${nx} ${nx===1?"hoja":"hojas"} de compañeros (ubicadas según el orden de realización)`:"")+d)}
+    const d=await guardar(nom,blob,modo==="borrador"?"Borradores":"Reportes finales");const nx=(r.repsExt||[]).reduce((n,e)=>n+(e.hojas||[]).length,0);toast((modo==="borrador"?"Borrador listo":modo==="valores"?"Hojas para compañero listas (sin fórmulas · no es para entregar)":"Reporte final listo")+(nx?` · con ${nx} ${nx===1?"hoja":"hojas"} de compañeros (ubicadas según el orden de realización)`:"")+d)}
   catch(e){if(e?.code!=="declined"){console.error(e);toast("No se pudo generar: "+(e?.message||e))}}
   finally{btn.disabled=false;btn.textContent=t0}}
 function confirmarLista(f){return new Promise(ok=>{const d=$("revp");$("revLista").innerHTML=f.map(x=>`<li>${esc(x)}</li>`).join("");d.hidden=false;
