@@ -355,6 +355,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
   </header>
 
   <div class="alert" id="alertBox" role="alert" hidden></div>
+  <div class="alert" id="consBox" role="alert" hidden style="margin-top:8px"></div>
   <div class="draftbar" id="draftBar" hidden></div>
 
   <section class="summary" aria-label="Resumen">
@@ -395,7 +396,7 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
     <fieldset>
       <legend class="label">Identificación del punto</legend>
       <div class="grid2">
-        <label class="f"><span class="label">Consecutivo</span><input class="field mono" id="iCons" placeholder="M-1076" autocomplete="off"></label>
+        <label class="f"><span class="label">Consecutivo</span><input class="field mono" id="iCons" placeholder="M-1076" autocomplete="off"><span class="note" id="consWarn" style="color:var(--bad);font-weight:600" hidden></span></label>
         <label class="f"><span class="label">Fecha</span><input class="field" type="date" id="iFecha" required></label>
         <label class="f"><span class="label">PK</span><input class="field mono" id="iPk" placeholder="125+709" autocomplete="off"></label>
         <label class="f"><span class="label">DR inicio de camisa (opcional)</span><input class="field mono" id="iDr" placeholder="Ej: 125712,35" autocomplete="off"></label>
@@ -1141,7 +1142,17 @@ function filtered(){
   }).sort((x,y)=>(y.fecha||"").localeCompare(x.fecha||"")||(x.pk||"").localeCompare(y.pk||""));
 }
 
-function renderAlert(){
+// consecutivos repetidos: el mismo N° de informe en puntos con PK distinto (incluye archivados / ya enviados)
+const nCons=c=>String(c||"").toUpperCase().replace(/\s+/g,"").replace(/^M-?0*(\d)/,"M-$1");
+const nPk=p=>String(p||"").replace(/\s+/g,"").replace(/^0+(?=\d)/,"");
+function consRepetidos(){const g=new Map();rows.forEach(r=>{const c=nCons(r.consecutivo);if(!c)return;if(!g.has(c))g.set(c,[]);g.get(c).push(r)});
+  return[...g].filter(([,rs])=>new Set(rs.map(r=>nPk(r.pk))).size>1).map(([c,rs])=>({c,rs}))}
+const otrosCons=(cons,pk,id)=>{const c=nCons(cons);return c?rows.filter(r=>r.id!==id&&nCons(r.consecutivo)===c&&nPk(r.pk)!==nPk(pk)):[]};
+const consTxt=r=>`PK ${r.pk||"—"}${r.linea?` (${r.linea})`:""}${r.fecha?` · ${dmy(r.fecha)}`:""}${r.archivado?" · archivado":""}`;
+function renderCons(){const box=$("consBox");if(!box)return;const L=consRepetidos();if(!L.length){box.hidden=true;return}
+  box.innerHTML=`<strong>${L.length} ${L.length===1?"consecutivo repetido":"consecutivos repetidos"}</strong><span>El mismo N° de informe está en puntos con PK distinto. Cambia el consecutivo del que esté mal:</span><span class="items">${L.flatMap(({c,rs})=>rs.map(r=>`<button type="button" data-edit="${esc(r.id)}">${esc(c)} · ${esc(consTxt(r))}</button>`)).join("")}</span>`;
+  box.hidden=false}
+function renderAlert(){renderCons();
   const venc=allItems().filter(x=>x.st==="vencido").sort((a,b)=>hoursSince(b.r.terminadoEn)-hoursSince(a.r.terminadoEn));
   const box=$("alertBox");
   if(!venc.length){box.hidden=true;return}
@@ -1212,7 +1223,7 @@ function rowHtml(r){
       <div class="cell state">${itStateHtml(r,it)}</div>
       <div class="rowacts">${deliver}</div>${obs}</div>`}).join("");
   return `<div class="row ${worst==="vencido"?"late":""}">
-    <div class="cell"><span class="k label">Consecutivo</span><span class="mono consec">${esc(r.consecutivo||"—")}</span></div>
+    <div class="cell"><span class="k label">Consecutivo</span><span class="mono consec">${esc(r.consecutivo||"—")}</span>${otrosCons(r.consecutivo,r.pk,r.id).length?`<span class="sub2" style="color:var(--bad);font-weight:700">⚠ Repetido en ${esc(otrosCons(r.consecutivo,r.pk,r.id).map(x=>"PK "+(x.pk||"—")).join(", "))}</span>`:""}</div>
     <div class="cell"><span class="k label">PK</span><span class="mono">${esc(r.pk||"—")}</span></div>
     <div class="cell"><span class="k label">Línea</span>${esc(r.linea||"—")}${r.sistema?`<span class="sub2">${esc(r.sistema)}</span>`:""}</div>
     <div class="cell"><span class="k label">Diámetro</span>${r.diametro?esc(r.diametro)+'"':"—"}${r.espesor||r.material?`<span class="sub2">${esc([r.espesor&&r.espesor+'"',r.material].filter(Boolean).join(" · "))}</span>`:""}${r.nominal||r.materialTub?`<span class="sub2">Tubería: ${esc([r.nominal&&"nom. "+r.nominal+'"',r.materialTub].filter(Boolean).join(" · "))}</span>`:""}</div>
@@ -2005,7 +2016,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v114";
+const LOCAL=!!window.__LOCAL;const APPV="v115";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2481,7 +2492,7 @@ function updateTermHint(){
 function openForm(r,addAct,actIdx){
   editing=r||null;
   $("formTitle").textContent=r?(readOnly?"Detalle del punto":"Editar punto de trabajo"):"Nuevo punto de trabajo";
-  $("iCons").value=r?.consecutivo||"";
+  $("iCons").value=r?.consecutivo||"";setTimeout(consWarnUI,0);
   $("iFecha").value=r?.fecha||todayISO();
   $("iPk").value=r?.pk||"";$("iDr").value=r?.dr||"";
   setLinea(r?.linea||"");
@@ -2826,6 +2837,7 @@ $("form").addEventListener("submit",async e=>{
   if(!items.length)return fail("Agrega al menos una actividad.");
   if(!data.pk&&!data.consecutivo)return fail("Escribe el consecutivo o el PK para identificar el punto.");
   if(data.estadoPunto==="Terminado"&&!data.terminadoEn)return fail("Pon la fecha y hora en que se terminó el punto.");
+  {const o=otrosCons(data.consecutivo,data.pk,editing?.id);if(o.length&&!(await avisoLista(`Consecutivo ${data.consecutivo} repetido`,o.map(r=>`Ya está en ${consTxt(r)}. Este punto es PK ${data.pk||"—"}.`),"Guardar igual","Corregir el consecutivo")))return fail(`El consecutivo ${data.consecutivo} ya se usó en otro PK. Cámbialo antes de guardar.`)}
   $("btnSave").disabled=true;
   try{
     data.modificado=Date.now();
@@ -3144,7 +3156,10 @@ function auditCab(xml){const out={},sinF=[],extL=[];
       if(/^INFORME\s*N/i.test(q.t))toma("informe");else if(/^PK\s*:?$/i.test(q.t))toma("pk");else if(/DI[ÁA]METRO\s*L[IÍ]NEA/i.test(q.t))toma("diam");
       else if(/^ESP\s*NOM\s*L/i.test(q.t))toma("espL");else if(/ESP\s*NOM\s*PARTE/i.test(q.t))toma("espP");else if(/ESPECIF\s*\.?\s*MATERIAL/i.test(q.t)&&!/NUEVO|EXIST/i.test(q.t))toma("mat",2);else if(/LONGITUD\s+ELEMENTO/i.test(q.t))toma("long");else if(/ELEM\s*INSPECCIONADO/i.test(q.t))toma("elem")})}
   return{...out,sinF:[...new Set(sinF)],extL:[...new Set(extL)]}}
-async function desviaciones(r,pqs){const d=[];const items=ligarHoras(r.items||[]);const tipoA=r.tipoReparacion==="Camisa Tipo A";
+function consWarnUI(){const w=$("consWarn");if(!w)return;const o=otrosCons($("iCons").value,$("iPk").value,editing?.id);w.hidden=!o.length;w.textContent=o.length?`⚠ Ya usado en ${o.map(consTxt).join("; ")}`:""}
+document.addEventListener("input",e=>{if(e.target.id==="iCons"||e.target.id==="iPk")consWarnUI()});
+async function desviaciones(r,pqs){const d=[];
+  {const o=otrosCons(r.consecutivo,r.pk,r.id);if(o.length)d.push(`Consecutivo ${r.consecutivo} repetido: también está en ${o.map(consTxt).join("; ")}. Corrígelo antes de enviar.`)}const items=ligarHoras(r.items||[]);const tipoA=r.tipoReparacion==="Camisa Tipo A";
   const h0=items.find(x=>x.act==="0H"&&x.reparacion?.tipo);
   // 0 h y 12 h con nombres distintos
   (r.items||[]).filter(x=>HORAS_LIG.includes(x.act)&&x.reparacion?.tipo).forEach(x=>{if(!h0)return;const a=x.act.replace("H"," h");
