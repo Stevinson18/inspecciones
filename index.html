@@ -2016,7 +2016,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v115";
+const LOCAL=!!window.__LOCAL;const APPV="v116";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3456,7 +3456,10 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       const g=fot("GEN");if(g.length)await fotosEn([hMT],g,"campo")}
   }
   const anx=(r.fotosPunto?.ANX||[]).filter(x=>x?.id);if(anx.length)await fotosEn(["23. ANEXFOT"],anx,"campo");
-  if(modo==="fotos"){if(!paquete.length)throw new Error("Este punto no tiene fotos para los reportes.");const cnt={};const limpio=x=>String(x).replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim().slice(0,90);
+  if(modo==="fotos"){// la foto de portada del informe Word va primero, estampada igual que en el Word
+    {const pf=(r.fotosPunto?.POR||[]).find(x=>x?.id)||(r.fotosPunto?.UBC||[]).find(x=>x?.id)||(r.fotosPunto?.ANX||[]).find(x=>x?.id);
+      if(pf)try{const b=await fotoRep(pf,"campo",{cx:640*9525,cy:480*9525});if(b)paquete.unshift({carpeta:"Portada",cap:"Foto de portada",bytes:b,ext:"jpg"})}catch(err){console.warn("portada",err)}}
+    if(!paquete.length)throw new Error("Este punto no tiene fotos para los reportes.");const cnt={};const limpio=x=>String(x).replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim().slice(0,90);
     const ents=paquete.map(p=>{const c=limpio(p.carpeta);cnt[c]=(cnt[c]||0)+1;return{name:`${c}/${String(cnt[c]).padStart(2,"0")} ${limpio(p.cap)}.${p.ext==="png"?"png":"jpg"}`,data:p.bytes}});
     return new Blob([await zipEscribir(ents)],{type:"application/zip"})}
   const relsQuitar=new Set(),archivosQuitar=new Set();
