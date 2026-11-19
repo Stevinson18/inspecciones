@@ -3279,7 +3279,7 @@ async function esquemaRep(rep,meta,an){
 // recuadro completo de una foto (de borde a borde, incluido su pie), sacado de las celdas del pie de foto
 function cajaFoto(a,k){const cap=a.caps?.[k];if(!cap)return a.fotos[k];const m=cap.match(/^([A-Z]+)(\d+)$/),col=colN(m[1])-1,row=+m[2];
   const otros=a.caps.filter(Boolean).map(c=>c.match(/^([A-Z]+)(\d+)$/)).filter(Boolean);const cols=[...new Set(otros.map(x=>colN(x[1])-1))].sort((x,y)=>x-y);const der=cols.find(c=>c>col)??37;
-  const arriba=otros.filter(x=>colN(x[1])-1===col&&+x[2]<row).map(x=>+x[2]);const fr=+(a.fotos[k].fr.match(/<xdr:row>(\d+)/)||[])[1];const top=arriba.length?Math.max(...arriba):fr-1;
+  const arriba=otros.filter(x=>colN(x[1])-1===col&&+x[2]<row).map(x=>+x[2]);const fr=+(a.fotos[k].fr.match(/<xdr:row>(\d+)/)||[])[1];const top0=arriba.length?Math.max(...arriba):fr-1,top=fr-top0>2?fr-1:top0;// el pie de arriba está en otra página: la caja empieza en la foto
   const A=(c,r)=>`<xdr:col>${c}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${r}</xdr:row><xdr:rowOff>0</xdr:rowOff>`;
   return{fr:`<xdr:from>${A(col,top)}</xdr:from>`,to:`<xdr:to>${A(der,row)}</xdr:to>`,cx:a.fotos[k].cx,cy:Math.round(a.fotos[k].cy*1.25)}}
 async function rayaVacia(an){const c=lienzo(an.cx,an.cy,2),g=c.getContext("2d");g.strokeStyle="#000";g.lineWidth=Math.max(2,c.width/400);g.beginPath();g.moveTo(0,0);g.lineTo(c.width,c.height);g.stroke();
@@ -3836,16 +3836,13 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         else x=x.replace(/(<pageMargins[^>]*\/>)/,`$1<pageSetup paperSize="1" scale="${esc}" orientation="portrait"/>`)}
       if(!oculta){
       // columnas a la derecha del área
-      const ocultaCols=cs=>{// la columna siguiente al área queda visible y angosta para que el borde derecho del formato salga al imprimir
+      const ocultaCols=cs=>{// la columna siguiente al área se deja visible (sin ella Excel no imprime el borde derecho del formato); de ahí en adelante se ocultan
           const borde=cFin+1,out=[],put=(mn,mx,a,h)=>{if(mn<=mx)out.push([mn,`<col min="${mn}" max="${mx}"${a?" "+a.trim():""}${h?' hidden="1"':""}/>`])};let maxC=0;
           for(const c of cs.matchAll(/<col ([^>]*?)\/>/g)){const a=c[1],mn=+(a.match(/min="(\d+)"/)||[])[1],mx=+(a.match(/max="(\d+)"/)||[])[1],h0=/hidden="1"/.test(a),at_=a.replace(/\s*(min|max|hidden)="[^"]*"/g,"");maxC=Math.max(maxC,mx);
-            put(mn,Math.min(mx,cFin),at_,h0);put(Math.max(mn,borde+1),mx,at_,true)}
-          out.push([borde,`<col min="${borde}" max="${borde}" width="0.7109375" customWidth="1"/>`]);if(maxC<16384)put(Math.max(borde+1,maxC+1),16384,'width="9.140625" customWidth="1"',true);
+            put(mn,Math.min(mx,borde),at_,h0);put(Math.max(mn,borde+1),mx,at_,true)}if(maxC<16384)put(Math.max(borde+1,maxC+1),16384,'width="9.140625" customWidth="1"',true);
           return out.sort((p,q)=>p[0]-q[0]).map(p=>p[1]).join("")};
       if(/<cols>[\s\S]*?<\/cols>/.test(x))x=x.replace(/<cols>([\s\S]*?)<\/cols>/,(t,cs)=>`<cols>${ocultaCols(cs)}</cols>`);else x=x.replace(/<sheetData/,`<cols>${ocultaCols("")}</cols><sheetData`);
       }
-      if(!oculta){const nl=n_=>{let t="";n_++;while(n_>0){const r_=(n_-1)%26;t=String.fromCharCode(65+r_)+t;n_=Math.floor((n_-1)/26)}return t};const wb_=nuevas["xl/workbook.xml"]??wbF;
-        nuevas["xl/workbook.xml"]=wb_.replace(new RegExp(`(<definedName name="_xlnm.Print_Area" localSheetId="${i}"[^>]*>[^<]*?:\\$)${mm[2]}(\\$\\d+\\s*</definedName>)`),`$1${nl(cFin)}$2`)}
       nuevas[path]=x}
     // las hojas sin área de impresión también quedan en carta
     for(const n of [...new Set([...ents.map(e=>e.name),...Object.keys(nuevas)])].filter(n=>/^xl\/worksheets\/[^/]+\.xml$/.test(n))){const x=await T_(n);if(/paperSize="(?!1")\d+"/.test(x))nuevas[n]=x.replace(/paperSize="\d+"/,'paperSize="1"')}}
