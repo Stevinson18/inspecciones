@@ -1265,7 +1265,7 @@ function rowHtml(r){
     <div class="cell"><span class="k label">Lugar · Ciudad</span>${esc(r.lugar||"—")}${r.ciudad?`<span class="sub2">${esc(r.ciudad)}</span>`:""}</div>
     <div class="cell"><span class="k label">Base · Reparación</span>${esc(r.base||"—")}${r.tipoReparacion?`<span class="sub2">${esc(r.tipoReparacion)}</span>`:""}</div>
     <div class="cell state"><span class="k label">Estado del punto</span>${puntoHtml(r)}</div>
-    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Solo para pasarle tus hojas a un compañero que las agregue con la app (Reportes de compañeros). No es para entregar: el cliente pide el Excel con fórmulas.">🔗 Para compañero (sin fórmulas)</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}<button class="btn small ghost" type="button" data-desv="${esc(r.id)}" title="Busca diferencias entre inspectores: datos del punto, hojas sin fórmulas, nombres de soldaduras y 0 h / 12 h">🔎 Revisar desviaciones</button>${readOnly?"":`<button class="btn small ghost" type="button" data-arch="${esc(r.id)}" title="${r.archivado?"Volver a mostrar este punto en la lista":"Ocultar de la lista un punto terminado y enviado (se ve en el filtro Archivados)"}">${r.archivado?"↩ Desarchivar":"📦 Archivar"}</button>`}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
+    <div class="rowacts">${LOCAL?`<button class="btn small" type="button" data-gen="borrador" data-id="${esc(r.id)}">📝 Borrador</button><button class="btn small" type="button" data-gen="final" data-id="${esc(r.id)}">✅ Reporte final</button><button class="btn small" type="button" data-gen="valores" data-id="${esc(r.id)}" title="Solo para pasarle tus hojas a un compañero que las agregue con la app (Reportes de compañeros). No es para entregar: el cliente pide el Excel con fórmulas.">🔗 Para compañero (sin fórmulas)</button><button class="btn small" type="button" data-gen="word" data-id="${esc(r.id)}">📄 Informe Word</button><button class="btn small" type="button" data-gen="fotos" data-id="${esc(r.id)}">🖼 Fotos</button>`:""}${finish}<button class="btn small ghost" type="button" data-desv="${esc(r.id)}" title="Busca diferencias entre inspectores: datos del punto, hojas sin fórmulas, nombres de soldaduras y 0 h / 12 h">🔎 Revisar desviaciones</button>${!readOnly?`<button class="btn small ghost" type="button" data-estc="${esc(r.id)}" title="Cambia un texto que viene mal en el estampe de las fotos de compañeros o pegadas (por ejemplo PSS por PGS)">✏️ Corregir estampe</button>`:""}${readOnly?"":`<button class="btn small ghost" type="button" data-arch="${esc(r.id)}" title="${r.archivado?"Volver a mostrar este punto en la lista":"Ocultar de la lista un punto terminado y enviado (se ve en el filtro Archivados)"}">${r.archivado?"↩ Desarchivar":"📦 Archivar"}</button>`}${readOnly?"":`<button class="btn small ghost" type="button" data-addact="${esc(r.id)}">+ Actividad</button>`}<button class="btn small ghost" type="button" data-edit="${esc(r.id)}">${readOnly?"Ver":"Editar"}</button></div>
     <div class="acts">${acts||`<p class="note" style="padding:8px 0">Sin actividades registradas.</p>`}</div>
   </div>`;
 }
@@ -2051,7 +2051,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v119";
+const LOCAL=!!window.__LOCAL;const APPV="v120";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2209,7 +2209,7 @@ async function leerPKFoto(blob){const bm=await createImageBitmap(blob);const W=b
   return{pk:"",W,H}}
 // cambia solo el texto del PK en la foto (deja la fecha, las coordenadas y el resto del estampe como venía)
 async function cambiarPKFoto(blob,lec,nuevo){const bm=await createImageBitmap(blob);const c=document.createElement("canvas");c.width=bm.width;c.height=bm.height;const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(bm,0,0);
-  let b=lec.box;if(b.h>b.w/3.2)b={...b,y:b.y+b.h-b.w/5,h:b.w/5};// caja muy alta para un número de 7 caracteres: se ajusta a la línea de base
+  let b=lec.box;const nC=lec.len||7;if(b.h>b.w/(nC*0.45))b={...b,y:b.y+b.h-b.w/(nC*0.7),h:b.w/(nC*0.7)};// caja muy alta para un número de 7 caracteres: se ajusta a la línea de base
   const pad=Math.max(2,Math.round(b.h*0.35));const x0=Math.max(0,Math.floor(b.x-pad)),y0=Math.max(0,Math.floor(b.y-pad)),x1=Math.min(c.width-1,Math.ceil(b.x+b.w+pad)),y1=Math.min(c.height-1,Math.ceil(b.y+b.h+pad));
   const w=x1-x0+1,h=y1-y0+1,D=g.getImageData(x0,y0,w,h),q=D.data,lum=i=>(q[i]+q[i+1]+q[i+2])/3;
   // fondo = mediana del borde; letra = lo que se aparta del fondo (incluye su sombra)
@@ -2228,7 +2228,7 @@ async function cambiarPKFoto(blob,lec,nuevo){const bm=await createImageBitmap(bl
     if(!fill.length)break;for(const[i,r,gg,bb]of fill){q[i*4]=r;q[i*4+1]=gg;q[i*4+2]=bb;M[i]=0}}
   g.putImageData(D,x0,y0);
   // número nuevo: misma altura, mismo ancho y mismo color que el que había
-  const fam='"Roboto Condensed","Arial Narrow",Arial,Helvetica,sans-serif',peso=tinta>0.42?"bold ":"";let fs=b.h*1.4;g.font=`${peso}${fs}px ${fam}`;const asc=g.measureText("0").actualBoundingBoxAscent||fs*0.72;fs=fs*b.h/asc;g.font=`${peso}${fs}px ${fam}`;
+  const fam='"Roboto Condensed","Arial Narrow",Arial,Helvetica,sans-serif',peso=tinta>0.42?"bold ":tinta>0.22?"500 ":"";let fs=b.h*1.4;g.font=`${peso}${fs}px ${fam}`;const ref_=/[A-Z0-9]/.test(nuevo[0]||"")?nuevo[0]:"0",asc=g.measureText(ref_).actualBoundingBoxAscent||fs*0.72;fs=fs*b.h/asc*(/[A-Z]/.test(ref_)?1.08:1);g.font=`${peso}${fs}px ${fam}`;
   const tw=g.measureText(nuevo).width,sx=Math.max(0.55,Math.min(1.8,b.w/tw));
   g.save();g.translate(b.x,b.y+b.h);g.scale(sx,1);g.fillStyle=`rgb(${col.join(",")})`;
   if(claro){g.shadowColor="rgba(0,0,0,.55)";g.shadowBlur=Math.max(1,b.h*0.1);g.shadowOffsetX=g.shadowOffsetY=Math.max(0.6,b.h*0.05)}
@@ -2829,7 +2829,7 @@ async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst
     out.push({r0,c0,cap:gen.test(cap)&&cap.length<25?"":cap,bytes,type,fi})}
   return out.sort((p,q)=>p.r0-q.r0||p.c0-q.c0)}
 const esAnexo=n=>/ANEX/i.test(n);
-window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt,stampFor,drawRepair,mbRows,PAL_PNG,juntasDe,migrarIt,bisRows,largoJunta,leerPKFoto,cambiarPKFoto};
+window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt,stampFor,drawRepair,mbRows,PAL_PNG,juntasDe,migrarIt,bisRows,largoJunta,leerPKFoto,cambiarPKFoto,buscarTextoFoto};
 function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
   let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
   if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"${extSel.selH?.has(k)?" checked":""}><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
@@ -3071,6 +3071,7 @@ async function onAction(e){
   if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
   if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;
     {const d=readDraft();const abierto=!$("scrim").hidden&&editing?.id===r.id&&dirty;if(abierto||(d&&d.id===r.id&&(d.t||0)>(r.modificado||0))){toast("Este punto tiene cambios sin guardar (consecutivo, reportes de compañeros, fotos…). Ábrelo, toca Guardar y vuelve a generar.");if(!abierto&&d)showDraftBar();return}}if(t.dataset.gen==="word")return accionInforme(r,t);return accionReporte(r,t.dataset.gen,t)}
+  if(t.dataset.estc){const r=rows.find(x=>x.id===t.dataset.estc);if(!r)return;t.disabled=true;try{await corregirEstampes(r,t)}finally{t.disabled=false}return}
   if(t.dataset.desv){let r=rows.find(x=>x.id===t.dataset.desv);if(!r)return;t.disabled=true;try{const r2=await revisarFotosExtPunto(r,t,false);if(r2)r=r2;const dv=await desviaciones(r);if(dv.length)await avisoLista(`Desviaciones · ${r.consecutivo||""} PK ${r.pk||""}`,dv,"Cerrar",null);else toast("Sin desviaciones: datos, fórmulas y nombres de soldaduras coinciden.")}catch(e){toast("No se pudo revisar: "+(e.message||e))}finally{t.disabled=false}return}
   if(t.dataset.arch){if(!db||readOnly)return;const r=rows.find(x=>x.id===t.dataset.arch);if(!r)return;
     if(!r.archivado&&r.items.some(it=>!it.entregaFecha)&&!t.dataset.ok){t.dataset.ok="1";t.textContent="Tiene informes sin entregar · ¿archivar? Toca otra vez";return}
@@ -4199,6 +4200,68 @@ async function accionInforme(r,btn){{const dv=await desviaciones(r).catch(()=>[]
 // --- botones ---
 // guarda en la carpeta "Control de informes" (PC) o descarga normal; devuelve " en …" para el aviso
 async function guardar(filename,data,carpeta){filename=filename.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.+()#-]+/g,"_");const r=await downloads.save(LOCAL?{filename,data,carpeta}:{filename,data});return r?.donde?` en ${r.donde}`:""}
+// ---- corregir un texto cualquiera del estampe (PSS→PGS, un PK, un nombre…) en las fotos que traen el estampe pegado ----
+// (fotos de las hojas de compañeros y fotos pegadas/importadas sin el estampe de la app). Se deja todo lo demás como venía.
+const _ch=c=>({"5":"S","0":"O","1":"I","|":"I","8":"B","6":"G","2":"Z"}[c]||c);
+const nrmEst=s=>[...String(s||"").toUpperCase().replace(/\s+/g,"")].map(_ch).join("");
+async function buscarTextoFoto(blob,txt){const bm=await createImageBitmap(blob);const W=bm.width,H=bm.height;if(W<200||H<150)return null;
+  const meta=nrmEst(txt);if(!meta)return null;const y0=Math.round(H*0.45),h=H-y0,k=Math.min(4,Math.max(1,1800/W));const w=await ocrWorker();
+  for(const modo of ["blanco","local","claro"]){const c=document.createElement("canvas");c.width=Math.round(W*k);c.height=Math.round(h*k);const g=c.getContext("2d",{willReadFrequently:true});g.imageSmoothingQuality="high";g.drawImage(bm,0,y0,W,h,0,0,c.width,c.height);
+    const d=g.getImageData(0,0,c.width,c.height),q=d.data,CW=c.width,CH=c.height;let I=null,rr=0;
+    if(modo==="local"){rr=Math.max(4,Math.round(CW*0.015));I=new Float64Array((CW+1)*(CH+1));for(let y=0;y<CH;y++){let fila=0;for(let x=0;x<CW;x++){const i=(y*CW+x)*4;fila+=Math.min(q[i],q[i+1],q[i+2]);I[(y+1)*(CW+1)+x+1]=I[y*(CW+1)+x+1]+fila}}}
+    const media=(x,y)=>{const xa=Math.max(0,x-rr),xb=Math.min(CW,x+rr+1),ya=Math.max(0,y-rr),yb=Math.min(CH,y+rr+1);return(I[yb*(CW+1)+xb]-I[ya*(CW+1)+xb]-I[yb*(CW+1)+xa]+I[ya*(CW+1)+xa])/((xb-xa)*(yb-ya))};
+    for(let i=0,p=0;i<q.length;i+=4,p++){const r=q[i],gg=q[i+1],b=q[i+2],mn=Math.min(r,gg,b),mx=Math.max(r,gg,b);const t=modo==="blanco"?(mn>175&&mx-mn<60):modo==="local"?(mn>140&&mx-mn<70&&mn-media(p%CW,(p/CW)|0)>16):(mn>215);q[i]=q[i+1]=q[i+2]=t?0:255}
+    g.putImageData(d,0,0);let data;try{data=(await w.recognize(c)).data}catch(e){continue}
+    for(const wd of data.words||[]){const tNS=String(wd.text||"").replace(/\s+/g,""),n=nrmEst(tNS),ix=n.indexOf(meta);if(ix<0)continue;
+      const ss=wd.symbols||[];let b=wd.bbox;if(ss.length===tNS.length){const sy=ss.slice(ix,ix+meta.length),an=sy.map(z=>z.bbox.x1-z.bbox.x0).sort((p_,q_)=>p_-q_),mw=an[an.length>>1]||1;
+        b={x0:Math.min(...sy.map(z=>z.bbox.x0)),y0:Math.min(...sy.map(z=>z.bbox.y0)),x1:Math.max(...sy.map(z=>Math.min(z.bbox.x1,z.bbox.x0+mw*1.4))),y1:Math.max(...sy.map(z=>z.bbox.y1))}}
+      else if(ix>0||n.length!==meta.length)continue;// sin letras sueltas no se puede ubicar solo una parte de la palabra
+      return{pk:"",leido:tNS.substr(ix,meta.length),len:meta.length,box:{x:b.x0/k,y:y0+b.y0/k,w:(b.x1-b.x0)/k,h:(b.y1-b.y0)/k},W,H}}}
+  return null}
+async function corregirEstampes(r,btn){if(!assets||readOnly||!db)return toast("Para esto se necesita la sincronización activa.");
+  const dv=$("dvp"),body=$("dvBody"),t0=btn?.textContent;const cerrar=()=>{dv.hidden=true;$("dvSi").onclick=$("dvNo").onclick=$("dvIgual").onclick=null};
+  // 1) qué texto cambiar
+  $("dvT").textContent=`Corregir el estampe de las fotos · ${r.consecutivo||""} PK ${r.pk||""}`;$("dvIgual").hidden=true;$("dvSi").textContent="Buscar en las fotos";
+  body.innerHTML=`<p class="note" style="margin:0">Cambia un texto que viene mal en el estampe de las fotos que no estampa la app (las de las hojas de compañeros y las fotos pegadas o importadas). La fecha, la hora, las coordenadas y lo demás quedan como venían.</p>
+    <div class="grid2"><label class="f"><span class="label">El estampe dice</span><input class="field mono" id="estDe" placeholder="PSS" autocomplete="off"></label><label class="f"><span class="label">Debe decir</span><input class="field mono" id="estA" placeholder="PGS" autocomplete="off"></label></div>
+    <p class="note" style="margin:0">Escribe solo la parte que cambia, por ejemplo <b>PSS</b> → <b>PGS</b> o <b>194+066</b> → <b>${esc(r.pk||"194+086")}</b>.</p>`;
+  dv.hidden=false;$("estDe").focus();
+  const par=await new Promise(ok=>{$("dvNo").onclick=()=>ok(null);$("dvSi").onclick=()=>{const de=$("estDe").value.trim(),a=$("estA").value.trim();if(!de||!a){toast("Escribe lo que dice y lo que debe decir.");return}ok({de,a})}});
+  if(!par){cerrar();$("dvIgual").hidden=false;return}
+  // 2) fotos con el estampe pegado
+  const fotos=[],pqs={};$("dvSi").disabled=true;
+  try{(r.repsExt||[]).forEach((e,i)=>{if(e?.id)fotos.push({ext:i,e})});
+    const exp=[];for(const f of fotos.splice(0)){const pq=JSON.parse(await (await blobFoto(f.e.id)).text());pqs[f.ext]=pq;const us=new Map();(pq.hojas||[]).forEach(hx=>Object.values(hx.dib?.imgs||{}).forEach(key=>{if(!us.has(key))us.set(key,hx.nombre)}));
+      for(const[key,hn]of us){const by=deB64(pq.media?.[key]||"");if(by.length<15000)continue;exp.push({i:f.ext,key,donde:hn,blob:new Blob([by],{type:/png$/i.test(key)?"image/png":"image/jpeg"})})}}
+    fotos.push(...exp);
+    const slots=(fp,dueño)=>Object.entries(fp||{}).forEach(([k,arr])=>(arr||[]).forEach((s,j)=>{if(s?.id&&s.noStamp)fotos.push({slot:{dueño,k,j},donde:k==="ANX"?"Anexo fotográfico":k,id:s.id})}));
+    slots(r.fotosPunto,"P");(r.items||[]).forEach((it,n)=>slots(it.fotos,n));
+    for(const f of fotos)if(f.id&&!f.blob)f.blob=await blobFoto(f.id).catch(()=>null);
+    let n=0;for(const f of fotos){body.innerHTML=`<p>Buscando «${esc(par.de)}» en las fotos… ${++n}/${fotos.length}</p>`;if(f.blob)f.lec=await buscarTextoFoto(f.blob,par.de).catch(()=>null)}}
+  catch(err){$("dvSi").disabled=false;cerrar();$("dvIgual").hidden=false;return toast("No se pudieron leer las fotos: "+(err.message||err))}
+  $("dvSi").disabled=false;const hall=fotos.filter(f=>f.lec);
+  // cajas raras (más altas o corridas que las de las otras fotos del mismo tamaño) se igualan a las demás
+  {const gr={};hall.forEach(f=>(gr[f.lec.W+"x"+f.lec.H]??=[]).push(f));Object.values(gr).filter(g_=>g_.length>=3).forEach(g_=>{const md=a=>a.slice().sort((p_,q_)=>p_-q_)[a.length>>1];const m={x:md(g_.map(o=>o.lec.box.x)),y:md(g_.map(o=>o.lec.box.y)),w:md(g_.map(o=>o.lec.box.w)),h:md(g_.map(o=>o.lec.box.h))};
+    g_.forEach(o=>{const b_=o.lec.box;if(Math.abs(b_.h-m.h)>m.h*0.3||Math.abs(b_.w-m.w)>m.w*0.25||Math.abs(b_.y-m.y)>m.h*0.6)o.lec.box={...m}})})}
+  if(!hall.length){body.innerHTML=`<p>No encontré «${esc(par.de)}» en el estampe de ${fotos.length} ${fotos.length===1?"foto":"fotos"}. Revisa que esté bien escrito tal como sale en la foto.</p>`;$("dvSi").hidden=true;
+    await new Promise(ok=>$("dvNo").onclick=ok);$("dvSi").hidden=false;cerrar();$("dvIgual").hidden=false;return}
+  hall.forEach(f=>f.url=URL.createObjectURL(f.blob));
+  body.innerHTML=`<p style="margin:0">Encontré «<b>${esc(par.de)}</b>» en <b>${hall.length}</b> de ${fotos.length} fotos. Se cambia por «<b>${esc(par.a)}</b>» en las marcadas:</p>`+hall.map((f,n)=>`<label class="dvrow"><img src="${f.url}" alt=""><span style="display:grid;gap:6px"><b>${esc(f.donde)}</b><span><input type="checkbox" data-estf="${n}" checked> Cambiar en esta foto</span></span></label>`).join("");
+  $("dvSi").textContent=`Cambiar en las marcadas`;
+  const ok_=await new Promise(ok=>{$("dvNo").onclick=()=>ok(false);$("dvSi").onclick=()=>ok(true)});
+  const marcadas=hall.filter((f,n)=>body.querySelector(`[data-estf="${n}"]`)?.checked);cerrar();$("dvIgual").hidden=false;hall.forEach(f=>URL.revokeObjectURL(f.url));
+  if(!ok_||!marcadas.length)return;
+  // 3) cambiar y guardar
+  const toc=new Set(),repsExt=(r.repsExt||[]).map(x=>({...x})),cambiosFoto=[];let n=0;
+  for(const f of marcadas){if(btn)btn.textContent=`Corrigiendo… ${++n}/${marcadas.length}`;const nb=await cambiarPKFoto(f.blob,f.lec,par.a);if(!nb)continue;
+    if(f.key!=null){pqs[f.i].media[f.key]=aB64(new Uint8Array(await nb.arrayBuffer()));toc.add(f.i)}else cambiosFoto.push([f.slot,nb])}
+  for(const i of toc){const up=await assets.upload(new Blob([JSON.stringify(pqs[i])],{type:"text/plain"}),{type:"text/plain"});repsExt[i].id=up.id}
+  const patch={repsExt,modificado:Date.now()};
+  if(cambiosFoto.length){const fp=JSON.parse(JSON.stringify(r.fotosPunto||{})),items=JSON.parse(JSON.stringify(r.items||[]));
+    for(const[s,nb]of cambiosFoto){const up=await assets.upload(nb,{type:"image/jpeg"});const arr=s.dueño==="P"?fp[s.k]:items[s.dueño].fotos[s.k];arr[s.j]={...arr[s.j],id:up.id}}
+    patch.fotosPunto=fp;patch.items=items}
+  await db.collection("trabajos").doc(r.id).update(patch);if(btn)btn.textContent=t0;
+  toast(`Estampe corregido en ${marcadas.length} ${marcadas.length===1?"foto":"fotos"}: «${par.de}» → «${par.a}»`)}
 // revisa con OCR el PK estampado en las fotos de las hojas de compañeros que ya están en el punto y deja corregirlas
 async function revisarFotosExtPunto(r,btn,soloNuevas){if(!assets||readOnly||!db)return null;const L=(r.repsExt||[]).map((e,i)=>({e,i})).filter(({e})=>e?.id&&(!soloNuevas||!e.fotosRev));if(!L.length)return null;
   const pkPt=pkNorm(r.pk)||r.pk;const fotos=[],pqs={},t0=btn?.textContent;
