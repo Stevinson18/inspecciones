@@ -2026,7 +2026,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v117";
+const LOCAL=!!window.__LOCAL;const APPV="v118";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2177,7 +2177,7 @@ async function leerPKFoto(blob){const bm=await createImageBitmap(blob);const W=b
       const t=modo==="blanco"?(mn>175&&mx-mn<60):modo==="local"?(mn>140&&mx-mn<70&&mn-media(p%CW,(p/CW)|0)>16):modo==="claro"?(mn>215):(r+gg+b)/3<80;q[i]=q[i+1]=q[i+2]=t?0:255}
     g.putImageData(d,0,0);let data;try{data=(await w.recognize(c)).data}catch(e){continue}const ws=data.words||[];
     for(let i=0;i<ws.length;i++){const t=ws[i].text||"",m=t.match(/(\d{1,4})\s*\+\s*(\d{3})/);if(!m)continue;
-      const prev=ws[i-1]?.text||"";if(!/PK/i.test(t)&&!/PK|K$/i.test(prev))continue;
+      const prev=ws[i-1]?.text||"";if(!/PK/i.test(t)&&!/^[PFR]?K[:.;]?$/i.test(prev))continue;
       // caja solo del número (sin "PK")
       let b=ws[i].bbox;const ss=(ws[i].symbols||[]),tNS=t.replace(/\s+/g,""),mNS=m[0].replace(/\s+/g,""),ix=tNS.indexOf(mNS),sy=(ss.length===tNS.length&&ix>=0?ss.slice(ix,ix+mNS.length):ss.filter(z=>/[\d+]/.test(z.text)));if(sy.length){const an=sy.map(z=>z.bbox.x1-z.bbox.x0).sort((p_,q_)=>p_-q_),mw=an[an.length>>1]||1;/* una letra con caja muy ancha (ruido) se recorta al ancho normal */b={x0:Math.min(...sy.map(z=>z.bbox.x0)),y0:Math.min(...sy.map(z=>z.bbox.y0)),x1:Math.max(...sy.map(z=>Math.min(z.bbox.x1,z.bbox.x0+mw*1.4))),y1:Math.max(...sy.map(z=>z.bbox.y1))}}
       return{pk:pkNorm(m[0]),leido:m[0].replace(/\s+/g,""),oscuro:modo==="oscuro",box:{x:b.x0/k,y:y0+b.y0/k,w:(b.x1-b.x0)/k,h:(b.y1-b.y0)/k},W,H}}}
@@ -2209,9 +2209,24 @@ async function cambiarPKFoto(blob,lec,nuevo){const bm=await createImageBitmap(bl
   if(claro){g.shadowColor="rgba(0,0,0,.55)";g.shadowBlur=Math.max(1,b.h*0.1);g.shadowOffsetX=g.shadowOffsetY=Math.max(0.6,b.h*0.05)}
   g.fillText(nuevo,0,0);g.restore();
   return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.93))}
+// lecturas de PK: cajas raras se igualan a las de las otras fotos del mismo tamaño; las ilegibles toman el sitio de las demás
+function ajustarLecturas(fotosR){
+      // una lectura que difiere en un solo dígito de la más repetida (mismo tamaño de foto) es un error del lector
+      {const gr={};fotosR.filter(f=>f.lec?.pk).forEach(f=>(gr[f.lec.W+"x"+f.lec.H]??=[]).push(f));Object.values(gr).forEach(g_=>{const cu={};g_.forEach(o=>cu[o.lec.pk]=(cu[o.lec.pk]||0)+1);const top=Object.entries(cu).sort((p_,q_)=>q_[1]-p_[1])[0];if(!top||top[1]<2)return;
+        g_.forEach(o=>{const a=o.lec.pk,b=top[0];if(a!==b&&a.length===b.length&&[...a].filter((ch,i)=>ch!==b[i]).length===1)o.lec={...o.lec,pk:b,leido:b}})})}
+      // cajas de lectura raras (más altas o anchas que las de las otras fotos del mismo tamaño) se igualan a las demás
+      {const gr={};fotosR.filter(f=>f.lec?.box).forEach(f=>(gr[f.lec.W+"x"+f.lec.H]??=[]).push(f));Object.values(gr).filter(g_=>g_.length>=3).forEach(g_=>{const md=a=>a.slice().sort((p_,q_)=>p_-q_)[a.length>>1];
+        const m={x:md(g_.map(o=>o.lec.box.x)),y:md(g_.map(o=>o.lec.box.y)),w:md(g_.map(o=>o.lec.box.w)),h:md(g_.map(o=>o.lec.box.h))};
+        g_.forEach(o=>{const b_=o.lec.box;if(Math.abs(b_.h-m.h)>m.h*0.3||Math.abs(b_.w-m.w)>m.w*0.25||Math.abs(b_.y-m.y)>m.h*0.6)o.lec.box={...m}})})}
+      // fotos donde no se pudo leer: si las otras del mismo tamaño tienen el estampe en el mismo sitio, se toma de ellas
+      fotosR.filter(f=>f.lec&&!f.lec.pk).forEach(f=>{const igual=fotosR.filter(o=>o.lec?.pk&&o.lec.box&&o.lec.W===f.lec.W&&o.lec.H===f.lec.H);if(igual.length<2)return;
+        const md=a=>a.sort((p_,q_)=>p_-q_)[a.length>>1],bx={x:md(igual.map(o=>o.lec.box.x)),y:md(igual.map(o=>o.lec.box.y)),w:md(igual.map(o=>o.lec.box.w)),h:md(igual.map(o=>o.lec.box.h))};
+        if(igual.some(o=>Math.abs(o.lec.box.x-bx.x)>bx.h||Math.abs(o.lec.box.y-bx.y)>bx.h))return;const cu={};igual.forEach(o=>cu[o.lec.pk]=(cu[o.lec.pk]||0)+1);const pk=Object.entries(cu).sort((p_,q_)=>q_[1]-p_[1])[0][0];
+        f.lec={...f.lec,pk,leido:pk,box:bx,inferido:true}});
+}
 // reestampa completo una foto embebida en una hoja del compañero (se quita su estampe y se pone el de la app con los datos del formulario)
-async function reestamparBytes(blob,fi){const nb=await borrarEstampe(blob).catch(()=>null);if(!nb)return null;const bm=await createImageBitmap(nb);const c=document.createElement("canvas");c.width=bm.width;c.height=bm.height;const g=c.getContext("2d");g.drawImage(bm,0,0);
-  const est=stampFor({fi},"campo",null,fi||$("iFecha").value);if(est)estampar(g,c.width,c.height,est);return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.92))}
+async function reestamparBytes(blob,fi,pt){const nb=await borrarEstampe(blob).catch(()=>null);if(!nb)return null;const bm=await createImageBitmap(nb);const c=document.createElement("canvas");c.width=bm.width;c.height=bm.height;const g=c.getContext("2d");g.drawImage(bm,0,0);
+  const est=stampFor({fi},"campo",pt||null,fi||pt?.fecha||$("iFecha").value);if(est)estampar(g,c.width,c.height,est);return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.92))}
 // datos del encabezado del compañero que no coinciden con el punto, para escoger el real
 const DV_CAMPOS=[["informe","Informe N° (consecutivo)","iCons",0],["pk","PK","iPk",0],["diam","Diámetro (in)","iDiam",1],["espL","Espesor nominal de la línea","iNom",1],["espP","Espesor de la camisa / parte","iEsp",1],["mat","Material","iMat",0]];
 function difsDatosExt(pq){const pf=puntoForm(),out=[];
@@ -2223,18 +2238,21 @@ function difsDatosExt(pq){const pf=puntoForm(),out=[];
     if(vals.size)out.push({k,lab,inp,ap,ext:[...vals.values()]})}
   return out}
 // pantalla de revisión: escoger el dato real y cómo corregir cada foto con el PK distinto
-function revisionExt(difs,fotos){return new Promise(ok=>{const dv=$("dvp"),body=$("dvBody");const sel={datos:{},fotos:{}};
+function revisionExt(difs,fotos,pkPunto,txt){return new Promise(ok=>{const dv=$("dvp"),body=$("dvBody");const sel={datos:{},fotos:{}};
+  $("dvT").textContent=txt?.t||"Revisión del reporte del compañero";$("dvSi").textContent=txt?.si||"Aplicar y agregar";$("dvIgual").textContent=txt?.igual||"Agregar sin cambios";
   // el PK leído en las fotos también es candidato a dato real
-  const pkPt=pkNorm(puntoForm().pk)||puntoForm().pk;const enFotos={};fotos.forEach(f=>{if(f.lec?.pk&&!f.lec.inferido)enFotos[f.lec.pk]=(enFotos[f.lec.pk]||0)+1});
-  let dPk=difs.find(d=>d.k==="pk");const otrosPk=Object.keys(enFotos).filter(p=>p!==pkPt&&!(dPk?.ext||[]).some(e=>e.v===p));
-  if(otrosPk.length){if(!dPk){dPk={k:"pk",lab:"PK",inp:"iPk",ap:puntoForm().pk,ext:[]};difs.unshift(dPk)}otrosPk.forEach(p=>dPk.ext.push({v:p,hojas:[]}))}
+  pkPunto??=puntoForm().pk;const pkPt=pkNorm(pkPunto)||pkPunto;const enFotos={};fotos.forEach(f=>{if(f.lec?.pk&&!f.lec.inferido)enFotos[f.lec.pk]=(enFotos[f.lec.pk]||0)+1});
+  let dPk=difs.find(d=>d.k==="pk");const otrosPk=txt?.soloFotos?[]:Object.keys(enFotos).filter(p=>p!==pkPt&&!(dPk?.ext||[]).some(e=>e.v===p));
+  if(otrosPk.length){if(!dPk){dPk={k:"pk",lab:"PK",inp:"iPk",ap:pkPunto,ext:[]};difs.unshift(dPk)}otrosPk.forEach(p=>dPk.ext.push({v:p,hojas:[]}))}
   difs.forEach(d=>sel.datos[d.k]=d.ap);
   const pkReal=()=>pkNorm(sel.datos.pk??pkPt)||pkPt;
   const pinta=()=>{const real=pkReal();const malas=fotos.filter(f=>f.lec&&f.lec.pk&&f.lec.pk!==real),sinPk=fotos.filter(f=>f.lec&&!f.lec.pk);
-    malas.forEach(f=>sel.fotos[f.n]??=(f.lec.box?"pk":"re"));fotos.filter(f=>f.lec?.pk===real).forEach(f=>delete sel.fotos[f.n]);sinPk.forEach(f=>sel.fotos[f.n]??="igual");
+    // el PK equivocado que más se repite es un error de digitación; uno distinto y suelto puede ser una foto de otro punto
+    const cuM={};malas.forEach(f=>cuM[f.lec.pk]=(cuM[f.lec.pk]||0)+1);const pkMal=Object.entries(cuM).sort((p_,q_)=>q_[1]-p_[1])[0]?.[0];const otro=f=>Object.keys(cuM).length>1&&f.lec.pk!==pkMal&&!f.lec.inferido;
+    malas.forEach(f=>sel.fotos[f.n]??=(otro(f)?"igual":f.lec.box?"pk":"re"));fotos.filter(f=>f.lec?.pk===real).forEach(f=>delete sel.fotos[f.n]);sinPk.forEach(f=>sel.fotos[f.n]??="igual");
     const op=(f,v,t,dis)=>`<label><input type="radio" name="dvf${f.n}" value="${v}" data-dvf="${f.n}"${sel.fotos[f.n]===v?" checked":""}${dis?" disabled":""}> ${t}</label>`;
     const fila=f=>`<div class="dvrow"><img src="${f.url}" alt=""><div style="display:grid;gap:6px"><span><b>${esc(f.donde)}</b>${f.cap?` · ${esc(f.cap)}`:""}</span>
-      <span>${f.lec.pk?(f.lec.inferido?`No se leyó bien; las otras fotos del mismo registro dicen <span class="pkmal">PK ${esc(f.lec.pk)}</span> en el mismo sitio. El real es <b>PK ${esc(real)}</b>. Revisa la foto antes de cambiarla.`:`El estampe dice <span class="pkmal">PK ${esc(f.lec.leido||f.lec.pk)}</span> y el real es <b>PK ${esc(real)}</b>`):"No se pudo leer el PK del estampe: revísala a ojo"}</span>
+      <span>${f.lec.pk?(f.lec.inferido?`No se leyó bien; las otras fotos del mismo registro dicen <span class="pkmal">PK ${esc(f.lec.pk)}</span> en el mismo sitio. El real es <b>PK ${esc(real)}</b>. Revisa la foto antes de cambiarla.`:`El estampe dice <span class="pkmal">PK ${esc(f.lec.leido||f.lec.pk)}</span> y el real es <b>PK ${esc(real)}</b>${otro(f)?`. <b>⚠ Puede ser una foto de otro punto</b>: revísala antes de cambiarla`:""}`):"No se pudo leer el PK del estampe: revísala a ojo"}</span>
       <div class="dvopts">${f.lec.pk?op(f,"pk",`Cambiar solo el PK a ${esc(real)} (deja fecha y coordenadas)`,!f.lec.box):""}${op(f,"re","Reestampar todo con los datos de la app")}${op(f,"igual","Dejar igual")}</div></div></div>`;
     let h="";
     if(difs.length)h+=`<section style="display:grid;gap:8px"><strong>Datos que no coinciden · escoge el dato real</strong>${difs.map(d=>`<div class="calc" style="display:grid;gap:4px"><span class="label">${esc(d.lab)}</span><div class="dvopts">
@@ -2725,7 +2743,7 @@ function cabExt(xml){const mg=[...xml.matchAll(/<mergeCell ref="([A-Z]+)(\d+):([
   const inf=cel.find(x=>/^INFORME\s*N/i.test(x.t)),pk=cel.find(x=>/^PK\s*:?$/i.test(x.t));return{inf:inf?val(inf):null,pk:pk?val(pk):null}}
 async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/sharedStrings.xml");const SI=[...sst.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map(m=>m[1]||"<t></t>");
   const media={},hojas=[];const res=(base,t)=>{if(t.startsWith("/"))return t.slice(1);const o=[];for(const q of (base.replace(/[^/]+$/,"")+t).split("/")){if(q==="..")o.pop();else if(q!==".")o.push(q)}return o.join("/")};
-  const PA=[...wb.matchAll(/<definedName [^>]*>[^<]*<\/definedName>/g)].map(m=>m[0]).filter(d=>/_xlnm\.Print_Area/.test(d));
+  const DN=[...wb.matchAll(/<definedName [^>]*>[^<]*<\/definedName>/g)].map(m=>m[0]),PA=DN.filter(d=>/_xlnm\.Print_Area/.test(d)),PT=DN.filter(d=>/_xlnm\.Print_Titles/.test(d));
   for(const h of sel){let xml=await T(h.file);
     // auditoría del encabezado tal como venía (fórmulas, vínculos a otros libros, valores escritos a mano)
     let cabO=null;try{cabO=auditCab(xml.replace(/<c ([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g,(m,at,end,body)=>{if(end==="/>"||!/\bt="s"/.test(at))return m;const v=(body.match(/<v[^>]*>(\d+)<\/v>/)||[])[1];const q=SI[+v];return q==null?m:`<c ${at.replace(/\s*\bt="s"/,"")} t="inlineStr">${(body.match(/<f>[\s\S]*?<\/f>/)||[""])[0]}<is>${q}</is></c>`}))}catch(e){}
@@ -2747,8 +2765,20 @@ async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/s
       dib={xml:dx,imgs}}
     if(!dib)xml=xml.replace(/<drawing [^>]*\/>/,"");
     const pa=PA.find(d=>new RegExp(`localSheetId="${h.i}"`).test(d));const area=pa?[...pa.matchAll(/\$[A-Z]+\$\d+:\$[A-Z]+\$\d+/g)].map(q=>q[0]).join(","):"";
-    hojas.push({nombre:h.nombre,xml,dib,area,cab:cabExt(xml),...(cabO?{cabO}:{})})}
+    const pt=PT.find(d=>new RegExp(`localSheetId="${h.i}"`).test(d));const titulos=pt?(pt.match(/\$\d+:\$\d+/)||[""])[0]:"";
+    hojas.push({nombre:h.nombre,xml,dib,area,titulos,cab:cabExt(xml),...(cabO?{cabO}:{})})}
   return{v:1,archivo,fecha:Date.now(),styles:await T("xl/styles.xml"),media,hojas}}
+// encabezado que se repite en cada página impresa de una hoja de compañero (sin él, las páginas de fotos salen sin encabezado):
+// el que traía el Excel o, si no, hasta la fila de «ELEM INSPECCIONADO / FECHA»; solo si cada página sigue cabiendo en la hoja
+function titulosExt(hx){const x=hx.xml||"";let tt=hx.titulos||"";
+  if(!tt){let fin=0;for(let rn=6;rn<=12;rn++){const m=x.match(new RegExp(`<row r="${rn}"[^>]*>([\\s\\S]*?)</row>`));if(m&&/ELEM\s*INSPECCIONADO|FECHA\s*:/i.test(dxe(m[1].replace(/<[^>]+>/g," "))))fin=rn}if(!fin)return"";tt=`$1:$${fin}`}
+  const fin=+(tt.match(/\$(\d+)$/)||[])[1];if(!fin)return"";
+  const dflt=+((x.match(/defaultRowHeight="([\d.]+)"/)||[])[1]||15),alto={};for(const m of x.matchAll(/<row r="(\d+)"[^>]*?\bht="([\d.]+)"/g))alto[+m[1]]=+m[2];const hh=(a,b)=>{let t=0;for(let i=a;i<=b;i++)t+=alto[i]??dflt;return t};
+  const brk=[...x.matchAll(/<brk id="(\d+)"/g)].map(m=>+m[1]).sort((a,b)=>a-b);const finA=+((hx.area||"").match(/\$(\d+)(?:,|$)/)||[])[1]||(brk.at(-1)||0);
+  const cortes=brk.filter(b=>b<finA);if(!cortes.length)return"";// una sola página: no hace falta
+  const ps=x.match(/<pageSetup[^>]*>/)?.[0]||"",pm=x.match(/<pageMargins[^>]*>/)?.[0]||"",at=(t,k,d)=>+((t.match(new RegExp(`\\b${k}="([\\d.]+)"`))||[])[1]??d);
+  const papel=at(ps,"paperSize",9)===1?792:842,esc=at(ps,"scale",100)/100,cap=(papel-(at(pm,"top",0.75)+at(pm,"bottom",0.75))*72)/esc;
+  const pags=[...cortes,finA].map((b,i,a)=>[i?a[i-1]+1:1,b]).slice(1);if(pags.some(([a,b])=>hh(1,fin)+hh(a,b)>cap+2))return"";return tt}
 // hoja de anexo fotográfico de otro Excel: cada imagen (sin logos del encabezado) con el texto que tiene debajo como leyenda
 async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst=await T("xl/sharedStrings.xml");const SI=[...sst.matchAll(/<si>([\s\S]*?)<\/si>|<si\/>/g)].map(m=>dxe((m[1]||"").replace(/<rPh[\s\S]*?<\/rPh>/g,"").replace(/<[^>]+>/g,"")));
   const txtC={};for(const m of xml.matchAll(/<c r="([A-Z]+)(\d+)"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)){const t=(m[3].match(/\bt="([^"]+)"/)||[])[1],b=m[4]||"";let v="";
@@ -2807,15 +2837,7 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
       if(pq){const usadas=new Map();pq.hojas.forEach(hx=>Object.values(hx.dib?.imgs||{}).forEach(key=>{if(!usadas.has(key))usadas.set(key,hx.nombre)}));
         for(const[key,hn]of usadas){const by=deB64(pq.media[key]||"");if(by.length<15000)continue;const bl=new Blob([by],{type:/png$/i.test(key)?"image/png":"image/jpeg"});fotosR.push({n:fotosR.length,donde:hn,cap:"",url:URL.createObjectURL(bl),blob:bl,key})}}
       for(const f of fotosR){b.textContent=`Revisando fotos (OCR)… ${++nOcr}/${fotosR.length}`;try{f.lec=await leerPKFoto(f.blob)}catch(err){ocrOk=false;break}}
-      // cajas de lectura raras (más altas o anchas que las de las otras fotos del mismo tamaño) se igualan a las demás
-      {const gr={};fotosR.filter(f=>f.lec?.box).forEach(f=>(gr[f.lec.W+"x"+f.lec.H]??=[]).push(f));Object.values(gr).filter(g_=>g_.length>=3).forEach(g_=>{const md=a=>a.slice().sort((p_,q_)=>p_-q_)[a.length>>1];
-        const m={x:md(g_.map(o=>o.lec.box.x)),y:md(g_.map(o=>o.lec.box.y)),w:md(g_.map(o=>o.lec.box.w)),h:md(g_.map(o=>o.lec.box.h))};
-        g_.forEach(o=>{const b_=o.lec.box;if(Math.abs(b_.h-m.h)>m.h*0.3||Math.abs(b_.w-m.w)>m.w*0.25||Math.abs(b_.y-m.y)>m.h*0.6)o.lec.box={...m}})})}
-      // fotos donde no se pudo leer: si las otras del mismo tamaño tienen el estampe en el mismo sitio, se toma de ellas
-      fotosR.filter(f=>f.lec&&!f.lec.pk).forEach(f=>{const igual=fotosR.filter(o=>o.lec?.pk&&o.lec.box&&o.lec.W===f.lec.W&&o.lec.H===f.lec.H);if(igual.length<2)return;
-        const md=a=>a.sort((p_,q_)=>p_-q_)[a.length>>1],bx={x:md(igual.map(o=>o.lec.box.x)),y:md(igual.map(o=>o.lec.box.y)),w:md(igual.map(o=>o.lec.box.w)),h:md(igual.map(o=>o.lec.box.h))};
-        if(igual.some(o=>Math.abs(o.lec.box.x-bx.x)>bx.h||Math.abs(o.lec.box.y-bx.y)>bx.h))return;const cu={};igual.forEach(o=>cu[o.lec.pk]=(cu[o.lec.pk]||0)+1);const pk=Object.entries(cu).sort((p_,q_)=>q_[1]-p_[1])[0][0];
-        f.lec={...f.lec,pk,leido:pk,box:bx,inferido:true}});
+      ajustarLecturas(fotosR);
       const difs=pq?difsDatosExt(pq):[];const conLec=fotosR.filter(f=>f.lec);
       let dec={datos:{},fotos:{}};
       if(difs.length||conLec.some(f=>f.lec.pk!==(pkNorm(puntoForm().pk)||puntoForm().pk))){dec=await revisionExt(difs,conLec);if(!dec){b.disabled=false;b.textContent="Agregar hojas marcadas";fotosR.filter(f=>f.key).forEach(f=>URL.revokeObjectURL(f.url));return}}
@@ -2839,7 +2861,7 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
       let avisos=[];
       if(sel.length){try{avisos=(await desviaciones({...puntoForm(),repsExt:[]},[{pq,archivo:extSel.archivo}])).filter(x=>/Hoja|PT:|MT:|PAUT:/.test(x))}catch(err){}
         if(difs.length)avisos=avisos.filter(x=>!/: (informe|PK|diámetro|espesor[^«]*|material) (dice )?«/.test(x));const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
-        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
+        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,fotosRev:ocrOk,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
         const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
       Object.values(extSel.fx||{}).flat().forEach(f=>{try{URL.revokeObjectURL(f.url)}catch(_){}});extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.");
       if(avisos.length)avisoLista("Desviaciones en el reporte del compañero",[...avisos,"La app corrige el encabezado, los nombres que solo cambian de forma (A1L1 → A1 L1) y el esquema. Lo demás, coordínalo con el compañero."],"Entendido",null)}
@@ -3024,7 +3046,7 @@ async function onAction(e){
   if(t.dataset.addact)return openForm(rows.find(r=>r.id===t.dataset.addact),true);
   if(t.dataset.gen){const r=rows.find(x=>x.id===t.dataset.id);if(!r)return;
     {const d=readDraft();const abierto=!$("scrim").hidden&&editing?.id===r.id&&dirty;if(abierto||(d&&d.id===r.id&&(d.t||0)>(r.modificado||0))){toast("Este punto tiene cambios sin guardar (consecutivo, reportes de compañeros, fotos…). Ábrelo, toca Guardar y vuelve a generar.");if(!abierto&&d)showDraftBar();return}}if(t.dataset.gen==="word")return accionInforme(r,t);return accionReporte(r,t.dataset.gen,t)}
-  if(t.dataset.desv){const r=rows.find(x=>x.id===t.dataset.desv);if(!r)return;t.disabled=true;try{const dv=await desviaciones(r);if(dv.length)await avisoLista(`Desviaciones · ${r.consecutivo||""} PK ${r.pk||""}`,dv,"Cerrar",null);else toast("Sin desviaciones: datos, fórmulas y nombres de soldaduras coinciden.")}catch(e){toast("No se pudo revisar: "+(e.message||e))}finally{t.disabled=false}return}
+  if(t.dataset.desv){let r=rows.find(x=>x.id===t.dataset.desv);if(!r)return;t.disabled=true;try{const r2=await revisarFotosExtPunto(r,t,false);if(r2)r=r2;const dv=await desviaciones(r);if(dv.length)await avisoLista(`Desviaciones · ${r.consecutivo||""} PK ${r.pk||""}`,dv,"Cerrar",null);else toast("Sin desviaciones: datos, fórmulas y nombres de soldaduras coinciden.")}catch(e){toast("No se pudo revisar: "+(e.message||e))}finally{t.disabled=false}return}
   if(t.dataset.arch){if(!db||readOnly)return;const r=rows.find(x=>x.id===t.dataset.arch);if(!r)return;
     if(!r.archivado&&r.items.some(it=>!it.entregaFecha)&&!t.dataset.ok){t.dataset.ok="1";t.textContent="Tiene informes sin entregar · ¿archivar? Toca otra vez";return}
     t.disabled=true;try{await db.collection("trabajos").doc(r.id).update({archivado:!r.archivado,modificado:Date.now()});toast(r.archivado?`Punto ${r.pk||""} vuelve a la lista`:`Punto ${r.pk||""} archivado · lo encuentras en el filtro “📦 Archivados”`)}catch(e){t.disabled=false;toast("No se pudo archivar: "+(e.message||e))}return}
@@ -3662,6 +3684,8 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       const ins=pos+1,prev=tags[pos],at=prev.index+prev[0].length;
       wbxM=wbxM.slice(0,at)+`<sheet name="${xe(nuevo)}" sheetId="${++sheetIdMax}" r:id="${nr}"/>`+wbxM.slice(at);
       wbxM=wbxM.replace(/(<definedName [^>]*localSheetId=")(\d+)(")/g,(m0,a,b,c)=>+b>=ins?a+(+b+1)+c:m0);
+      {const tt=titulosExt(hx);if(tt){const dn=`<definedName name="_xlnm.Print_Titles" localSheetId="${ins}">'${xe(nuevo.replace(/'/g,"''"))}'!${tt}</definedName>`;
+        wbxM=/<\/definedNames>/.test(wbxM)?wbxM.replace("</definedNames>",dn+"</definedNames>"):wbxM.replace("</sheets>","</sheets><definedNames>"+dn+"</definedNames>")}}
       if(hx.area){const dn=`<definedName name="_xlnm.Print_Area" localSheetId="${ins}">${hx.area.split(",").map(a=>`'${xe(nuevo.replace(/'/g,"''"))}'!${a}`).join(",")}</definedName>`;
         wbxM=/<\/definedNames>/.test(wbxM)?wbxM.replace("</definedNames>",dn+"</definedNames>"):wbxM.replace("</sheets>","</sheets><definedNames>"+dn+"</definedNames>")}
       hoja[nuevo]=nf;visibles.add(nuevo);extHojas.add(nuevo);if(hx.dib)try{await esquemaExt(nuevo,hx.nombre,x,hx.dib.xml)}catch(err){console.warn("esquema ext",err)}
@@ -4147,7 +4171,26 @@ async function accionInforme(r,btn){{const dv=await desviaciones(r).catch(()=>[]
 // --- botones ---
 // guarda en la carpeta "Control de informes" (PC) o descarga normal; devuelve " en …" para el aviso
 async function guardar(filename,data,carpeta){filename=filename.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.+()#-]+/g,"_");const r=await downloads.save(LOCAL?{filename,data,carpeta}:{filename,data});return r?.donde?` en ${r.donde}`:""}
+// revisa con OCR el PK estampado en las fotos de las hojas de compañeros que ya están en el punto y deja corregirlas
+async function revisarFotosExtPunto(r,btn,soloNuevas){if(!assets||readOnly||!db)return null;const L=(r.repsExt||[]).map((e,i)=>({e,i})).filter(({e})=>e?.id&&(!soloNuevas||!e.fotosRev));if(!L.length)return null;
+  const pkPt=pkNorm(r.pk)||r.pk;const fotos=[],pqs={},t0=btn?.textContent;
+  try{for(const{e,i}of L){const pq=JSON.parse(await (await blobFoto(e.id)).text());pqs[i]=pq;const usadas=new Map();(pq.hojas||[]).forEach(hx=>Object.values(hx.dib?.imgs||{}).forEach(key=>{if(!usadas.has(key))usadas.set(key,hx.nombre)}));
+      for(const[key,hn]of usadas){const by=deB64(pq.media?.[key]||"");if(by.length<15000)continue;const bl=new Blob([by],{type:/png$/i.test(key)?"image/png":"image/jpeg"});fotos.push({n:fotos.length,donde:hn,cap:e.archivo||"",url:URL.createObjectURL(bl),blob:bl,key,i})}}
+    let k=0;for(const f of fotos){if(btn)btn.textContent=`Leyendo estampes… ${++k}/${fotos.length}`;f.lec=await leerPKFoto(f.blob)}}
+  catch(err){fotos.forEach(f=>URL.revokeObjectURL(f.url));if(btn)btn.textContent=t0;return null}
+  ajustarLecturas(fotos);const conLec=fotos.filter(f=>f.lec);const toc=new Set();let nPk=0,nRe=0;
+  if(conLec.some(f=>f.lec.pk&&f.lec.pk!==pkPt)){if(btn)btn.textContent=t0;const dec=await revisionExt([],conLec,r.pk,{t:`Fotos de compañeros · ${r.consecutivo||""} PK ${r.pk||""}`,si:"Aplicar",igual:"Dejar todo igual",soloFotos:true});
+    if(!dec){fotos.forEach(f=>URL.revokeObjectURL(f.url));return null}
+    for(const f of conLec){const a=dec.fotos?.[f.n];if(!a||a==="igual")continue;if(btn)btn.textContent=`Corrigiendo fotos… ${nPk+nRe+1}`;
+      const nb=a==="pk"&&f.lec.box?await cambiarPKFoto(f.blob,f.lec,dec.pkReal):a==="re"?await reestamparBytes(f.blob,r.fecha,r):null;if(!nb)continue;a==="pk"?nPk++:nRe++;
+      pqs[f.i].media[f.key]=aB64(new Uint8Array(await nb.arrayBuffer()));toc.add(f.i)}}
+  fotos.forEach(f=>URL.revokeObjectURL(f.url));
+  const repsExt=(r.repsExt||[]).map(x=>({...x}));for(const{i}of L){if(toc.has(i)){const up=await assets.upload(new Blob([JSON.stringify(pqs[i])],{type:"text/plain"}),{type:"text/plain"});repsExt[i].id=up.id}repsExt[i].fotosRev=true}
+  try{await db.collection("trabajos").doc(r.id).update({repsExt,modificado:Date.now()})}catch(e){}
+  if(btn)btn.textContent=t0;if(nPk||nRe)toast(`Fotos de compañeros: ${nPk?`${nPk} con el PK cambiado`:""}${nPk&&nRe?" y ":""}${nRe?`${nRe} reestampada${nRe===1?"":"s"}`:""}`);
+  return{...r,repsExt}}
 async function accionReporte(r,modo,btn){
+  if(modo==="final"||modo==="word"){const r2=await revisarFotosExtPunto(r,btn,true);if(r2)r=r2}
   if(modo==="final"||modo==="valores"){const f=[...revisarPunto(r),...(await desviaciones(r).catch(()=>[]))];if(f.length&&!(await avisoLista(f.some(x=>x.startsWith("⚠"))?"Revisa antes del reporte final":"Faltan datos para el reporte final",f)))return}
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
   try{if(modo==="fotos"){const blob=await generarReporte(r,"fotos");const d=await guardar(`FOTOS_${r.consecutivo||"SN"}_PK${String(r.pk||"").replace("+","_")}.zip`,blob,"Fotos");toast("Paquete de fotos listo"+d);return}
