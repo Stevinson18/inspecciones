@@ -2051,7 +2051,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v122";
+const LOCAL=!!window.__LOCAL;const APPV="v123";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2263,7 +2263,7 @@ function difsDatosExt(pq){const pf=puntoForm(),out=[];
     if(vals.size)out.push({k,lab,inp,ap,ext:[...vals.values()]})}
   return out}
 // pantalla de revisión: escoger el dato real y cómo corregir cada foto con el PK distinto
-function revisionExt(difs,fotos,pkPunto,txt){return new Promise(ok=>{const dv=$("dvp"),body=$("dvBody");const sel={datos:{},fotos:{}};
+function revisionExt(difs,fotos,pkPunto,txt,fuera=[]){return new Promise(ok=>{const dv=$("dvp"),body=$("dvBody");const sel={datos:{},fotos:{},fuera:{}};fuera.forEach((f,k)=>sel.fuera[k]="eliminar");
   $("dvT").textContent=txt?.t||"Revisión del reporte del compañero";$("dvSi").textContent=txt?.si||"Aplicar y agregar";$("dvIgual").textContent=txt?.igual||"Agregar sin cambios";
   // el PK leído en las fotos también es candidato a dato real
   pkPunto??=puntoForm().pk;const pkPt=pkNorm(pkPunto)||pkPunto;const enFotos={};fotos.forEach(f=>{if(f.lec?.pk&&!f.lec.inferido)enFotos[f.lec.pk]=(enFotos[f.lec.pk]||0)+1});
@@ -2288,12 +2288,15 @@ function revisionExt(difs,fotos,pkPunto,txt){return new Promise(ok=>{const dv=$(
       <div class="eqrow"><span class="note">Para todas:</span><button type="button" class="btn small ghost" data-dvall="pk">Cambiar solo el PK</button><button type="button" class="btn small ghost" data-dvall="re">Reestampar todo</button><button type="button" class="btn small ghost" data-dvall="igual">Dejar igual</button></div>
       ${malas.map(fila).join("")}${sinPk.map(fila).join("")}</section>`;
     else if(fotos.length)h+=`<p class="note">✓ Revisé ${fotos.filter(f=>f.lec).length} fotos: el PK estampado coincide con PK ${esc(real)}.</p>`;
+    if(fuera.length)h+=`<section style="display:grid;gap:8px"><strong>Fotos fuera del área de impresión del compañero (${fuera.length})</strong><p class="note" style="margin:0">Estas fotos están en su hoja pero no salen al imprimir. Escoge qué hacer con cada una.</p>
+      ${fuera.map((f,k)=>`<div class="dvrow"><img src="${f.url}" alt=""><div style="display:grid;gap:6px"><span><b>${esc(f.hoja)}</b> · fila ${f.fila}${f.abajo?" (debajo del área)":" (a la derecha del área)"}</span>
+        <div class="dvopts"><label><input type="radio" name="dvx${k}" data-dvx="${k}" value="eliminar"${sel.fuera[k]==="eliminar"?" checked":""}> Eliminarla</label><label><input type="radio" name="dvx${k}" data-dvx="${k}" value="anexo"${sel.fuera[k]==="anexo"?" checked":""}> Pasarla al anexo fotográfico</label>${f.abajo?`<label><input type="radio" name="dvx${k}" data-dvx="${k}" value="incluir"${sel.fuera[k]==="incluir"?" checked":""}> Incluirla en el reporte (se amplía el área)</label>`:""}</div></div></div>`).join("")}</section>`;
     body.innerHTML=h};
   pinta();dv.hidden=false;
   const fin=v=>{dv.hidden=true;body.onchange=body.onclick=null;$("dvSi").onclick=$("dvNo").onclick=$("dvIgual").onclick=null;ok(v)};
-  body.onchange=e=>{const t=e.target;if(t.dataset.dvd){sel.datos[t.dataset.dvd]=t.value;if(t.dataset.dvd==="pk")pinta()}else if(t.dataset.dvf)sel.fotos[t.dataset.dvf]=t.value};
+  body.onchange=e=>{const t=e.target;if(t.dataset.dvx){sel.fuera[t.dataset.dvx]=t.value;return}if(t.dataset.dvd){sel.datos[t.dataset.dvd]=t.value;if(t.dataset.dvd==="pk")pinta()}else if(t.dataset.dvf)sel.fotos[t.dataset.dvf]=t.value};
   body.onclick=e=>{const a=e.target.closest("[data-dvall]");if(!a)return;const real=pkReal();fotos.forEach(f=>{if(!f.lec||f.lec.pk===real)return;sel.fotos[f.n]=a.dataset.dvall==="pk"&&!(f.lec.pk&&f.lec.box)?(f.lec.pk?"re":"igual"):a.dataset.dvall});pinta()};
-  $("dvSi").onclick=()=>fin({...sel,pkReal:pkReal()});$("dvIgual").onclick=()=>fin({datos:{},fotos:{},pkReal:pkReal()});$("dvNo").onclick=()=>fin(null)})}
+  $("dvSi").onclick=()=>fin({...sel,pkReal:pkReal()});$("dvIgual").onclick=()=>fin({datos:{},fotos:{},fuera:Object.fromEntries(fuera.map((f,k)=>[k,"igual"])),pkReal:pkReal()});$("dvNo").onclick=()=>fin(null)})}
 async function borrarEstampe(blob){const bm=await createImageBitmap(blob);const K=Math.min(1,2000/Math.max(bm.width,bm.height));const W=Math.round(bm.width*K),H=Math.round(bm.height*K);
   const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");g.drawImage(bm,0,0,W,H);bm.close?.();
   const y0=Math.floor(H*0.55),img=g.getImageData(0,y0,W,H-y0),d=img.data,h=H-y0;const br=(x,y)=>{const q=(y*W+x)*4;return Math.min(d[q],d[q+1],d[q+2])};
@@ -2865,7 +2868,9 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
       ajustarLecturas(fotosR);
       const difs=pq?difsDatosExt(pq):[];const conLec=fotosR.filter(f=>f.lec);
       let dec={datos:{},fotos:{}};
-      if(difs.length||conLec.some(f=>f.lec.pk!==(pkNorm(puntoForm().pk)||puntoForm().pk))){dec=await revisionExt(difs,conLec);if(!dec){b.disabled=false;b.textContent="Agregar hojas marcadas";fotosR.filter(f=>f.key).forEach(f=>URL.revokeObjectURL(f.url));return}}
+      const fuera=pq?fotosFueraArea(pq):[];fuera.forEach(f=>f.url=URL.createObjectURL(new Blob([deB64(pq.media[f.key])],{type:/png$/i.test(f.key)?"image/png":"image/jpeg"})));
+      const urlsF=()=>fuera.forEach(f=>URL.revokeObjectURL(f.url));const enFuera=new Set(fuera.map(f=>f.key));
+      if(difs.length||fuera.length||conLec.filter(f=>!enFuera.has(f.key)).some(f=>f.lec.pk!==(pkNorm(puntoForm().pk)||puntoForm().pk))){dec=await revisionExt(difs,conLec.filter(f=>!enFuera.has(f.key)),undefined,undefined,fuera);urlsF();if(!dec){b.disabled=false;b.textContent="Agregar hojas marcadas";fotosR.filter(f=>f.key).forEach(f=>URL.revokeObjectURL(f.url));return}}
       // datos escogidos como reales
       for(const[k,v]of Object.entries(dec.datos||{})){const c=DV_CAMPOS.find(x=>x[0]===k);const el=c&&$(c[2]);if(el&&v!=null&&el.value.trim()!==v){el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}));el.dispatchEvent(new Event("change",{bubbles:true}));msg.push(`${c[1]} cambiado a ${v}`)}}
       // fotos
@@ -2873,6 +2878,7 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
         if(a==="pk"&&f.lec.box){const nb=await cambiarPKFoto(f.blob,f.lec,dec.pkReal);if(!nb)continue;nPk++;const by=new Uint8Array(await nb.arrayBuffer());if(f.anx){f.anx.bytes=by;f.anx.type="image/jpeg"}else pq.media[f.key]=aB64(by)}
         else if(a==="re"){if(f.anx){f.anx.fix=true;nRe++}else{const nb=await reestamparBytes(f.blob);if(nb){pq.media[f.key]=aB64(new Uint8Array(await nb.arrayBuffer()));nRe++}}}}
       if(nPk||nRe)msg.push(`${nPk?`${nPk} ${nPk===1?"foto":"fotos"} con el PK cambiado`:""}${nPk&&nRe?" y ":""}${nRe?`${nRe} reestampada${nRe===1?"":"s"}`:""}`);
+      if(fuera.length){const nF=await aplicarFuera(pq,fuera,dec.fuera,async(by,key)=>{const arr=puntoF.fotos?.ANX||[];let j=0;while(arr[j]?.id)j++;await subirFoto({i:"P",k:"ANX",j},new File([by],key,{type:/png$/i.test(key)?"image/png":"image/jpeg"}),{noStamp:true})});msg.push("fotos fuera del área: "+fueraTxt(nF))}
       if(!ocrOk)msg.push("no pude leer los estampes de las fotos (el lector de texto solo funciona en la app instalada)");
       fotosR.filter(f=>f.key).forEach(f=>URL.revokeObjectURL(f.url));
       // anexo fotográfico: sus fotos pasan al anexo de la app (con su leyenda), no como hoja aparte
@@ -2886,7 +2892,7 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
       let avisos=[];
       if(sel.length){try{avisos=(await desviaciones({...puntoForm(),repsExt:[]},[{pq,archivo:extSel.archivo}])).filter(x=>/Hoja|PT:|MT:|PAUT:/.test(x))}catch(err){}
         if(difs.length)avisos=avisos.filter(x=>!/: (informe|PK|diámetro|espesor[^«]*|material) (dice )?«/.test(x));const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
-        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,fotosRev:ocrOk,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
+        const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,fotosRev:ocrOk,areaRev:true,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
         const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
       Object.values(extSel.fx||{}).flat().forEach(f=>{try{URL.revokeObjectURL(f.url)}catch(_){}});extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.");
       if(avisos.length)avisoLista("Desviaciones en el reporte del compañero",[...avisos,"La app corrige el encabezado, los nombres que solo cambian de forma (A1L1 → A1 L1) y el esquema. Lo demás, coordínalo con el compañero."],"Entendido",null)}
@@ -3798,15 +3804,16 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<externalReferences>[\s\S]*?<\/externalReferences>/,"").replace(/<definedName [^>]*>[^<]*\[\d+\][^<]*<\/definedName>/g,"").replace(/<definedName [^>]*>[^<]*#REF![^<]*<\/definedName>/g,"").replace(/<definedNames>\s*<\/definedNames>/,"").replace(/<calcPr ([^>]*?)\/>/,(m,a)=>`<calcPr ${a.replace(/\s*fullCalcOnLoad="[^"]*"/,"")}/>`);
     const wr=nuevas["xl/_rels/workbook.xml.rels"]??rels;nuevas["xl/_rels/workbook.xml.rels"]=wr.replace(/<Relationship [^>]*(externalLink|calcChain)[^>]*\/>/g,"");
     nuevas["[Content_Types].xml"]=nuevas["[Content_Types].xml"].replace(/<Override PartName="\/xl\/(externalLinks\/[^"]+|calcChain\.xml)"[^>]*\/>/g,"")}
-  // Todo lo que queda fuera del área de impresión se oculta (filas debajo y columnas a la derecha) y se quitan los saltos de página de más, en cada hoja visible.
+  // Todas las hojas en tamaño CARTA. En las visibles, lo que queda fuera del área de impresión se oculta (filas debajo y columnas a la derecha) y se quitan los saltos de página de más.
   // Así la hoja se imprime bien aunque Excel, otro programa o una copia de la hoja pierdan el área de impresión.
-  if(modo==="final"||modo==="borrador"){const T_=async n=>nuevas[n]??(E[n]?await txt(n):"");const wbF=await T_("xl/workbook.xml"),wrF=nuevas["xl/_rels/workbook.xml.rels"]??rels;
+  {const T_=async n=>nuevas[n]??(E[n]?await txt(n):"");const wbF=await T_("xl/workbook.xml"),wrF=nuevas["xl/_rels/workbook.xml.rels"]??rels;
     const colN_=l=>[...l].reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0);
-    for(const [i,m] of [...wbF.matchAll(/<sheet ([^>]*)\/>/g)].entries()){const at=m[1];if(/state="(hidden|veryHidden)"/.test(at))continue;
+    for(const [i,m] of [...wbF.matchAll(/<sheet ([^>]*)\/>/g)].entries()){const at=m[1],oculta=/state="(hidden|veryHidden)"/.test(at);
       const pa=(wbF.match(new RegExp(`<definedName name="_xlnm.Print_Area" localSheetId="${i}"[^>]*>([^<]*)</definedName>`))||[])[1];if(!pa)continue;
       const mm=pa.match(/!\$([A-Z]+)\$\d+:\$([A-Z]+)\$(\d+)\s*$/);if(!mm)continue;const cFin=colN_(mm[2]),rFin=+mm[3];
       const rid=(at.match(/r:id="([^"]+)"/)||[])[1],tg=(wrF.match(new RegExp(`<Relationship [^>]*Id="${rid}"[^>]*>`))||[""])[0].match(/Target="([^"]+)"/)?.[1];if(!tg)continue;
       const path=tg.startsWith("/")?tg.slice(1):"xl/"+tg.replace(/^\.?\//,"");let x=await T_(path);if(!x)continue;
+      if(!oculta){
       // filas: las que existen debajo del área se ocultan y se agregan ocultas las que falten hasta donde llegan los dibujos
       const filas=[...x.matchAll(/<row r="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g)];const hay=new Set(filas.map(f=>+f[1]));const ult=Math.max(rFin,...hay);
       let hasta=ult;{const dr=x.match(/<drawing r:id="([^"]+)"/);if(dr){const rp=path.replace(/worksheets\/([^/]+)$/,"worksheets/_rels/$1.rels"),rx=await T_(rp);const dt=(rx.match(new RegExp(`Id="${dr[1]}"[^>]*Target="([^"]+)"`))||rx.match(new RegExp(`Target="([^"]+)"[^>]*Id="${dr[1]}"`))||[])[1];
@@ -3817,6 +3824,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         x=x.replace(/<sheetData>[\s\S]*<\/sheetData>|<sheetData\/>/,`<sheetData>${todas.map(t=>t[1]).join("")}</sheetData>`)}
       // saltos de página manuales que caen fuera del área (sin área harían páginas con solo el encabezado)
       x=x.replace(/<rowBreaks[^>]*>([\s\S]*?)<\/rowBreaks>/,(t,b_)=>{const bs=[...b_.matchAll(/<brk [^>]*?\/>/g)].map(q=>q[0]).filter(q=>+(q.match(/id="(\d+)"/)||[])[1]<rFin);return bs.length?`<rowBreaks count="${bs.length}" manualBreakCount="${bs.length}">${bs.join("")}</rowBreaks>`:""});
+      }
       // papel tamaño CARTA (el que se usa para imprimir): se ajusta la escala para que cada página quepa entera
       {const pt=(wbF.match(new RegExp(`<definedName name="_xlnm.Print_Titles" localSheetId="${i}"[^>]*>[^<]*?\\$(\\d+)</definedName>`))||[])[1];const tit=+pt||0;
         const dflt=+((x.match(/defaultRowHeight="([\d.]+)"/)||[])[1]||15),alto={};for(const q of x.matchAll(/<row r="(\d+)"([^>]*?)\/?>/g)){const h_=(q[2].match(/\bht="([\d.]+)"/)||[])[1];alto[+q[1]]=/hidden="1"/.test(q[2])?0:h_!=null?+h_:dflt}
@@ -3826,12 +3834,21 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         let ps=x.match(/<pageSetup[^>]*\/?>/)?.[0];const escA=+((ps||"").match(/\bscale="(\d+)"/)||[])[1]||100;const esc=Math.max(10,Math.min(escA,Math.floor(disp*0.94/Math.max(...alturas,1)*100)));
         if(ps){let n_=ps.replace(/\s*paperSize="\d+"/,"").replace(/\s*scale="\d+"/,"").replace(/<pageSetup/,`<pageSetup paperSize="1" scale="${esc}"`);x=x.replace(ps,n_)}
         else x=x.replace(/(<pageMargins[^>]*\/>)/,`$1<pageSetup paperSize="1" scale="${esc}" orientation="portrait"/>`)}
+      if(!oculta){
       // columnas a la derecha del área
-      const ocultaCols=cs=>{const out=[];for(const c of cs.matchAll(/<col ([^>]*?)\/>/g)){const a=c[1],mn=+(a.match(/min="(\d+)"/)||[])[1],mx=+(a.match(/max="(\d+)"/)||[])[1];
-          if(mx<=cFin)out.push(c[0]);else if(mn>cFin)out.push(`<col ${a.replace(/\s*hidden="[^"]*"/,"")} hidden="1"/>`);else{out.push(`<col ${a.replace(/max="\d+"/,`max="${cFin}"`)}/>`);out.push(`<col ${a.replace(/min="\d+"/,`min="${cFin+1}"`).replace(/\s*hidden="[^"]*"/,"")} hidden="1"/>`)}}
-        const maxC=Math.max(0,...[...cs.matchAll(/max="(\d+)"/g)].map(q=>+q[1]));if(maxC<16384)out.push(`<col min="${Math.max(cFin+1,maxC+1)}" max="16384" width="9.140625" hidden="1" customWidth="1"/>`);return out.join("")};
+      const ocultaCols=cs=>{// la columna siguiente al área queda visible y angosta para que el borde derecho del formato salga al imprimir
+          const borde=cFin+1,out=[],put=(mn,mx,a,h)=>{if(mn<=mx)out.push([mn,`<col min="${mn}" max="${mx}"${a?" "+a.trim():""}${h?' hidden="1"':""}/>`])};let maxC=0;
+          for(const c of cs.matchAll(/<col ([^>]*?)\/>/g)){const a=c[1],mn=+(a.match(/min="(\d+)"/)||[])[1],mx=+(a.match(/max="(\d+)"/)||[])[1],h0=/hidden="1"/.test(a),at_=a.replace(/\s*(min|max|hidden)="[^"]*"/g,"");maxC=Math.max(maxC,mx);
+            put(mn,Math.min(mx,cFin),at_,h0);put(Math.max(mn,borde+1),mx,at_,true)}
+          out.push([borde,`<col min="${borde}" max="${borde}" width="0.7109375" customWidth="1"/>`]);if(maxC<16384)put(Math.max(borde+1,maxC+1),16384,'width="9.140625" customWidth="1"',true);
+          return out.sort((p,q)=>p[0]-q[0]).map(p=>p[1]).join("")};
       if(/<cols>[\s\S]*?<\/cols>/.test(x))x=x.replace(/<cols>([\s\S]*?)<\/cols>/,(t,cs)=>`<cols>${ocultaCols(cs)}</cols>`);else x=x.replace(/<sheetData/,`<cols>${ocultaCols("")}</cols><sheetData`);
-      nuevas[path]=x}}
+      }
+      if(!oculta){const nl=n_=>{let t="";n_++;while(n_>0){const r_=(n_-1)%26;t=String.fromCharCode(65+r_)+t;n_=Math.floor((n_-1)/26)}return t};const wb_=nuevas["xl/workbook.xml"]??wbF;
+        nuevas["xl/workbook.xml"]=wb_.replace(new RegExp(`(<definedName name="_xlnm.Print_Area" localSheetId="${i}"[^>]*>[^<]*?:\\$)${mm[2]}(\\$\\d+\\s*</definedName>)`),`$1${nl(cFin)}$2`)}
+      nuevas[path]=x}
+    // las hojas sin área de impresión también quedan en carta
+    for(const n of [...new Set([...ents.map(e=>e.name),...Object.keys(nuevas)])].filter(n=>/^xl\/worksheets\/[^/]+\.xml$/.test(n))){const x=await T_(n);if(/paperSize="(?!1")\d+"/.test(x))nuevas[n]=x.replace(/paperSize="\d+"/,'paperSize="1"')}}
   const enc=new TextEncoder();const salida=ents.filter(e=>!((relsAdd.length||archivosQuitar.size)&&e.name==="xl/calcChain.xml")&&!archivosQuitar.has(e.name)).map(e=>nuevas[e.name]!=null?{name:e.name,data:enc.encode(nuevas[e.name])}:{name:e.name,raw:e});
   Object.keys(nuevas).filter(k=>!E[k]).forEach(k=>salida.push({name:k,data:enc.encode(nuevas[k])}));
   medios.forEach(([m,b])=>salida.push({name:"xl/media/"+m,data:b}));medExt.forEach((b,m)=>salida.push({name:"xl/media/"+m,data:b}));
@@ -4234,6 +4251,20 @@ async function accionInforme(r,btn){{const dv=await desviaciones(r).catch(()=>[]
 // --- botones ---
 // guarda en la carpeta "Control de informes" (PC) o descarga normal; devuelve " en …" para el aviso
 async function guardar(filename,data,carpeta){filename=filename.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\w.+()#-]+/g,"_");const r=await downloads.save(LOCAL?{filename,data,carpeta}:{filename,data});return r?.donde?` en ${r.donde}`:""}
+// ---- fotos de las hojas de compañeros que quedan fuera del área de impresión que puso el compañero ----
+function fotosFueraArea(pq){const out=[],cN=l=>[...l].reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0);
+  (pq?.hojas||[]).forEach((hx,hi)=>{if(!hx.dib||!hx.area)return;const m=hx.area.split(",")[0].match(/\$([A-Z]+)\$(\d+):\$([A-Z]+)\$(\d+)/);if(!m)return;const c0=cN(m[1]),r0=+m[2],c1=cN(m[3]),r1=+m[4];
+    for(const a of hx.dib.xml.matchAll(/<xdr:(twoCellAnchor|oneCellAnchor|absoluteAnchor)\b[\s\S]*?<\/xdr:\1>/g)){const em=a[0].match(/r:embed="([^"]+)"/),key=em&&hx.dib.imgs[em[1]];if(!key)continue;
+      if(deB64(pq.media?.[key]||"").length<15000)continue;// logos y figuras pequeñas no cuentan
+      const fc=+(a[0].match(/<xdr:from>[\s\S]*?<xdr:col>(\d+)/)||[])[1],fr=+(a[0].match(/<xdr:from>[\s\S]*?<xdr:row>(\d+)/)||[])[1];if(isNaN(fc)||isNaN(fr))continue;
+      const col=fc+1,row=fr+1;if(row>=r0&&row<=r1&&col>=c0&&col<=c1)continue;out.push({hi,anc:a[0],key,hoja:hx.nombre,fila:row,abajo:col<=c1&&row>r1})}});return out}
+// eliminar / incluir (se amplía el área hasta el final de la página de la foto) / pasar al anexo fotográfico del punto
+async function aplicarFuera(pq,fuera,acc,alAnexo){const n={el:0,in:0,an:0};
+  for(const [k,f] of fuera.entries()){const a=acc?.[k]||"eliminar",hx=pq.hojas[f.hi];if(a==="igual")continue;
+    if(a==="incluir"&&f.abajo){const brk=[...hx.xml.matchAll(/<brk id="(\d+)"/g)].map(q=>+q[1]).sort((x,y)=>x-y);const fin=brk.find(b=>b>=f.fila)||f.fila+48;hx.area=hx.area.replace(/(\$[A-Z]+\$)(\d+)$/,(t,p,v)=>p+Math.max(+v,fin));n.in++;continue}
+    hx.dib.xml=hx.dib.xml.replace(f.anc,"");if(a==="anexo"&&alAnexo){await alAnexo(deB64(pq.media[f.key]),f.key);n.an++}else n.el++}
+  return n}
+const fueraTxt=n=>[n.el?`${n.el} eliminada${n.el===1?"":"s"}`:"",n.an?`${n.an} al anexo fotográfico`:"",n.in?`${n.in} incluida${n.in===1?"":"s"} en el reporte`:""].filter(Boolean).join(", ");
 // ---- corregir un texto cualquiera del estampe (PSS→PGS, un PK, un nombre…) en las fotos que traen el estampe pegado ----
 // (fotos de las hojas de compañeros y fotos pegadas/importadas sin el estampe de la app). Se deja todo lo demás como venía.
 const _ch=c=>({"5":"S","0":"O","1":"I","|":"I","8":"B","6":"G","2":"Z"}[c]||c);
@@ -4297,23 +4328,31 @@ async function corregirEstampes(r,btn){if(!assets||readOnly||!db)return toast("P
   await db.collection("trabajos").doc(r.id).update(patch);if(btn)btn.textContent=t0;
   toast(`Estampe corregido en ${marcadas.length} ${marcadas.length===1?"foto":"fotos"}: «${par.de}» → «${par.a}»`)}
 // revisa con OCR el PK estampado en las fotos de las hojas de compañeros que ya están en el punto y deja corregirlas
-async function revisarFotosExtPunto(r,btn,soloNuevas){if(!assets||readOnly||!db)return null;const L=(r.repsExt||[]).map((e,i)=>({e,i})).filter(({e})=>e?.id&&(!soloNuevas||!e.fotosRev));if(!L.length)return null;
-  const pkPt=pkNorm(r.pk)||r.pk;const fotos=[],pqs={},t0=btn?.textContent;
-  try{for(const{e,i}of L){const pq=JSON.parse(await (await blobFoto(e.id)).text());pqs[i]=pq;const usadas=new Map();(pq.hojas||[]).forEach(hx=>Object.values(hx.dib?.imgs||{}).forEach(key=>{if(!usadas.has(key))usadas.set(key,hx.nombre)}));
+async function revisarFotosExtPunto(r,btn,soloNuevas){if(!assets||readOnly||!db)return null;const L=(r.repsExt||[]).map((e,i)=>({e,i})).filter(({e})=>e?.id&&(!soloNuevas||!e.fotosRev||!e.areaRev));if(!L.length)return null;
+  const pkPt=pkNorm(r.pk)||r.pk;const fotos=[],pqs={},fuera=[],t0=btn?.textContent;
+  try{for(const{e,i}of L){const pq=JSON.parse(await (await blobFoto(e.id)).text());pqs[i]=pq;
+      const fa=(!soloNuevas||!e.areaRev)?fotosFueraArea(pq):[];fa.forEach(f=>{f.i=i;f.url=URL.createObjectURL(new Blob([deB64(pq.media[f.key])],{type:/png$/i.test(f.key)?"image/png":"image/jpeg"}));fuera.push(f)});
+      if(soloNuevas&&e.fotosRev)continue;const enF=new Set(fa.map(f=>f.key)),usadas=new Map();(pq.hojas||[]).forEach(hx=>Object.values(hx.dib?.imgs||{}).forEach(key=>{if(!usadas.has(key)&&!enF.has(key))usadas.set(key,hx.nombre)}));
       for(const[key,hn]of usadas){const by=deB64(pq.media?.[key]||"");if(by.length<15000)continue;const bl=new Blob([by],{type:/png$/i.test(key)?"image/png":"image/jpeg"});fotos.push({n:fotos.length,donde:hn,cap:e.archivo||"",url:URL.createObjectURL(bl),blob:bl,key,i})}}
     let k=0;for(const f of fotos){if(btn)btn.textContent=`Leyendo estampes… ${++k}/${fotos.length}`;f.lec=await leerPKFoto(f.blob)}}
-  catch(err){fotos.forEach(f=>URL.revokeObjectURL(f.url));if(btn)btn.textContent=t0;return null}
-  ajustarLecturas(fotos);const conLec=fotos.filter(f=>f.lec);const toc=new Set();let nPk=0,nRe=0;
-  if(conLec.some(f=>f.lec.pk&&f.lec.pk!==pkPt)){if(btn)btn.textContent=t0;const dec=await revisionExt([],conLec,r.pk,{t:`Fotos de compañeros · ${r.consecutivo||""} PK ${r.pk||""}`,si:"Aplicar",igual:"Dejar todo igual",soloFotos:true});
-    if(!dec){fotos.forEach(f=>URL.revokeObjectURL(f.url));return null}
+  catch(err){fotos.forEach(f=>URL.revokeObjectURL(f.url));fuera.forEach(f=>URL.revokeObjectURL(f.url));if(btn)btn.textContent=t0;return null}
+  ajustarLecturas(fotos);const conLec=fotos.filter(f=>f.lec);const toc=new Set();let nPk=0,nRe=0,nF={el:0,in:0,an:0};const fp=JSON.parse(JSON.stringify(r.fotosPunto||{}));let anx=false;
+  const libres=()=>{fuera.forEach(f=>URL.revokeObjectURL(f.url));fotos.forEach(f=>URL.revokeObjectURL(f.url))};
+  if(fuera.length||conLec.some(f=>f.lec.pk&&f.lec.pk!==pkPt)){if(btn)btn.textContent=t0;
+    const dec=await revisionExt([],conLec,r.pk,{t:`Hojas de compañeros · ${r.consecutivo||""} PK ${r.pk||""}`,si:"Aplicar",igual:"Dejar todo igual",soloFotos:true},fuera);
+    if(!dec){libres();return null}
     for(const f of conLec){const a=dec.fotos?.[f.n];if(!a||a==="igual")continue;if(btn)btn.textContent=`Corrigiendo fotos… ${nPk+nRe+1}`;
       const nb=a==="pk"&&f.lec.box?await cambiarPKFoto(f.blob,f.lec,dec.pkReal):a==="re"?await reestamparBytes(f.blob,r.fecha,r):null;if(!nb)continue;a==="pk"?nPk++:nRe++;
-      pqs[f.i].media[f.key]=aB64(new Uint8Array(await nb.arrayBuffer()));toc.add(f.i)}}
-  fotos.forEach(f=>URL.revokeObjectURL(f.url));
-  const repsExt=(r.repsExt||[]).map(x=>({...x}));for(const{i}of L){if(toc.has(i)){const up=await assets.upload(new Blob([JSON.stringify(pqs[i])],{type:"text/plain"}),{type:"text/plain"});repsExt[i].id=up.id}repsExt[i].fotosRev=true}
-  try{await db.collection("trabajos").doc(r.id).update({repsExt,modificado:Date.now()})}catch(e){}
-  if(btn)btn.textContent=t0;if(nPk||nRe)toast(`Fotos de compañeros: ${nPk?`${nPk} con el PK cambiado`:""}${nPk&&nRe?" y ":""}${nRe?`${nRe} reestampada${nRe===1?"":"s"}`:""}`);
-  return{...r,repsExt}}
+      pqs[f.i].media[f.key]=aB64(new Uint8Array(await nb.arrayBuffer()));toc.add(f.i)}
+    // fotos fuera del área, por paquete
+    for(const i of new Set(fuera.map(f=>f.i))){const fs_=fuera.map((f,k)=>[f,k]).filter(([f])=>f.i===i);const acc=Object.fromEntries(fs_.map(([f,k],n_)=>[n_,dec.fuera?.[k]]));
+      const n_=await aplicarFuera(pqs[i],fs_.map(([f])=>f),acc,async(by,key)=>{const up=await assets.upload(new Blob([by],{type:/png$/i.test(key)?"image/png":"image/jpeg"}),{type:"image/jpeg"});(fp.ANX??=[]);let j=0;while(fp.ANX[j]?.id)j++;fp.ANX[j]={id:up.id,raw:1,noStamp:true,t:Date.now()};anx=true});
+      nF.el+=n_.el;nF.in+=n_.in;nF.an+=n_.an;if(n_.el||n_.in||n_.an)toc.add(i)}}
+  libres();
+  const repsExt=(r.repsExt||[]).map(x=>({...x}));for(const{i}of L){if(toc.has(i)){const up=await assets.upload(new Blob([JSON.stringify(pqs[i])],{type:"text/plain"}),{type:"text/plain"});repsExt[i].id=up.id}repsExt[i].fotosRev=true;repsExt[i].areaRev=true}
+  const patch={repsExt,modificado:Date.now(),...(anx?{fotosPunto:fp}:{})};try{await db.collection("trabajos").doc(r.id).update(patch)}catch(e){}
+  if(btn)btn.textContent=t0;const ms=[nPk?`${nPk} con el PK cambiado`:"",nRe?`${nRe} reestampada${nRe===1?"":"s"}`:"",(nF.el||nF.in||nF.an)?"fuera del área: "+fueraTxt(nF):""].filter(Boolean);if(ms.length)toast("Fotos de compañeros: "+ms.join(" · "));
+  return{...r,...patch}}
 async function accionReporte(r,modo,btn){
   if(modo==="final"||modo==="word"){const r2=await revisarFotosExtPunto(r,btn,true);if(r2)r=r2}
   if(modo==="final"||modo==="valores"){const f=[...revisarPunto(r),...(await desviaciones(r).catch(()=>[]))];if(f.length&&!(await avisoLista(f.some(x=>x.startsWith("⚠"))?"Revisa antes del reporte final":"Faltan datos para el reporte final",f)))return}
