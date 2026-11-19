@@ -2051,7 +2051,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v121";
+const LOCAL=!!window.__LOCAL;const APPV="v122";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3817,6 +3817,15 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         x=x.replace(/<sheetData>[\s\S]*<\/sheetData>|<sheetData\/>/,`<sheetData>${todas.map(t=>t[1]).join("")}</sheetData>`)}
       // saltos de página manuales que caen fuera del área (sin área harían páginas con solo el encabezado)
       x=x.replace(/<rowBreaks[^>]*>([\s\S]*?)<\/rowBreaks>/,(t,b_)=>{const bs=[...b_.matchAll(/<brk [^>]*?\/>/g)].map(q=>q[0]).filter(q=>+(q.match(/id="(\d+)"/)||[])[1]<rFin);return bs.length?`<rowBreaks count="${bs.length}" manualBreakCount="${bs.length}">${bs.join("")}</rowBreaks>`:""});
+      // papel tamaño CARTA (el que se usa para imprimir): se ajusta la escala para que cada página quepa entera
+      {const pt=(wbF.match(new RegExp(`<definedName name="_xlnm.Print_Titles" localSheetId="${i}"[^>]*>[^<]*?\\$(\\d+)</definedName>`))||[])[1];const tit=+pt||0;
+        const dflt=+((x.match(/defaultRowHeight="([\d.]+)"/)||[])[1]||15),alto={};for(const q of x.matchAll(/<row r="(\d+)"([^>]*?)\/?>/g)){const h_=(q[2].match(/\bht="([\d.]+)"/)||[])[1];alto[+q[1]]=/hidden="1"/.test(q[2])?0:h_!=null?+h_:dflt}
+        const hh=(a,b)=>{let t=0;for(let k=a;k<=b;k++)t+=alto[k]??dflt;return t};const br=[...x.matchAll(/<brk id="(\d+)"/g)].map(q=>+q[1]).filter(b=>b<rFin).sort((a,b)=>a-b);
+        const alturas=[0,...br].map((a,k,arr)=>hh(a+1,k<arr.length-1?arr[k+1]:rFin)+(a>0&&tit?hh(1,tit):0));
+        const pm=x.match(/<pageMargins[^>]*>/)?.[0]||"",mg=k=>+((pm.match(new RegExp(`\\b${k}="([\\d.]+)"`))||[])[1]??0.75);const disp=792-(mg("top")+mg("bottom"))*72-2;
+        let ps=x.match(/<pageSetup[^>]*\/?>/)?.[0];const escA=+((ps||"").match(/\bscale="(\d+)"/)||[])[1]||100;const esc=Math.max(10,Math.min(escA,Math.floor(disp*0.94/Math.max(...alturas,1)*100)));
+        if(ps){let n_=ps.replace(/\s*paperSize="\d+"/,"").replace(/\s*scale="\d+"/,"").replace(/<pageSetup/,`<pageSetup paperSize="1" scale="${esc}"`);x=x.replace(ps,n_)}
+        else x=x.replace(/(<pageMargins[^>]*\/>)/,`$1<pageSetup paperSize="1" scale="${esc}" orientation="portrait"/>`)}
       // columnas a la derecha del área
       const ocultaCols=cs=>{const out=[];for(const c of cs.matchAll(/<col ([^>]*?)\/>/g)){const a=c[1],mn=+(a.match(/min="(\d+)"/)||[])[1],mx=+(a.match(/max="(\d+)"/)||[])[1];
           if(mx<=cFin)out.push(c[0]);else if(mn>cFin)out.push(`<col ${a.replace(/\s*hidden="[^"]*"/,"")} hidden="1"/>`);else{out.push(`<col ${a.replace(/max="\d+"/,`max="${cFin}"`)}/>`);out.push(`<col ${a.replace(/min="\d+"/,`min="${cFin+1}"`).replace(/\s*hidden="[^"]*"/,"")} hidden="1"/>`)}}
