@@ -2051,7 +2051,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v120";
+const LOCAL=!!window.__LOCAL;const APPV="v121";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3798,6 +3798,31 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     nuevas["xl/workbook.xml"]=nuevas["xl/workbook.xml"].replace(/<externalReferences>[\s\S]*?<\/externalReferences>/,"").replace(/<definedName [^>]*>[^<]*\[\d+\][^<]*<\/definedName>/g,"").replace(/<definedName [^>]*>[^<]*#REF![^<]*<\/definedName>/g,"").replace(/<definedNames>\s*<\/definedNames>/,"").replace(/<calcPr ([^>]*?)\/>/,(m,a)=>`<calcPr ${a.replace(/\s*fullCalcOnLoad="[^"]*"/,"")}/>`);
     const wr=nuevas["xl/_rels/workbook.xml.rels"]??rels;nuevas["xl/_rels/workbook.xml.rels"]=wr.replace(/<Relationship [^>]*(externalLink|calcChain)[^>]*\/>/g,"");
     nuevas["[Content_Types].xml"]=nuevas["[Content_Types].xml"].replace(/<Override PartName="\/xl\/(externalLinks\/[^"]+|calcChain\.xml)"[^>]*\/>/g,"")}
+  // Todo lo que queda fuera del área de impresión se oculta (filas debajo y columnas a la derecha) y se quitan los saltos de página de más, en cada hoja visible.
+  // Así la hoja se imprime bien aunque Excel, otro programa o una copia de la hoja pierdan el área de impresión.
+  if(modo==="final"||modo==="borrador"){const T_=async n=>nuevas[n]??(E[n]?await txt(n):"");const wbF=await T_("xl/workbook.xml"),wrF=nuevas["xl/_rels/workbook.xml.rels"]??rels;
+    const colN_=l=>[...l].reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0);
+    for(const [i,m] of [...wbF.matchAll(/<sheet ([^>]*)\/>/g)].entries()){const at=m[1];if(/state="(hidden|veryHidden)"/.test(at))continue;
+      const pa=(wbF.match(new RegExp(`<definedName name="_xlnm.Print_Area" localSheetId="${i}"[^>]*>([^<]*)</definedName>`))||[])[1];if(!pa)continue;
+      const mm=pa.match(/!\$([A-Z]+)\$\d+:\$([A-Z]+)\$(\d+)\s*$/);if(!mm)continue;const cFin=colN_(mm[2]),rFin=+mm[3];
+      const rid=(at.match(/r:id="([^"]+)"/)||[])[1],tg=(wrF.match(new RegExp(`<Relationship [^>]*Id="${rid}"[^>]*>`))||[""])[0].match(/Target="([^"]+)"/)?.[1];if(!tg)continue;
+      const path=tg.startsWith("/")?tg.slice(1):"xl/"+tg.replace(/^\.?\//,"");let x=await T_(path);if(!x)continue;
+      // filas: las que existen debajo del área se ocultan y se agregan ocultas las que falten hasta donde llegan los dibujos
+      const filas=[...x.matchAll(/<row r="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g)];const hay=new Set(filas.map(f=>+f[1]));const ult=Math.max(rFin,...hay);
+      let hasta=ult;{const dr=x.match(/<drawing r:id="([^"]+)"/);if(dr){const rp=path.replace(/worksheets\/([^/]+)$/,"worksheets/_rels/$1.rels"),rx=await T_(rp);const dt=(rx.match(new RegExp(`Id="${dr[1]}"[^>]*Target="([^"]+)"`))||rx.match(new RegExp(`Target="([^"]+)"[^>]*Id="${dr[1]}"`))||[])[1];
+        if(dt){const dp=dt.startsWith("/")?dt.slice(1):"xl/"+dt.replace(/^\.\.\//,"");const dx=await T_(dp);for(const r_ of dx.matchAll(/<xdr:(?:from|to)>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>/g))hasta=Math.max(hasta,+r_[1]+1)}}}
+      x=x.replace(/<row r="(\d+)"([^>]*?)(\/?)>/g,(t,r_,a,c)=>+r_>rFin?`<row r="${r_}"${a.replace(/\s*hidden="[^"]*"/,"")} hidden="1"${c}>`:t);
+      const faltan=[];for(let r_=rFin+1;r_<=Math.min(hasta,rFin+600);r_++)if(!hay.has(r_))faltan.push(r_);
+      if(faltan.length){const todas=[...x.matchAll(/<row r="(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/row>)/g)].map(f=>[+f[1],f[0]]);faltan.forEach(r_=>todas.push([r_,`<row r="${r_}" hidden="1"/>`]));todas.sort((a,b)=>a[0]-b[0]);
+        x=x.replace(/<sheetData>[\s\S]*<\/sheetData>|<sheetData\/>/,`<sheetData>${todas.map(t=>t[1]).join("")}</sheetData>`)}
+      // saltos de página manuales que caen fuera del área (sin área harían páginas con solo el encabezado)
+      x=x.replace(/<rowBreaks[^>]*>([\s\S]*?)<\/rowBreaks>/,(t,b_)=>{const bs=[...b_.matchAll(/<brk [^>]*?\/>/g)].map(q=>q[0]).filter(q=>+(q.match(/id="(\d+)"/)||[])[1]<rFin);return bs.length?`<rowBreaks count="${bs.length}" manualBreakCount="${bs.length}">${bs.join("")}</rowBreaks>`:""});
+      // columnas a la derecha del área
+      const ocultaCols=cs=>{const out=[];for(const c of cs.matchAll(/<col ([^>]*?)\/>/g)){const a=c[1],mn=+(a.match(/min="(\d+)"/)||[])[1],mx=+(a.match(/max="(\d+)"/)||[])[1];
+          if(mx<=cFin)out.push(c[0]);else if(mn>cFin)out.push(`<col ${a.replace(/\s*hidden="[^"]*"/,"")} hidden="1"/>`);else{out.push(`<col ${a.replace(/max="\d+"/,`max="${cFin}"`)}/>`);out.push(`<col ${a.replace(/min="\d+"/,`min="${cFin+1}"`).replace(/\s*hidden="[^"]*"/,"")} hidden="1"/>`)}}
+        const maxC=Math.max(0,...[...cs.matchAll(/max="(\d+)"/g)].map(q=>+q[1]));if(maxC<16384)out.push(`<col min="${Math.max(cFin+1,maxC+1)}" max="16384" width="9.140625" hidden="1" customWidth="1"/>`);return out.join("")};
+      if(/<cols>[\s\S]*?<\/cols>/.test(x))x=x.replace(/<cols>([\s\S]*?)<\/cols>/,(t,cs)=>`<cols>${ocultaCols(cs)}</cols>`);else x=x.replace(/<sheetData/,`<cols>${ocultaCols("")}</cols><sheetData`);
+      nuevas[path]=x}}
   const enc=new TextEncoder();const salida=ents.filter(e=>!((relsAdd.length||archivosQuitar.size)&&e.name==="xl/calcChain.xml")&&!archivosQuitar.has(e.name)).map(e=>nuevas[e.name]!=null?{name:e.name,data:enc.encode(nuevas[e.name])}:{name:e.name,raw:e});
   Object.keys(nuevas).filter(k=>!E[k]).forEach(k=>salida.push({name:k,data:enc.encode(nuevas[k])}));
   medios.forEach(([m,b])=>salida.push({name:"xl/media/"+m,data:b}));medExt.forEach((b,m)=>salida.push({name:"xl/media/"+m,data:b}));
