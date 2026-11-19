@@ -219,6 +219,10 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .extf{display:flex;flex-direction:column;gap:4px;border:2px solid var(--line);border-radius:8px;padding:4px;font-size:13px;cursor:pointer;background:var(--bg)}
 .extf.on{border-color:#d97706;background:rgba(217,119,6,.12)}
 .extf img{width:100%;height:96px;object-fit:cover;border-radius:4px;background:#eee}
+.dvrow{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg)}
+.dvrow img{width:150px;height:112px;object-fit:cover;border-radius:4px;background:#eee}
+.dvrow .pkmal{color:var(--bad);font-weight:700}.dvopts{display:flex;flex-wrap:wrap;gap:6px 14px}.dvopts label{display:flex;gap:6px;align-items:center}
+@media (max-width:560px){.dvrow{grid-template-columns:1fr}.dvrow img{width:100%;height:auto;aspect-ratio:4/3}}
 .extf small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #pad{width:100%;height:auto;aspect-ratio:900/360;background:#fff;border:1px solid var(--line);border-radius:6px;touch-action:none}
 .row-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
@@ -505,6 +509,12 @@ fieldset,.items,.itcard,.itcard .f,.fgrp,.fotobox,.repslot,#repBox,#drawWrap,.dr
   <div class="catbox"><div class="cathead"><h2 id="revT">Faltan datos para el reporte final</h2></div>
     <ul id="revLista" class="note" style="margin:0;padding-left:18px;display:grid;gap:4px"></ul>
     <div class="row-btns"><button class="btn" type="button" id="revNo">Volver a completar</button><button class="btn primary" type="button" id="revSi">Generar igual</button></div>
+  </div>
+</div>
+<div class="catp" id="dvp" hidden role="dialog" aria-modal="true" aria-labelledby="dvT">
+  <div class="catbox" style="max-width:860px"><div class="cathead"><h2 id="dvT">Revisión del reporte del compañero</h2></div>
+    <div id="dvBody" style="display:grid;gap:14px"></div>
+    <div class="row-btns"><button class="btn" type="button" id="dvNo">Cancelar</button><button class="btn" type="button" id="dvIgual">Agregar sin cambios</button><button class="btn primary" type="button" id="dvSi">Aplicar y agregar</button></div>
   </div>
 </div>
 <div class="catp" id="pastep" hidden role="dialog" aria-modal="true" aria-label="Pegar firma">
@@ -2016,7 +2026,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v116";
+const LOCAL=!!window.__LOCAL;const APPV="v117";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2154,6 +2164,93 @@ async function stampLines(file){
     u?`${gms(u.lat,"N","S")}  ${gms(u.lon,"E","W")}`:""].filter(x=>x.trim());
 }
 // borra el estampe que trae una foto (texto claro en la parte de abajo) rellenando con el fondo de alrededor
+// ---- fotos de registros externos: lee el PK estampado (OCR) para detectar desviaciones y corregirlas ----
+const pkNorm=s=>{const m=String(s||"").replace(/[\s.,]+/g,"").replace(/[oO]/g,"0").match(/(\d{1,4})\+(\d{1,3})/);return m?`${+m[1]}+${m[2].padStart(3,"0")}`:""};
+async function leerPKFoto(blob){const bm=await createImageBitmap(blob);const W=bm.width,H=bm.height;if(W<200||H<150)return null;
+  const y0=Math.round(H*0.45),h=H-y0,k=Math.min(4,Math.max(1,1800/W));const w=await ocrWorker();
+  for(const modo of ["blanco","local","claro","oscuro"]){const c=document.createElement("canvas");c.width=Math.round(W*k);c.height=Math.round(h*k);const g=c.getContext("2d",{willReadFrequently:true});g.imageSmoothingQuality="high";g.drawImage(bm,0,y0,W,h,0,0,c.width,c.height);
+    const d=g.getImageData(0,0,c.width,c.height),q=d.data,CW=c.width,CH=c.height;
+    // "local": letra clara sobre fondo claro (arena, metal): se compara cada punto con el promedio de su alrededor
+    let I=null,rr=0;if(modo==="local"){rr=Math.max(4,Math.round(CW*0.015));I=new Float64Array((CW+1)*(CH+1));for(let y=0;y<CH;y++){let fila=0;for(let x=0;x<CW;x++){const i=(y*CW+x)*4;fila+=Math.min(q[i],q[i+1],q[i+2]);I[(y+1)*(CW+1)+x+1]=I[y*(CW+1)+x+1]+fila}}}
+    const media=(x,y)=>{const xa=Math.max(0,x-rr),xb=Math.min(CW,x+rr+1),ya=Math.max(0,y-rr),yb=Math.min(CH,y+rr+1);return(I[yb*(CW+1)+xb]-I[ya*(CW+1)+xb]-I[yb*(CW+1)+xa]+I[ya*(CW+1)+xa])/((xb-xa)*(yb-ya))};
+    for(let i=0,p=0;i<q.length;i+=4,p++){const r=q[i],gg=q[i+1],b=q[i+2],mn=Math.min(r,gg,b),mx=Math.max(r,gg,b);
+      const t=modo==="blanco"?(mn>175&&mx-mn<60):modo==="local"?(mn>140&&mx-mn<70&&mn-media(p%CW,(p/CW)|0)>16):modo==="claro"?(mn>215):(r+gg+b)/3<80;q[i]=q[i+1]=q[i+2]=t?0:255}
+    g.putImageData(d,0,0);let data;try{data=(await w.recognize(c)).data}catch(e){continue}const ws=data.words||[];
+    for(let i=0;i<ws.length;i++){const t=ws[i].text||"",m=t.match(/(\d{1,4})\s*\+\s*(\d{3})/);if(!m)continue;
+      const prev=ws[i-1]?.text||"";if(!/PK/i.test(t)&&!/PK|K$/i.test(prev))continue;
+      // caja solo del número (sin "PK")
+      let b=ws[i].bbox;const ss=(ws[i].symbols||[]),tNS=t.replace(/\s+/g,""),mNS=m[0].replace(/\s+/g,""),ix=tNS.indexOf(mNS),sy=(ss.length===tNS.length&&ix>=0?ss.slice(ix,ix+mNS.length):ss.filter(z=>/[\d+]/.test(z.text)));if(sy.length){const an=sy.map(z=>z.bbox.x1-z.bbox.x0).sort((p_,q_)=>p_-q_),mw=an[an.length>>1]||1;/* una letra con caja muy ancha (ruido) se recorta al ancho normal */b={x0:Math.min(...sy.map(z=>z.bbox.x0)),y0:Math.min(...sy.map(z=>z.bbox.y0)),x1:Math.max(...sy.map(z=>Math.min(z.bbox.x1,z.bbox.x0+mw*1.4))),y1:Math.max(...sy.map(z=>z.bbox.y1))}}
+      return{pk:pkNorm(m[0]),leido:m[0].replace(/\s+/g,""),oscuro:modo==="oscuro",box:{x:b.x0/k,y:y0+b.y0/k,w:(b.x1-b.x0)/k,h:(b.y1-b.y0)/k},W,H}}}
+  return{pk:"",W,H}}
+// cambia solo el texto del PK en la foto (deja la fecha, las coordenadas y el resto del estampe como venía)
+async function cambiarPKFoto(blob,lec,nuevo){const bm=await createImageBitmap(blob);const c=document.createElement("canvas");c.width=bm.width;c.height=bm.height;const g=c.getContext("2d",{willReadFrequently:true});g.drawImage(bm,0,0);
+  let b=lec.box;if(b.h>b.w/3.2)b={...b,y:b.y+b.h-b.w/5,h:b.w/5};// caja muy alta para un número de 7 caracteres: se ajusta a la línea de base
+  const pad=Math.max(2,Math.round(b.h*0.35));const x0=Math.max(0,Math.floor(b.x-pad)),y0=Math.max(0,Math.floor(b.y-pad)),x1=Math.min(c.width-1,Math.ceil(b.x+b.w+pad)),y1=Math.min(c.height-1,Math.ceil(b.y+b.h+pad));
+  const w=x1-x0+1,h=y1-y0+1,D=g.getImageData(x0,y0,w,h),q=D.data,lum=i=>(q[i]+q[i+1]+q[i+2])/3;
+  // fondo = mediana del borde; letra = lo que se aparta del fondo (incluye su sombra)
+  const borde=[];for(let x=0;x<w;x++){borde.push(lum(x*4),lum(((h-1)*w+x)*4))}for(let y=0;y<h;y++){borde.push(lum(y*w*4),lum((y*w+w-1)*4))}borde.sort((a_,b_)=>a_-b_);const med=borde[borde.length>>1];
+  const bx0=Math.max(0,Math.round(b.x-x0)),by0=Math.max(0,Math.round(b.y-y0)),bx1=Math.min(w-1,Math.round(b.x+b.w-x0)),by1=Math.min(h-1,Math.round(b.y+b.h-y0));const den=[];
+  for(let y=by0;y<=by1;y++)for(let x=bx0;x<=bx1;x++){const i=(y*w+x)*4;den.push([lum(i),i])}den.sort((a_,b_)=>b_[0]-a_[0]);
+  // texto claro (blanco/amarillo, lo normal) u oscuro
+  const claro=den[Math.min(den.length-1,Math.round(den.length*0.05))][0]>Math.max(170,med+25);
+  const nS=Math.max(4,Math.round(den.length*0.07)),sel=claro?den.slice(0,nS):den.slice(-nS);const col=[0,1,2].map(ch=>Math.round(sel.reduce((s_,[,i])=>s_+q[i+ch],0)/sel.length));
+  const lt=sel.reduce((s_,[v])=>s_+v,0)/sel.length,tinta=den.filter(([v])=>claro?v>(med+lt)/2:v<(med+lt)/2).length/den.length;
+  // máscara: la letra vieja y su sombra, solo alrededor de la caja del número
+  const M=new Uint8Array(w*h);for(let y=Math.max(1,by0-2);y<=Math.min(h-2,by1+2);y++)for(let x=Math.max(1,bx0-1);x<=Math.min(w-2,bx1+1);x++){const i=y*w+x;if(Math.abs(lum(i*4)-med)>26)M[i]=1}
+  {const M2=M.slice();for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++)if(M[y*w+x])for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)M2[(y+dy)*w+x+dx]=1;M.set(M2);for(let x=0;x<w;x++){M[x]=0;M[(h-1)*w+x]=0}for(let y=0;y<h;y++){M[y*w]=0;M[y*w+w-1]=0}}
+  // se rellena de afuera hacia adentro con el fondo vecino (conserva la textura de alrededor)
+  for(let it=0;it<300;it++){const fill=[];for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;if(!M[i])continue;let n=0,r=0,gg=0,bb=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const j=i+dy*w+dx;if(j!==i&&!M[j]){n++;r+=q[j*4];gg+=q[j*4+1];bb+=q[j*4+2]}}if(n>=2)fill.push([i,r/n,gg/n,bb/n])}
+    if(!fill.length)break;for(const[i,r,gg,bb]of fill){q[i*4]=r;q[i*4+1]=gg;q[i*4+2]=bb;M[i]=0}}
+  g.putImageData(D,x0,y0);
+  // número nuevo: misma altura, mismo ancho y mismo color que el que había
+  const fam='"Roboto Condensed","Arial Narrow",Arial,Helvetica,sans-serif',peso=tinta>0.42?"bold ":"";let fs=b.h*1.4;g.font=`${peso}${fs}px ${fam}`;const asc=g.measureText("0").actualBoundingBoxAscent||fs*0.72;fs=fs*b.h/asc;g.font=`${peso}${fs}px ${fam}`;
+  const tw=g.measureText(nuevo).width,sx=Math.max(0.55,Math.min(1.8,b.w/tw));
+  g.save();g.translate(b.x,b.y+b.h);g.scale(sx,1);g.fillStyle=`rgb(${col.join(",")})`;
+  if(claro){g.shadowColor="rgba(0,0,0,.55)";g.shadowBlur=Math.max(1,b.h*0.1);g.shadowOffsetX=g.shadowOffsetY=Math.max(0.6,b.h*0.05)}
+  g.fillText(nuevo,0,0);g.restore();
+  return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.93))}
+// reestampa completo una foto embebida en una hoja del compañero (se quita su estampe y se pone el de la app con los datos del formulario)
+async function reestamparBytes(blob,fi){const nb=await borrarEstampe(blob).catch(()=>null);if(!nb)return null;const bm=await createImageBitmap(nb);const c=document.createElement("canvas");c.width=bm.width;c.height=bm.height;const g=c.getContext("2d");g.drawImage(bm,0,0);
+  const est=stampFor({fi},"campo",null,fi||$("iFecha").value);if(est)estampar(g,c.width,c.height,est);return await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.92))}
+// datos del encabezado del compañero que no coinciden con el punto, para escoger el real
+const DV_CAMPOS=[["informe","Informe N° (consecutivo)","iCons",0],["pk","PK","iPk",0],["diam","Diámetro (in)","iDiam",1],["espL","Espesor nominal de la línea","iNom",1],["espP","Espesor de la camisa / parte","iEsp",1],["mat","Material","iMat",0]];
+function difsDatosExt(pq){const pf=puntoForm(),out=[];
+  for(const[k,lab,inp,numerico]of DV_CAMPOS){const ap=k==="informe"?pf.consecutivo:k==="pk"?pf.pk:$(inp)?.value?.trim()||"";const vals=new Map();
+    for(const h of pq?.hojas||[]){const c={...auditCab(h.xml||""),...(h.cabO||{})};let v=c[k];if(v==null||v===""||v==="-")continue;v=String(v).trim();
+      if(k==="espP"&&["ZS","MTZS","ANX","?"].includes(_tipoHojaExt(h.nombre||"")))continue;
+      const igual=numerico?Math.abs((_numX(v)??NaN)-(_numX(ap)??NaN))<0.002:k==="pk"?pkNorm(v)===pkNorm(ap)||_nrmId(v)===_nrmId(ap):_nrmId(v).includes(_nrmId(ap))&&_nrmId(ap)!=="";
+      if(igual)continue;const key=numerico?String(_numX(v)):k==="pk"?pkNorm(v)||v:v;if(!vals.has(key))vals.set(key,{v:numerico&&_numX(v)!=null?String(+_numX(v).toFixed(4)):k==="pk"&&pkNorm(v)?pkNorm(v):v,hojas:[]});vals.get(key).hojas.push(h.nombre)}
+    if(vals.size)out.push({k,lab,inp,ap,ext:[...vals.values()]})}
+  return out}
+// pantalla de revisión: escoger el dato real y cómo corregir cada foto con el PK distinto
+function revisionExt(difs,fotos){return new Promise(ok=>{const dv=$("dvp"),body=$("dvBody");const sel={datos:{},fotos:{}};
+  // el PK leído en las fotos también es candidato a dato real
+  const pkPt=pkNorm(puntoForm().pk)||puntoForm().pk;const enFotos={};fotos.forEach(f=>{if(f.lec?.pk&&!f.lec.inferido)enFotos[f.lec.pk]=(enFotos[f.lec.pk]||0)+1});
+  let dPk=difs.find(d=>d.k==="pk");const otrosPk=Object.keys(enFotos).filter(p=>p!==pkPt&&!(dPk?.ext||[]).some(e=>e.v===p));
+  if(otrosPk.length){if(!dPk){dPk={k:"pk",lab:"PK",inp:"iPk",ap:puntoForm().pk,ext:[]};difs.unshift(dPk)}otrosPk.forEach(p=>dPk.ext.push({v:p,hojas:[]}))}
+  difs.forEach(d=>sel.datos[d.k]=d.ap);
+  const pkReal=()=>pkNorm(sel.datos.pk??pkPt)||pkPt;
+  const pinta=()=>{const real=pkReal();const malas=fotos.filter(f=>f.lec&&f.lec.pk&&f.lec.pk!==real),sinPk=fotos.filter(f=>f.lec&&!f.lec.pk);
+    malas.forEach(f=>sel.fotos[f.n]??=(f.lec.box?"pk":"re"));fotos.filter(f=>f.lec?.pk===real).forEach(f=>delete sel.fotos[f.n]);sinPk.forEach(f=>sel.fotos[f.n]??="igual");
+    const op=(f,v,t,dis)=>`<label><input type="radio" name="dvf${f.n}" value="${v}" data-dvf="${f.n}"${sel.fotos[f.n]===v?" checked":""}${dis?" disabled":""}> ${t}</label>`;
+    const fila=f=>`<div class="dvrow"><img src="${f.url}" alt=""><div style="display:grid;gap:6px"><span><b>${esc(f.donde)}</b>${f.cap?` · ${esc(f.cap)}`:""}</span>
+      <span>${f.lec.pk?(f.lec.inferido?`No se leyó bien; las otras fotos del mismo registro dicen <span class="pkmal">PK ${esc(f.lec.pk)}</span> en el mismo sitio. El real es <b>PK ${esc(real)}</b>. Revisa la foto antes de cambiarla.`:`El estampe dice <span class="pkmal">PK ${esc(f.lec.leido||f.lec.pk)}</span> y el real es <b>PK ${esc(real)}</b>`):"No se pudo leer el PK del estampe: revísala a ojo"}</span>
+      <div class="dvopts">${f.lec.pk?op(f,"pk",`Cambiar solo el PK a ${esc(real)} (deja fecha y coordenadas)`,!f.lec.box):""}${op(f,"re","Reestampar todo con los datos de la app")}${op(f,"igual","Dejar igual")}</div></div></div>`;
+    let h="";
+    if(difs.length)h+=`<section style="display:grid;gap:8px"><strong>Datos que no coinciden · escoge el dato real</strong>${difs.map(d=>`<div class="calc" style="display:grid;gap:4px"><span class="label">${esc(d.lab)}</span><div class="dvopts">
+      <label><input type="radio" name="dvd_${d.k}" data-dvd="${d.k}" value="${esc(d.ap)}"${sel.datos[d.k]===d.ap?" checked":""}> <b>${esc(d.ap||"(vacío)")}</b> · el del punto</label>
+      ${d.ext.map(e=>`<label><input type="radio" name="dvd_${d.k}" data-dvd="${d.k}" value="${esc(e.v)}"${sel.datos[d.k]===e.v?" checked":""}> <b>${esc(e.v)}</b> · ${e.hojas.length?`del compañero (${esc([...new Set(e.hojas)].slice(0,3).join(", "))}${new Set(e.hojas).size>3?"…":""})`:""}${d.k==="pk"&&enFotos[e.v]?`${e.hojas.length?" y ":""}estampado en ${enFotos[e.v]} ${enFotos[e.v]===1?"foto":"fotos"}`:""}</label>`).join("")}</div></div>`).join("")}
+      <p class="note" style="margin:0">Si escoges el del compañero, se cambia en el punto. Las hojas del compañero toman siempre los datos del punto (Matriz1).</p></section>`;
+    if(malas.length||sinPk.length)h+=`<section style="display:grid;gap:8px"><strong>Fotos con el estampe distinto (${malas.length})${sinPk.length?` · sin PK legible (${sinPk.length})`:""}</strong>
+      <div class="eqrow"><span class="note">Para todas:</span><button type="button" class="btn small ghost" data-dvall="pk">Cambiar solo el PK</button><button type="button" class="btn small ghost" data-dvall="re">Reestampar todo</button><button type="button" class="btn small ghost" data-dvall="igual">Dejar igual</button></div>
+      ${malas.map(fila).join("")}${sinPk.map(fila).join("")}</section>`;
+    else if(fotos.length)h+=`<p class="note">✓ Revisé ${fotos.filter(f=>f.lec).length} fotos: el PK estampado coincide con PK ${esc(real)}.</p>`;
+    body.innerHTML=h};
+  pinta();dv.hidden=false;
+  const fin=v=>{dv.hidden=true;body.onchange=body.onclick=null;$("dvSi").onclick=$("dvNo").onclick=$("dvIgual").onclick=null;ok(v)};
+  body.onchange=e=>{const t=e.target;if(t.dataset.dvd){sel.datos[t.dataset.dvd]=t.value;if(t.dataset.dvd==="pk")pinta()}else if(t.dataset.dvf)sel.fotos[t.dataset.dvf]=t.value};
+  body.onclick=e=>{const a=e.target.closest("[data-dvall]");if(!a)return;const real=pkReal();fotos.forEach(f=>{if(!f.lec||f.lec.pk===real)return;sel.fotos[f.n]=a.dataset.dvall==="pk"&&!(f.lec.pk&&f.lec.box)?(f.lec.pk?"re":"igual"):a.dataset.dvall});pinta()};
+  $("dvSi").onclick=()=>fin({...sel,pkReal:pkReal()});$("dvIgual").onclick=()=>fin({datos:{},fotos:{},pkReal:pkReal()});$("dvNo").onclick=()=>fin(null)})}
 async function borrarEstampe(blob){const bm=await createImageBitmap(blob);const K=Math.min(1,2000/Math.max(bm.width,bm.height));const W=Math.round(bm.width*K),H=Math.round(bm.height*K);
   const c=document.createElement("canvas");c.width=W;c.height=H;const g=c.getContext("2d");g.drawImage(bm,0,0,W,H);bm.close?.();
   const y0=Math.floor(H*0.55),img=g.getImageData(0,y0,W,H-y0),d=img.data,h=H-y0;const br=(x,y)=>{const q=(y*W+x)*4;return Math.min(d[q],d[q+1],d[q+2])};
@@ -2677,7 +2774,7 @@ async function fotosAnexoExt(x,h){const{E,T}=x;let xml=await T(h.file);const sst
     out.push({r0,c0,cap:gen.test(cap)&&cap.length<25?"":cap,bytes,type,fi})}
   return out.sort((p,q)=>p.r0-q.r0||p.c0-q.c0)}
 const esAnexo=n=>/ANEX/i.test(n);
-window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt,stampFor,drawRepair,mbRows,PAL_PNG,juntasDe,migrarIt,bisRows,largoJunta};
+window.__ext={leerExcelExt,paqueteExt,fotosAnexoExt,stampFor,drawRepair,mbRows,PAL_PNG,juntasDe,migrarIt,bisRows,largoJunta,leerPKFoto,cambiarPKFoto};
 function refreshExt(){const b=$("extBox");if(!b||!puntoF)return;const L=puntoF.repsExt||[];
   let h=L.map((e,k)=>`<div class="eqrow" style="justify-content:space-between;margin:4px 0"><span>📄 <b>${esc(e.archivo||"Excel")}</b> · ${esc((e.hojas||[]).join(", "))}</span>${readOnly?"":`<button type="button" class="btn small ghost" data-extdel="${k}">Quitar</button>`}</div>`).join("");
   if(extSel)h+=`<div class="calc"><strong>${esc(extSel.archivo)}: marca las hojas del reporte</strong><div class="picks">${extSel.x.hojas.map((s,k)=>s.oculta||s.nombre==="Matriz1"?"":`<label class="pick"><input type="checkbox" data-exth="${k}"${extSel.selH?.has(k)?" checked":""}><span>${esc(s.nombre)}${esAnexo(s.nombre)?" → fotos al anexo de la app":""}</span></label>`).join("")}</div>
@@ -2703,6 +2800,34 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
   if(e.target.id==="extOk"){const ks=[...extSel.selH].sort((a,b)=>a-b);if(!ks.length){toast("Marca al menos una hoja.");return}
     const b=e.target;b.disabled=true;b.textContent="Guardando…";
     try{const todas=ks.map(k=>extSel.x.hojas[k]),anx=todas.filter(h=>esAnexo(h.nombre)),sel=todas.filter(h=>!esAnexo(h.nombre));let nF=0,msg=[];
+      // revisión: datos del encabezado y PK estampado en las fotos (anexo y fotos dentro de los registros)
+      const pq=sel.length?await paqueteExt(extSel.x,sel,extSel.archivo):null;const fotosR=[];let ocrOk=true,nOcr=0;
+      for(const h of anx){const kh=extSel.x.hojas.indexOf(h);extSel.fx[kh]??=await fotosAnexoExt(extSel.x,h).then(fs_=>{fs_.forEach(f=>{f.fix=false;f.url=URL.createObjectURL(new Blob([f.bytes],{type:f.type}))});return fs_});
+        extSel.fx[kh].forEach(f=>{if(!f.fix)fotosR.push({n:fotosR.length,donde:h.nombre,cap:f.cap,url:f.url,blob:new Blob([f.bytes],{type:f.type}),anx:f})})}
+      if(pq){const usadas=new Map();pq.hojas.forEach(hx=>Object.values(hx.dib?.imgs||{}).forEach(key=>{if(!usadas.has(key))usadas.set(key,hx.nombre)}));
+        for(const[key,hn]of usadas){const by=deB64(pq.media[key]||"");if(by.length<15000)continue;const bl=new Blob([by],{type:/png$/i.test(key)?"image/png":"image/jpeg"});fotosR.push({n:fotosR.length,donde:hn,cap:"",url:URL.createObjectURL(bl),blob:bl,key})}}
+      for(const f of fotosR){b.textContent=`Revisando fotos (OCR)… ${++nOcr}/${fotosR.length}`;try{f.lec=await leerPKFoto(f.blob)}catch(err){ocrOk=false;break}}
+      // cajas de lectura raras (más altas o anchas que las de las otras fotos del mismo tamaño) se igualan a las demás
+      {const gr={};fotosR.filter(f=>f.lec?.box).forEach(f=>(gr[f.lec.W+"x"+f.lec.H]??=[]).push(f));Object.values(gr).filter(g_=>g_.length>=3).forEach(g_=>{const md=a=>a.slice().sort((p_,q_)=>p_-q_)[a.length>>1];
+        const m={x:md(g_.map(o=>o.lec.box.x)),y:md(g_.map(o=>o.lec.box.y)),w:md(g_.map(o=>o.lec.box.w)),h:md(g_.map(o=>o.lec.box.h))};
+        g_.forEach(o=>{const b_=o.lec.box;if(Math.abs(b_.h-m.h)>m.h*0.3||Math.abs(b_.w-m.w)>m.w*0.25||Math.abs(b_.y-m.y)>m.h*0.6)o.lec.box={...m}})})}
+      // fotos donde no se pudo leer: si las otras del mismo tamaño tienen el estampe en el mismo sitio, se toma de ellas
+      fotosR.filter(f=>f.lec&&!f.lec.pk).forEach(f=>{const igual=fotosR.filter(o=>o.lec?.pk&&o.lec.box&&o.lec.W===f.lec.W&&o.lec.H===f.lec.H);if(igual.length<2)return;
+        const md=a=>a.sort((p_,q_)=>p_-q_)[a.length>>1],bx={x:md(igual.map(o=>o.lec.box.x)),y:md(igual.map(o=>o.lec.box.y)),w:md(igual.map(o=>o.lec.box.w)),h:md(igual.map(o=>o.lec.box.h))};
+        if(igual.some(o=>Math.abs(o.lec.box.x-bx.x)>bx.h||Math.abs(o.lec.box.y-bx.y)>bx.h))return;const cu={};igual.forEach(o=>cu[o.lec.pk]=(cu[o.lec.pk]||0)+1);const pk=Object.entries(cu).sort((p_,q_)=>q_[1]-p_[1])[0][0];
+        f.lec={...f.lec,pk,leido:pk,box:bx,inferido:true}});
+      const difs=pq?difsDatosExt(pq):[];const conLec=fotosR.filter(f=>f.lec);
+      let dec={datos:{},fotos:{}};
+      if(difs.length||conLec.some(f=>f.lec.pk!==(pkNorm(puntoForm().pk)||puntoForm().pk))){dec=await revisionExt(difs,conLec);if(!dec){b.disabled=false;b.textContent="Agregar hojas marcadas";fotosR.filter(f=>f.key).forEach(f=>URL.revokeObjectURL(f.url));return}}
+      // datos escogidos como reales
+      for(const[k,v]of Object.entries(dec.datos||{})){const c=DV_CAMPOS.find(x=>x[0]===k);const el=c&&$(c[2]);if(el&&v!=null&&el.value.trim()!==v){el.value=v;el.dispatchEvent(new Event("input",{bubbles:true}));el.dispatchEvent(new Event("change",{bubbles:true}));msg.push(`${c[1]} cambiado a ${v}`)}}
+      // fotos
+      let nPk=0,nRe=0;for(const f of conLec){const a=dec.fotos?.[f.n];if(!a||a==="igual")continue;b.textContent=`Corrigiendo fotos… ${nPk+nRe+1}`;
+        if(a==="pk"&&f.lec.box){const nb=await cambiarPKFoto(f.blob,f.lec,dec.pkReal);if(!nb)continue;nPk++;const by=new Uint8Array(await nb.arrayBuffer());if(f.anx){f.anx.bytes=by;f.anx.type="image/jpeg"}else pq.media[f.key]=aB64(by)}
+        else if(a==="re"){if(f.anx){f.anx.fix=true;nRe++}else{const nb=await reestamparBytes(f.blob);if(nb){pq.media[f.key]=aB64(new Uint8Array(await nb.arrayBuffer()));nRe++}}}}
+      if(nPk||nRe)msg.push(`${nPk?`${nPk} ${nPk===1?"foto":"fotos"} con el PK cambiado`:""}${nPk&&nRe?" y ":""}${nRe?`${nRe} reestampada${nRe===1?"":"s"}`:""}`);
+      if(!ocrOk)msg.push("no pude leer los estampes de las fotos (el lector de texto solo funciona en la app instalada)");
+      fotosR.filter(f=>f.key).forEach(f=>URL.revokeObjectURL(f.url));
       // anexo fotográfico: sus fotos pasan al anexo de la app (con su leyenda), no como hoja aparte
       let nFix=0,nNo=0;
       for(const h of anx){const kh=extSel.x.hojas.indexOf(h);const fs_=extSel.fx[kh]||await fotosAnexoExt(extSel.x,h);const arr=(puntoF.fotos.ANX??=[]);
@@ -2712,7 +2837,8 @@ $("extBox").addEventListener("click",async e=>{const al=e.target.closest("[data-
           const j=arr.findIndex(x=>!x?.id);if(j>=0)arr[j]={...arr[j],...o};else arr.push(o)}}
       if(anx.length){refreshFotos("P");msg.push(`${nF} ${nF===1?"foto pasó":"fotos pasaron"} al anexo fotográfico${nFix?` (${nFix-nNo} con estampe corregido${nNo?`; en ${nNo} no encontré estampe`:""})`:""}`)}
       let avisos=[];
-      if(sel.length){const pq=await paqueteExt(extSel.x,sel,extSel.archivo);try{avisos=(await desviaciones({...puntoForm(),repsExt:[]},[{pq,archivo:extSel.archivo}])).filter(x=>/Hoja|PT:|MT:|PAUT:/.test(x))}catch(err){}const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
+      if(sel.length){try{avisos=(await desviaciones({...puntoForm(),repsExt:[]},[{pq,archivo:extSel.archivo}])).filter(x=>/Hoja|PT:|MT:|PAUT:/.test(x))}catch(err){}
+        if(difs.length)avisos=avisos.filter(x=>!/: (informe|PK|diámetro|espesor[^«]*|material) (dice )?«/.test(x));const blob=new Blob([JSON.stringify(pq)],{type:"text/plain"});
         const r_=await assets.upload(blob,{type:"text/plain"});(puntoF.repsExt??=[]).push({id:r_.id,archivo:extSel.archivo,hojas:sel.map(h=>h.nombre),fechas:[...new Set(pq.hojas.map(h=>fechaHojaExt(h.xml)).filter(Boolean))],inspectores:[...new Set(pq.hojas.map(h=>inspHojaExt(h.xml)).filter(Boolean))],fecha:Date.now()});
         const sinCab=pq.hojas.filter(h=>!h.cab.inf||!h.cab.pk).map(h=>h.nombre);msg.unshift(`${sel.length} ${sel.length===1?"hoja agregada":"hojas agregadas"}`);if(sinCab.length)msg.push(`en ${sinCab.join(", ")} no encontré la casilla de PK o informe N°`)}
       Object.values(extSel.fx||{}).flat().forEach(f=>{try{URL.revokeObjectURL(f.url)}catch(_){}});extSel=null;refreshExt();scheduleDraft();toast(msg.join(" · ")+". Toca Guardar para que quede en el punto.");
