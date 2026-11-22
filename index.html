@@ -70,7 +70,7 @@ if("serviceWorker"in navigator){navigator.serviceWorker.register("./sw.js").catc
   // si la página se abrió "por fuera" del service worker (p. ej. Ctrl+Shift+R), las fotos no cargan: se recarga una vez normal
   navigator.serviceWorker.ready.then(()=>{if(!navigator.serviceWorker.controller&&!sessionStorage.getItem("swr")){sessionStorage.setItem("swr","1");location.reload()}}).catch(()=>{})}
 // respaldo: si una foto no carga por la ruta del service worker, se toma directo del almacenamiento del equipo
-document.addEventListener("error",async e=>{const im=e.target;if(im?.tagName!=="IMG"||im.dataset.fb)return;const m=(im.getAttribute("src")||"").match(/_blob\/([0-9a-f]{32})/);if(!m)return;
+document.addEventListener("error",async e=>{const im=e.target;if(im?.tagName!=="IMG"||im.dataset.fb)return;const m=(im.getAttribute("src")||"").match(/_(?:blob|thumb)\/([0-9a-f]{32})/);if(!m)return;
   im.dataset.fb="1";try{const b=await window.__localDB.getBlob(m[1]);if(b)im.src=URL.createObjectURL(b)}catch(_){}},true);
 })();
 </script>
@@ -2051,11 +2051,13 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v123";
+const LOCAL=!!window.__LOCAL;const APPV="v124";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
 const fotoSrc=id=>(window.__BLOB_BASE||"/_blob/")+id;
+// miniatura para las casillas (en la app instalada): ahorra memoria del teléfono; la foto completa se usa al verla y en los informes
+const fotoMini=id=>window.__LOCAL?"./_thumb/"+id:fotoSrc(id);
 // medidas que se leen de la foto: temperatura de la superficie e intensidad de luz
 // MT fluorescente: la "intensidad de luz" es la de la lámpara UV-A (radiómetro, µW/cm²); PT y MT visibles: luz blanca en lux
 const mtFluor=it=>{const e=equipos.find(x=>x.id===it?.equipos?.MT);return!/visib/i.test(e?.campos?.tipoPart||"")};
@@ -2081,7 +2083,7 @@ function fotosHtml(it,i,only){
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
       const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button><button type="button" class="fbtn" data-fpaste="${gr.k}" data-j="${j}" title="Pega una imagen copiada (por ejemplo de un Excel o de WhatsApp)">📋 Pegar</button></div>`
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
-      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoSrc(s.id))}" alt="" loading="lazy">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
+      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoMini(s.id))}" alt="" loading="lazy" decoding="async">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
       ${s.id&&(!s.raw||s.pegada)&&!readOnly&&assets?`<button type="button" class="fstog off" data-frest="${gr.k}" data-j="${j}" title="Borra el estampe que trae la foto y le pone el de la app con los datos del punto">↻ Re‑estampar</button>`:""}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
       ${s.id&&s.raw&&!s.noStamp?`<label class="ffecha${s.fi?" propia":""}" title="Fecha que sale en el estampe de esta foto"><span>Fecha</span><input type="date" data-ffecha="${gr.k}" data-j="${j}" value="${esc(s.fi||fechaIt(i)||"")}"${readOnly?" disabled":""}></label>`:""}
