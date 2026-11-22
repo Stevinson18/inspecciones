@@ -2051,7 +2051,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v125";
+const LOCAL=!!window.__LOCAL;const APPV="v126";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2786,7 +2786,7 @@ async function paqueteExt(x,sel,archivo){const{E,T,wb}=x;const sst=await T("xl/s
       if(t==="str")return v==null?`<c ${a2}/>`:`<c ${a2} t="inlineStr"><is><t xml:space="preserve">${v}</t></is></c>`;
       if(t==="e")return`<c ${a2}/>`;if(t==="b")return v==null?`<c ${a2}/>`:`<c ${a2} t="b"><v>${v}</v></c>`;
       return v==null||v===""?`<c ${a2}/>`:`<c ${a2}><v>${v}</v></c>`});
-    xml=xml.replace(/<sheetProtection[^>]*\/>|<protectedRanges>[\s\S]*?<\/protectedRanges>|<conditionalFormatting[\s\S]*?<\/conditionalFormatting>|<dataValidations[\s\S]*?<\/dataValidations>|<hyperlinks>[\s\S]*?<\/hyperlinks>|<legacyDrawing[^>]*\/>|<legacyDrawingHF[^>]*\/>|<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>|<extLst>[\s\S]*?<\/extLst>|<picture[^>]*\/>|<oleObjects>[\s\S]*?<\/oleObjects>|<controls>[\s\S]*?<\/controls>|<mc:AlternateContent[\s\S]*?<\/mc:AlternateContent>/g,"").replace(/\s+tabSelected="1"/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1").replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/,"$1");
+    xml=quitarAC(xml).replace(/<sheetProtection[^>]*\/>|<protectedRanges>[\s\S]*?<\/protectedRanges>|<conditionalFormatting[\s\S]*?<\/conditionalFormatting>|<dataValidations[\s\S]*?<\/dataValidations>|<hyperlinks>[\s\S]*?<\/hyperlinks>|<legacyDrawing[^>]*\/>|<legacyDrawingHF[^>]*\/>|<tableParts[\s\S]*?<\/tableParts>|<tableParts[^>]*\/>|<extLst>[\s\S]*?<\/extLst>|<picture[^>]*\/>|<oleObjects>[\s\S]*?<\/oleObjects>|<controls>[\s\S]*?<\/controls>|<mc:AlternateContent[\s\S]*?<\/mc:AlternateContent>/g,"").replace(/\s+tabSelected="1"/,"").replace(/(<pageSetup[^>]*?)\s+r:id="[^"]*"/,"$1").replace(/(<sheetPr\b[^>]*?)\s+codeName="[^"]*"/,"$1");
     let dib=null;const rls=await T(h.file.replace(/([^/]+)$/,"_rels/$1.rels"));const dm=rls.match(/<Relationship [^>]*Type="[^"]*\/drawing"[^>]*\/>/);
     if(dm&&/<drawing /.test(xml)){const dp=res(h.file,dm[0].match(/Target="([^"]+)"/)[1]);let dx=await T(dp);const drl=await T(dp.replace(/([^/]+)$/,"_rels/$1.rels"));const imgs={};
       for(const m of drl.matchAll(/<Relationship [^>]*\/>/g)){const id=m[0].match(/Id="([^"]+)"/)[1],t=m[0].match(/Target="([^"]+)"/)[1];if(/\/image"/.test(m[0])&&!/TargetMode="External"/.test(m[0])){const mp=res(dp,t);if(E[mp]){const key=mp.split("/").pop();if(!media[key])media[key]=aB64(await inflar(E[mp]));imgs[id]=key}}}
@@ -3235,6 +3235,18 @@ const cargarImg=src=>new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok
 async function blobFoto(id){try{const r=await fetch(fotoSrc(id));if(r.ok)return await r.blob()}catch(e){}
   const b=window.__localDB?await window.__localDB.getBlob(id).catch(()=>null):null;if(b)return b;throw new Error("Falta la foto "+id.slice(0,6)+" en este equipo. Toque 🔄 Sincronizar con internet para bajarla.")}
 const aBytes=async b=>new Uint8Array(await b.arrayBuffer());
+// esquemas de la cascota para el Word (1 zona sana, 2 bisel, 3 soldadura): tubo con la cascota encima
+async function esqCascota(k,e){const c=lienzo(e.cx,e.cy,3),g=c.getContext("2d"),W=c.width,H=c.height,u=Math.min(W/900,H/320);g.fillStyle="#fff";g.fillRect(0,0,W,H);
+  const y0=H*0.30,y1=H*0.72,cx=W/2,cy=(y0+y1)/2;const gr=g.createLinearGradient(0,y0,0,y1);gr.addColorStop(0,"#9aa3a8");gr.addColorStop(0.45,"#e4e8ea");gr.addColorStop(1,"#7b868c");
+  g.fillStyle=gr;g.fillRect(W*0.04,y0,W*0.92,y1-y0);g.strokeStyle="#5b656b";g.lineWidth=2*u;g.strokeRect(W*0.04,y0,W*0.92,y1-y0);
+  const rx=W*0.11,ry=(y1-y0)*0.32;const elip=(a,b)=>{g.beginPath();g.ellipse(cx,cy,a,b,0,0,Math.PI*2)};
+  const txt=(t,x,y,al="center",sz=26)=>{g.font=`600 ${sz*u}px Arial`;g.fillStyle="#1d2621";g.textAlign=al;g.textBaseline="middle";g.fillText(t,x,y)};
+  const flecha=(x0,y0_,x1,y1_)=>{g.strokeStyle="#16324a";g.fillStyle="#16324a";g.lineWidth=3*u;g.beginPath();g.moveTo(x0,y0_);g.lineTo(x1,y1_);g.stroke();const an=Math.atan2(y1_-y0_,x1-x0),L=14*u;g.beginPath();g.moveTo(x1,y1_);g.lineTo(x1-L*Math.cos(an-0.4),y1_-L*Math.sin(an-0.4));g.lineTo(x1-L*Math.cos(an+0.4),y1_-L*Math.sin(an+0.4));g.closePath();g.fill()};
+  if(k===1){elip(rx*1.35,ry*1.45);g.fillStyle="rgba(59,111,212,.55)";g.fill();g.strokeStyle="#1f4aa0";g.lineWidth=3*u;g.stroke();elip(rx,ry);g.setLineDash([10*u,7*u]);g.strokeStyle="#1d2621";g.lineWidth=2.5*u;g.stroke();g.setLineDash([]);
+    txt("AS Cascota",cx+rx*1.35+20*u,y0-34*u,"left");flecha(cx+rx*1.35+16*u,y0-26*u,cx+rx*1.05,cy-ry*0.9);txt("Sentido de flujo",W*0.2,cy,"center",22);flecha(W*0.1,cy+22*u,W*0.3,cy+22*u)}
+  else{elip(rx,ry);g.fillStyle=k===2?"#8a8f93":"#c9b48a";g.fill();g.strokeStyle=k===2?"#d0312d":"#3b4248";g.lineWidth=(k===2?4:7)*u;g.stroke();
+    const lab=k===2?"Bisel Cascota":"Cascota (soldadura de filete)";txt(lab,W*0.1,y0-34*u,"left");flecha(W*0.1+g.measureText(lab).width*0.6,y0-22*u,cx-rx*0.85,cy-ry*0.6)}
+  return aBytes(await new Promise(ok=>c.toBlob(ok,"image/png")))}
 function lienzo(cx,cy,esc=3){const c=document.createElement("canvas");c.width=Math.round(cx/9525*esc);c.height=Math.round(cy/9525*esc);return c}
 function encajarEn(g,src,W,H){const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight,k=Math.min(W/w,H/h);g.drawImage(src,(W-w*k)/2,(H-h*k)/2,w*k,h*k)}
 async function fotoRep(f,lugar,an,llenar){
@@ -3648,7 +3660,9 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
   // ---- paginación por reporte (técnica): datos primero, luego fotos; páginas de fotos vacías fuera ----
   // reportes de compañeros: sus hojas entran tal cual (estilos renumerados), junto a las del mismo formato, con PK e informe de este punto
   const extHojas=new Set(),medExt=new Map();let pqN=0;
-  const ordenTipo=n=>{const u=n.toUpperCase();if(u==="MATRIZ1")return 0;if(/ANEX/.test(u))return 999;const h12=/12\s*H|-12\b|1-12|12H/.test(u)?100:0;const f=/^\d+F\.| F\d+$/.test(n)?0.5:0;
+  // reportes independientes de un compañero (p. ej. la cascota): van juntos, primero, en su propio orden, sin cambiar sus datos ni su esquema
+  const indepExt=n=>/CASCOTA|\bCAS(C|CO)?\b/i.test(n);
+  const ordenTipo=n=>{const u=n.toUpperCase();if(u==="MATRIZ1")return 0;if(indepExt(n)){const m=n.match(/^\s*(\d+)(?:[.,](\d+))?/);return 1+(m?(+m[1]+(m[2]?+m[2]/10:0))/100:0.5)}if(/ANEX/.test(u))return 999;const h12=/12\s*H|-12\b|1-12|12H/.test(u)?100:0;const f=/^\d+F\.| F\d+$/.test(n)?0.5:0;
     if(/SC-ZS|SCAN\s*C/.test(u))return 10+f;if(/SCAN\s*A|ESPESOR/.test(u))return 12+f;if(/MT-ZS|METAL\s*BASE|MT-TN/.test(u))return 20+f;if(/BIS/.test(u))return 30+f;
     if(/PAUT/.test(u))return h12+(/CIRC|\bC-|SOLD C|CIRC/.test(u)?60:70)+f;if(/\bPT|PT-|PT\./.test(u))return h12+40+f;if(/\bMT|MT-|MT\./.test(u))return h12+50+f;return 500};
   // ---- reportes de compañeros: un solo origen de datos (Matriz1), la misma nomenclatura de soldaduras y el mismo esquema ----
@@ -3656,7 +3670,8 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
   const valM=k=>{const v=celdas.Matriz1?.[k];return typeof v==="number"||typeof v==="string"?v:null};
   const ligar=(x,ref,k)=>new RegExp(`<c r="${ref}"`).test(x)?setCelda(x,ref,{f:"Matriz1!"+k,v:valM(k)}):x;
   const nrmId=t=>String(t).toUpperCase().replace(/[\s_-]+/g,"");
-  function normalizarExt(x,nombre){const c=ordenTipo(nombre),camisa=c>=30&&c<999,ZS=c<30;
+  function normalizarExt(x,nombre){if(indepExt(nombre)){["E6","E7","F8","T7","X7","AH7","AI6","X8","AI8","H10","T10"].forEach(k=>{x=ligar(x,k,k)});return x}
+    const c=ordenTipo(nombre),camisa=c>=30&&c<999,ZS=c<30;
     ["E6","E7","F8","T7","X7","AH7","AI6","X8","AI8","H10","T10","H9"].forEach(k=>{x=ligar(x,k,k)});
     // espesor, longitud y material de la parte: se buscan por su rótulo y se ligan a Matriz1
     const tras=(cs,i)=>cs.slice(i+1).filter(q=>q.txt||q.f);
@@ -3725,9 +3740,9 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         wbxM=/<\/definedNames>/.test(wbxM)?wbxM.replace("</definedNames>",dn+"</definedNames>"):wbxM.replace("</sheets>","</sheets><definedNames>"+dn+"</definedNames>")}}
       if(hx.area){const dn=`<definedName name="_xlnm.Print_Area" localSheetId="${ins}">${hx.area.split(",").map(a=>`'${xe(nuevo.replace(/'/g,"''"))}'!${a}`).join(",")}</definedName>`;
         wbxM=/<\/definedNames>/.test(wbxM)?wbxM.replace("</definedNames>",dn+"</definedNames>"):wbxM.replace("</sheets>","</sheets><definedNames>"+dn+"</definedNames>")}
-      hoja[nuevo]=nf;visibles.add(nuevo);extHojas.add(nuevo);if(hx.dib)try{await esquemaExt(nuevo,hx.nombre,x,hx.dib.xml)}catch(err){console.warn("esquema ext",err)}
+      hoja[nuevo]=nf;visibles.add(nuevo);extHojas.add(nuevo);if(hx.dib&&!indepExt(hx.nombre))try{await esquemaExt(nuevo,hx.nombre,x,hx.dib.xml)}catch(err){console.warn("esquema ext",err)}
       if(hx.cab?.inf&&r.consecutivo)C(nuevo,hx.cab.inf,r.consecutivo);if(hx.cab?.pk&&r.pk)C(nuevo,hx.cab.pk,r.pk)}}
-  for(const e of r.repsExt||[]){if(!e?.id)continue;let pq;try{pq=JSON.parse(await (await blobFoto(e.id)).text())}catch(err){throw new Error(`No pude abrir el reporte de compañero «${e.archivo||"Excel"}»: ${err.message||err}`)}await insertarExt(pq)}
+  for(const e of r.repsExt||[]){if(!e?.id)continue;let pq;try{pq=JSON.parse(await (await blobFoto(e.id)).text())}catch(err){throw new Error(`No pude abrir el reporte de compañero «${e.archivo||"Excel"}»: ${err.message||err}`)}(pq.hojas||[]).forEach(h=>{if(h.xml)h.xml=quitarAC(h.xml)});await insertarExt(pq)}
   const grupoBase=g=>g.replace(/#\d+$/,"");const esFoto=h=>/^\d+F\.|ANEXFOT/.test(h)||!!AREA_FOTOS[h]||/ F\d+$/.test(h);
   const grupoDe=h=>{const m=h.match(/^(\d+)F?\.\s*([A-Za-z]+)/);return m?m[1]+m[2]+(/12H|-12\b|1-12/.test(h)?"-12H":"")+((h.match(/ (#\d+)(?: F\d+)?$/)||[])[1]||""):h};
   const baseDe=h=>{if(PAGS_REP[h])return h;const sin=h.replace(/ #\d+(?= F\d+$|$)/,"");if(PAGS_REP[sin])return sin;return Object.keys(PAGS_REP).find(b=>sin.startsWith(b.slice(0,22))&&/ F\d+$|\(\d+\)$/.test(sin))||h};
@@ -3981,10 +3996,22 @@ function tablaExt(C){const nrm=x=>x.normalize("NFD").replace(/[\u0300-\u036f]/g,
   const hdr=rows.find(r=>C[r][0]&&C[r][0].c===1&&/^IDENTIFICACION/.test(nrm(C[r][0].t)));if(!hdr)return[];const rc=C[hdr].find(x=>/^RESULTADO/.test(nrm(x.t)))?.c;if(!rc)return[];const out=[];
   for(const r of rows.filter(r=>r>hdr+1)){const a=C[r].find(x=>x.c===1);if(a&&/^(OBSERVACI|INTERPRETACI)/.test(nrm(a.t)))break;if(!a||a.t==="-")continue;const v=C[r].find(x=>x.c===rc)?.t||"";out.push({id:a.t.replace(/^(A\d|SC\d?|S\d+)\s*-?\s*(L\d)$/i,(m,p1,p2)=>`${p1.toUpperCase()} ${p2.toUpperCase()}`),res:/^R/i.test(v)?"Rechazo":v||"OK"})}return out}
 function momExt(nombre,C){if(/12\s*H|-12\b|1-12/i.test(nombre))return"12H";if(/0\s*H\b|-0H/i.test(nombre))return"0H";for(const r of Object.keys(C)){const a=C[r];const i=a.findIndex(x=>/^12 Horas/i.test(x.t));if(i>=0&&/^x$/i.test(a[i+1]?.t||""))return"12H"}return"0H"}
+// quita bloques <mc:AlternateContent> anidados (botones/controles de macros) completos, y repara hojas que quedaron con cierres sueltos
+function quitarAC(x){let out="",i=0;const O="<mc:AlternateContent",C="</mc:AlternateContent>";while(true){const a=x.indexOf(O,i);if(a<0){out+=x.slice(i);break}out+=x.slice(i,a);let d=0,j=a;
+    while(true){const o=x.indexOf(O,j+1),c=x.indexOf(C,j+1);if(c<0){j=x.length;break}if(o>=0&&o<c){d++;j=o}else{if(d===0){j=c+C.length;break}d--;j=c}}i=j}
+  if(!/<mc:AlternateContent|<controls>|<mc:Choice/.test(out))out=out.replace(/<\/(?:controls|mc:Choice|mc:Fallback|mc:AlternateContent)>/g,"");return out}
 const zsNomExt=ub=>{const s=String(ub||"").replace(/^\s*(zona|[áa]rea)\s*sana\s*(de\s*(la|el)\s*)?/i,"").trim();return s?"AS "+s.charAt(0).toUpperCase()+s.slice(1).toLowerCase():"AS Scan A"};
-async function itemsExt(r){const out=[],zs={areas:[],min:{},mt:[],tecs:new Set(),fechas:[]},bisX=[];
+const casExtN=n=>/CASCOTA|\bCAS(C|CO)?\b/i.test(n);
+async function itemsExt(r){const out=[],zs={areas:[],min:{},mt:[],tecs:new Set(),fechas:[]},bisX=[];let cas=null;
   for(const e of r.repsExt||[]){let pq;try{pq=JSON.parse(await (await blobFoto(e.id)).text())}catch(err){continue}
     for(const h of pq.hojas||[]){const n=h.nombre||"",u=n.toUpperCase(),xml=h.xml||"",C=celdasExt(xml),f=fechaHojaExt(xml);
+      // reporte independiente de la cascota: zona sana (Scan A), bisel y soldadura, cada uno aparte en el Word
+      if(casExtN(n)){cas??={zs:null,bis:[],sold:new Map(),tecs:new Set(),fechas:[],mom:"0H",insp:""};if(f)cas.fechas.push(f);cas.insp||=inspHojaExt(xml)||"";
+        if(/SCAN\s*A|ESPES/.test(u)){for(const rr of Object.keys(C)){const a=C[rr];a.forEach((x,i)=>{if(/^V\.?\s*M[IÍ]N/i.test(x.t)){const v=num(a[i+1]?.t);if(v!=null){cas.zs={area:"AS Cascota",min:v};cas.tecs.add("SCANA")}}})}}
+        else{const t=/PAUT/.test(u)?"PAUT":/\bMT|MT-|MT\./.test(u)?"MT":/\bPT|PT-|PT\./.test(u)?"PT":null;if(!t)continue;const fs=tablaExt(C).map(q=>({...q,id:q.id.trim()}));
+          if(/BIS/.test(u)){fs.forEach(q=>cas.bis.push(q));cas.tecs.add("PT")}
+          else{cas.mom=momExt(n,C);fs.forEach(q=>{const o=cas.sold.get(q.id)||{id:q.id,t:new Set(),res:[]};o.t.add(t);o.res.push(q.res);cas.sold.set(q.id,o)});cas.tecs.add(t);cas.soldTecs=(cas.soldTecs||new Set()).add(t)}}
+        continue}
       if(/SC-ZS|SCAN\s*C/.test(u)){zs.tecs.add("SCANC");if(f)zs.fechas.push(f);
         for(const rr of Object.keys(C)){const a=C[rr];a.forEach((x,i)=>{if(/^V\.?\s*M[IÍ]N/i.test(x.t)){const v=num(a[i+1]?.t);const lab=a.slice(i+1).find(y=>/^CIRCUNFERENCIAL|^ZONA/i.test(y.t));const ar=lab?a[a.indexOf(lab)+1]?.t:"";if(ar&&v!=null){if(!zs.areas.includes(ar))zs.areas.push(ar);zs.min[ar]=v}}})}}
       else if(/MT-ZS|MT ZS/.test(u)&&!/METAL BASE/i.test(xml.match(/<c r="T9"[\s\S]*?<\/c>/)?.[0]||"")){zs.tecs.add("MT");if(f)zs.fechas.push(f);for(const q of tablaExt(C)){zs.mt.push(q);if(!zs.areas.includes(q.id))zs.areas.push(q.id)}}
@@ -3993,6 +4020,7 @@ async function itemsExt(r){const out=[],zs={areas:[],min:{},mt:[],tecs:new Set()
       else if(/\bPT|PT-|PT\./.test(u)&&/BIS/.test(u)){tablaExt(C).forEach(q=>bisX.push({...q,f}))}
       else{const t=/PAUT/.test(u)?"PAUT":/\bMT|MT-|MT\./.test(u)?"MT":/\bPT|PT-|PT\./.test(u)&&!/BIS/.test(u)?"PT":null;if(!t)continue;const fs=tablaExt(C);if(!fs.length)continue;
         out.push({act:momExt(n,C),ext:true,tecnicas:[t],filasExt:fs,ind:fs.filter(q=>q.res==="Rechazo").map(q=>({j:q.id,tec:t,res:"Rechazo"})),inspFecha:f||"",inspectores:inspHojaExt(xml)||""})}}}
+  if(cas)out.push({act:"__cascota",ext:true,cas,inspFecha:cas.fechas.sort()[0]||"",inspectores:cas.insp});
   if(bisX.length)out.push({act:"__bisExt",ext:true,filasExt:bisX,inspFecha:bisX[0].f||""});
   if(zs.areas.length)out.push({act:"Zona sana",ext:true,zsTecs:[...zs.tecs],zsAreasExt:zs.areas,zsMinMm:zs.min,zsMtExt:zs.mt,inspFecha:zs.fechas[0]||"",reparacion:{tipo:"Zona sana",zonas:zs.areas.length}});
   return out}
@@ -4038,13 +4066,41 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
   const lin=`${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in`.replace(/\s+/g," ").trim();
   const drN=String(r.dr||"").replace(/^\s*DR\s*[:.]?\s*/i,"").trim(),pkTxt=`PK ${r.pk||""}${drN?` (DR ${drN})`:""}`;
   const enPK=`en el ${pkTxt} del ${lin}`;
+  let casImgs=[];
+  {const CAS=XA.find(x=>x.act==="__cascota")?.cas;
+   if(CAS){const cl=(a,b)=>K.slice(a,b+1).map(n=>n.cloneNode(true));const antesDe=(cands,nodes)=>{const ref=cands.find(n=>n&&n.isConnected);if(ref)nodes.forEach(n=>ref.parentNode.insertBefore(n,ref))};
+    const tbl=ns=>ns.find(n=>n.localName==="tbl"),cap=ns=>ns.filter(n=>n.localName==="p"&&/^Esquema/.test(tx(n).trim()))[0];
+    const img=(ns,k)=>{ns.forEach(n=>{[...n.getElementsByTagNameNS("*","blip")].forEach(b=>b.setAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships","r:embed","rIdCAS"+k));[...n.getElementsByTagNameNS("*","docPr")].forEach(d=>d.setAttribute("id",String(9200+k)))});casImgs.push(k)};
+    const momL=CAS.mom==="12H"?"“12 Horas”":"“0 Horas”";const sT=[...(CAS.soldTecs||[])];const TN={PT:"líquidos penetrantes",MT:"partículas magnéticas",PAUT:"ultrasonido Phased array"};const tTxt=yL0(sT.map(t=>TN[t]));
+    const enPKc=`en el PK ${r.pk||""}${drN?` (DR ${drN})`:""} del ${lin}`;
+    const nomMm=num(r.nominal)!=null?num(r.nominal)*25.4:null,mmT=v=>v==null?"-":`${v.toFixed(2).replace(".",",")} mm`;
+    // procedimiento
+    const pr=[];if(CAS.zs){const q=K[39].cloneNode(true);setT(q,`Inspección por medio de medición de espesores (Scan A) de la zona sana donde se realizará la soldadura de filete de la cascota ${enPKc}.`);pr.push(q)}
+    if(CAS.bis.length){const q=K[39].cloneNode(true);setT(q,`Inspección mediante líquidos penetrantes al bisel de la cascota ${enPKc}.`);pr.push(q)}
+    // identificación (zona sana, bisel, soldadura) con su esquema
+    const id=[];if(CAS.zs){const b=cl(42,49);setT(b[0],`Identificación del área sana para la realización de la soldadura de filete de la cascota ${enPKc}`);llenar(tbl(b),1,[{c:["Zona sana para la soldadura de filete de la cascota",CAS.zs.area,"-"]}]);setT(cap(b),"Esquema 1. Identificación del área sana para la soldadura de la cascota");img(b,1);id.push(...b)}
+    if(CAS.bis.length){const b=cl(50,57);setT(b[0],`Identificación del bisel de la cascota ${enPKc}`);llenar(tbl(b),1,CAS.bis.map(q=>({g:"Cascota",c:["","Bisel de la cascota",q.id]})),true);setT(cap(b),"Esquema 1. Identificación del bisel de la cascota");img(b,2);id.push(...b)}
+    if(CAS.sold.size){const b=cl(58,65);setT(b[0],`Identificación de la soldadura de la cascota ${enPKc}`);llenar(tbl(b),1,[...CAS.sold.values()].map(o=>({g:"Cascota",c:["","Soldadura de filete de la cascota",o.id,"A solape","Filete"]})),true);setT(cap(b),"Esquema 1. Identificación de la soldadura de la cascota");img(b,3);id.push(...b)}
+    const ap=[];if(CAS.sold.size){const q=K[68].cloneNode(true);setT(q,`Inspección ${momL} mediante ${tTxt} de la soldadura de la cascota ${enPKc}.`);ap.push(q,K[69].cloneNode(true))}
+    // resultados
+    const rs=[];if(CAS.zs){const b=cl(81,85);setT(b[0],`Resultados de la inspección de la zona sana para la realización de la soldadura de filete de la cascota ${enPKc}`);setT(b[2],"Resultados de la inspección por medición de espesores (Scan A)");llenar(tbl(b),1,[{c:[CAS.zs.area,mmT(nomMm),mmT(CAS.zs.min)]}]);rs.push(...b)}
+    if(CAS.bis.length){const b=cl(89,92);setT(b[0],`Resultados de la inspección del bisel de la cascota ${enPKc}`);llenar(tbl(b),1,CAS.bis.map(q=>({c:[q.id,"PT",q.res]})));rs.push(...b)}
+    if(CAS.sold.size){const b=cl(93,96);setT(b[0],`Resultados de la inspección ${momL} de la soldadura de la cascota ${enPKc}`);const T=tbl(b);llenar(T,2,[...CAS.sold.values()].map(o=>({c:[o.id,o.t.has("PT")?"X":"-",o.t.has("MT")?"X":"-",o.t.has("PAUT")?"X":"-",o.res.includes("Rechazo")?"Rechazo":o.res.find(x=>x!=="OK")||"OK"]})));
+      [...T.getElementsByTagNameNS(WNS,"t")].forEach(t=>{if(/Inspección END\s*-\s*(0|12) Horas/i.test(t.textContent))t.textContent="Inspección END - "+(CAS.mom==="12H"?"12 Horas":"0 Horas")});rs.push(...b)}
+    // conclusiones
+    const cc=[],cq=t=>{const q=K[104].cloneNode(true);setT(q,t);cc.push(q,K[105].cloneNode(true))};
+    if(CAS.zs)cq(`En la inspección mediante medición de espesores (Scan A) de la zona sana destinada para la soldadura de filete de la cascota ${enPKc}, no se identificaron indicaciones tipo laminación y se tienen espesores aceptables para la realización de la soldadura.`);
+    if(CAS.bis.length){const rj=CAS.bis.filter(q=>q.res==="Rechazo");cq(`En la inspección mediante líquidos penetrantes del bisel de la cascota ${enPKc}, ${rj.length?`se identificaron indicaciones causales de rechazo en ${rj.map(q=>q.id).join(", ")}`:"no se identificaron indicaciones relevantes causales de rechazo"}.`)}
+    if(CAS.sold.size){const rj=[...CAS.sold.values()].filter(o=>o.res.includes("Rechazo"));cq(`En la inspección ${momL} mediante ${tTxt} de la soldadura de la cascota ${enPKc}, ${rj.length?`se identificaron indicaciones causales de rechazo en ${rj.map(o=>o.id).join(", ")}, por lo tanto, se encuentra rechazada bajo el código de construcción API 1104 hasta su reparación y nueva inspección`:"no se identificaron indicaciones relevantes causales de rechazo, por lo tanto, se encuentra aceptada bajo el código de construcción API 1104"}.`)}
+    antesDe([K[39],K[40],K[41]],pr);antesDe([K[42],K[50],K[58],K[66]],id);antesDe([K[68],K[70],K[72]],ap);antesDe([K[81],K[89],K[93],K[97],K[101]],rs);antesDe([K[104],K[106],K[108],K[110],K[112],K[114]],cc)}}
   const lugar=r.ciudad?(DEPTO[r.ciudad]?`${r.ciudad} – ${DEPTO[r.ciudad]}`:r.ciudad):"";
   const fechas=fechasTxt(A.flatMap(x=>[x.inspFecha||r.fecha,...(x.fechasExtra||[])]).concat(A.length?[]:[r.fecha]).concat(await fechasExt(r)));
   const insp=[...new Set([...A.flatMap(x=>inspList(x.inspectores)),...(await inspExt(r))])];// quien entrega el Word: el escogido en la ficha, o el inspector de la última actividad que se terminó (fecha más reciente)
   const ultima=[...A].map((x,k)=>[x,k]).filter(([x])=>realizoDe(x)).sort((a,b)=>String(a[0].inspFecha||r.fecha||"").localeCompare(String(b[0].inspFecha||r.fecha||""))||a[1]-b[1]).at(-1)?.[0];
   const realizo=(r.entregaWord||"").trim()||(ultima&&realizoDe(ultima))||insp[0]||"";
   const tec=x=>x?.tecnicas||[];const usaH=t=>[h0,h12].some(x=>tec(x).includes(t));const zsTs=zs?zsT(zs):[];
-  const scanA=zsTs.includes("SCANA"),scanC=zsTs.includes("SCANC")||tec(tn).includes("SCANC"),mt=zsTs.includes("MT")||usaH("MT")||tec(tn).includes("MT")||A.some(x=>x.act==="Ilícitas"&&tec(x).includes("MT")),pt=!!bis||!!XA.find(x=>x.act==="__bisExt")||usaH("PT"),paut=usaH("PAUT");
+  const CAS=XA.find(x=>x.act==="__cascota")?.cas||null;
+  const scanA=zsTs.includes("SCANA")||!!CAS?.tecs.has("SCANA"),scanC=zsTs.includes("SCANC")||tec(tn).includes("SCANC"),mt=zsTs.includes("MT")||usaH("MT")||!!CAS?.tecs.has("MT")||tec(tn).includes("MT")||A.some(x=>x.act==="Ilícitas"&&tec(x).includes("MT")),pt=!!bis||!!XA.find(x=>x.act==="__bisExt")||usaH("PT")||!!CAS?.tecs.has("PT"),paut=usaH("PAUT")||!!CAS?.tecs.has("PAUT");
   const hoy=new Date(),p2=n=>String(n).padStart(2,"0"),hoyTxt=`${p2(hoy.getDate())}/${p2(hoy.getMonth()+1)}/${hoy.getFullYear()}`;
   // ---- portada ----
   const cov=filasDe(K[0]);const cp=r_=>[...cov[r_].getElementsByTagNameNS(WNS,"p")];
@@ -4059,6 +4115,7 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
     const ps=kids(v(13),"p"),nombres=[[scanC,"Ultrasonido Scan C"],[pt,"Líquidos penetrantes"],[mt,tn&&!usaH("MT")?"Partículas Magnéticas fluorescentes":"Partículas Magnéticas"],[paut,"Ultrasonido phased array"]];
     ps.forEach((p,k)=>{const n=nombres[k];if(!n||!n[0])p.remove();else setT(p,n[1])});
     if(scanA){const q=ps[0].cloneNode(true);setT(q,"Ultrasonido medición de espesores (Scan A)");v(13).insertBefore(q,v(13).firstChild)}
+    {const th=f[13]&&f[13].getElementsByTagNameNS(WNS,"trHeight")[0];if(th&&kids(v(13),"p").length>4)th.setAttributeNS(WNS,"w:hRule","atLeast")}
     celda(v(14),elem.charAt(0).toUpperCase()+elem.slice(1));
     const partes=[(zs||tn)&&"material base",bis&&"biseles",(h0||h12)&&"soldaduras"].filter(Boolean);celda(v(16),(partes.length>1?partes.slice(0,-1).join(", ")+" y "+partes.at(-1):partes[0]||"").replace(/^./,c=>c.toUpperCase()));
     celda(v(18),insp.join(", "));const c21=celdasDe(f[21])[1];if(c21)celda(c21,r.nivel1?`Nivel I: ${inspList(r.nivel1).join(", ")}`:"");celda(v(22),r.base||"");celda(v(24),fechas)}
@@ -4095,11 +4152,11 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
     const hayTub=zs||tn;
     mk(3,6,scanA||tTub.SCANC);mk(3,8,!!zs);mk(5,7,!!hayTub);mk(6,7,false);mk(9,7,ilic);
     ["ESP","SCANC","PAUT","MT","PT","PE"].forEach((k,i)=>mk(4+i,1,tTub[k]));[6,7,8,9].forEach(ri=>mk(ri,9,false));
-    const tp=(repCam?.tipo||r.tipoReparacion||"").toLowerCase();const col=[/capuch/.test(tp),ilic||/cascota/.test(tp)||A.some(x=>x.ext&&((x.filasExt||[]).some(q=>/cascota/i.test(q.id))||(x.zsAreasExt||[]).some(a=>/cascota/i.test(a)))),/anillo/.test(tp)];
+    const tp=(repCam?.tipo||r.tipoReparacion||"").toLowerCase();const col=[/capuch/.test(tp),ilic||/cascota/.test(tp),/anillo/.test(tp)];
     const nom=ilic?"Válvula ilícita (cascota)":(desc?desc.charAt(0).toUpperCase()+desc.slice(1):r.tipoReparacion||"-");
     if(repA.length||bis){const c0=celdasDe(F[11])[0];if(c0)celda(c0,nom)}
-    [["VT",12],["PT",13],["PAUT",14],["MT",15],["PE",16]].forEach(([t,ri])=>{const on=t!=="VT"&&t!=="PE"&&tR(t);mk(ri,1,on);[3,4,5].forEach((ci,j)=>mk(ri,ci,on&&col[j]))});
-    mk(12,7,!!bis||!!XA.find(x=>x.act==="__bisExt")||ilic&&tR("PT"));mk(13,7,hor.some(Boolean));hor.forEach((h,j)=>mk(13+j,9,!!h));
+    [["VT",12],["PT",13],["PAUT",14],["MT",15],["PE",16]].forEach(([t,ri])=>{const on=t!=="VT"&&t!=="PE"&&tR(t),onC=!!CAS?.tecs.has(t);mk(ri,1,on||onC);[3,4,5].forEach((ci,j)=>mk(ri,ci,j===1?(on&&col[1])||onC:on&&col[j]))});
+    mk(12,7,!!bis||!!XA.find(x=>x.act==="__bisExt")||!!CAS?.bis.length||ilic&&tR("PT"));mk(13,7,hor.some(Boolean)||!!CAS?.sold.size);if(CAS?.sold.size)mk(CAS.mom==="12H"?16:13,9,true);hor.forEach((h,j)=>mk(13+j,9,!!h));
     for(let ri=18;ri<=20;ri++){mk(ri,1,false);[3,4,5].forEach(ci=>mk(ri,ci,false))}mk(18,7,false);mk(19,7,false);mk(18,9,false);mk(19,9,false);mk(20,9,false);
     for(let ri=23;ri<=25;ri++){mk(ri,1,false);[3,4,5].forEach(ci=>mk(ri,ci,false))}mk(23,7,false);mk(24,7,false);mk(22,6,false);mk(22,8,false);mk(23,9,false)}}
   // ---- alcance y dimensiones ----
@@ -4125,13 +4182,16 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
     {const v=celdasDe(f[2]),e=celdasDe(f[4]),m=celdasDe(f[5]);celda(v[1],r.diametro||"-");celda(e[1],r.nominal||"-");celda(m[2],r.materialTub||"-")}
     // el ancho de cada celda (tcW) se ajusta a las columnas de la tabla; si no, Word deja las columnas disparejas
     {const W=kids(grid,"gridCol").map(g=>+(g.getAttribute("w:w")||0));filasDe(t).forEach(tr=>{let c=0;celdasDe(tr).forEach(tc=>{const sp=+(tc.getElementsByTagNameNS(WNS,"gridSpan")[0]?.getAttribute("w:val")||1);const w=W.slice(c,c+sp).reduce((a,b)=>a+b,0);c+=sp;
-      const tw=tc.getElementsByTagNameNS(WNS,"tcW")[0];if(tw&&w){tw.setAttribute("w:w",String(w));tw.setAttribute("w:type","dxa")}})})}}
+      const tw=tc.getElementsByTagNameNS(WNS,"tcW")[0];if(tw&&w){tw.setAttribute("w:w",String(w));tw.setAttribute("w:type","dxa")}
+      // bordes explícitos en cada celda (Word no siempre dibuja las líneas internas de la tabla después de quitar columnas)
+      const pr=kids(tc,"tcPr")[0];if(pr&&!kids(pr,"tcBorders").length){const bd=doc.createElementNS(WNS,"w:tcBorders");["top","left","bottom","right"].forEach(k=>{const e_=doc.createElementNS(WNS,"w:"+k);e_.setAttributeNS(WNS,"w:val","single");e_.setAttributeNS(WNS,"w:sz","4");e_.setAttributeNS(WNS,"w:space","0");e_.setAttributeNS(WNS,"w:color","auto");bd.appendChild(e_)});
+        pr.insertBefore(bd,[...pr.children].find(c=>["shd","noWrap","tcMar","textDirection","tcFitText","vAlign","hideMark"].includes(c.localName))||null)}})})}}
   {const lt=repCam?num(repCam.longTotal):null;const ltmm=lt!=null?Math.round(lt*(U2MM[repCam.longUnidad||"m"]||1000)):null;
     if(desc&&ltmm)setT(K[22],`En la zona de las anomalías se instaló la ${elem} con una longitud total de ${ltmm} mm.`);
     else if(tn&&!desc){const rp=tn.reparacion||{};setT(K[22],`Se inspeccionó${etapaTxt} el metal base de la tubería nueva (${tubosDe(rp).join(", ")}): ${num(rp.extremo)??110} mm en cada extremo en todo el perímetro y ${num(rp.centro)??3000} mm en el centro.`)}
     else K[22].remove()}
   // ---- procedimiento ----
-  const scanTxt=[zsTs.includes("SCANC")&&"ultrasonido Scan C",scanA&&"medición de espesores (Scan A)",zsTs.includes("MT")&&"partículas magnéticas fluorescentes"].filter(Boolean).join(zsTs.length>2?", ":" y ").replace(/, ([^,]*)$/," y $1")||"ultrasonido Scan C";
+  const scanTxt=[zsTs.includes("SCANC")&&"ultrasonido Scan C",zsTs.includes("SCANA")&&"medición de espesores (Scan A)",zsTs.includes("MT")&&"partículas magnéticas fluorescentes"].filter(Boolean).join(zsTs.length>2?", ":" y ").replace(/, ([^,]*)$/," y $1")||"ultrasonido Scan C";
   const mbs=A.filter(x=>x.act==="MT metal base camisa"&&x.reparacion?.tipo),mb=mbs[0];let MB=null;
   if(mb)MB={proc:K[40].cloneNode(true),ident:K.slice(50,58).map(n=>n.cloneNode(true)),res:K.slice(89,93).map(n=>n.cloneNode(true)),conc:K[108].cloneNode(true)};
   if(zs)setT(K[39],`Inspección por medio de ${scanTxt} de las zonas donde se realizarán las soldaduras de filete de la ${elem} ${enPK}.`);
@@ -4158,7 +4218,7 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
   const objW=xs=>(hayJ&&!jsC.length?"las juntas a tope tubo-tubo":`${hayJ?"las juntas a tope tubo-tubo y ":""}las soldaduras${adjW(xs)} ${tipoJ} de la ${elem}`)+(xs.some(x=>x.ext&&(x.filasExt||[]).some(q=>/cascota/i.test(q.id)))?" y de la soldadura de la cascota":"");
   if(h0)setT(K[68],`Inspección${preW(xsH0)} mediante ${tecsTxt(h0)} de ${objW(xsH0)} ${enPK}.`);else K[68].remove();
   if(h12)setT(K[70],`Inspección “12 Horas” mediante ${tecsTxt(h12)} de las soldaduras ${tipoJ} de la ${elem} ${enPK}.`);else K[70].remove();
-  if(!h0&&!h12)K[66].remove();
+  if(!h0&&!h12&&!CAS?.sold.size)K[66].remove();
   // ---- resultados ----
   const ok=x=>x?.novedad?"Ver obs.":"OK";const mmTxt=v=>v==null?"-":`${v.toFixed(2).replace(".",",")} mm`;
   if(zs){setT(K[81],`Resultados de la inspección de las áreas sanas para la realización de las soldaduras de filete de la ${elem}${casZ?" y de la cascota":""} ${enPK}`);setT(K[83],`Resultados de la inspección por ${scanTxt}`);
@@ -4244,12 +4304,17 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
   else if(tn?.reparacion?.tipo&&!zs)await pon("rId9",e=>esquemaRep({...tn.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
   let relMB=null;if(MB&&ext("rIdMB1")){try{medios["word/media/mbesq.png"]=await esquemaRep({...mb.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},ext("rIdMB1"));relMB=rel.replace("</Relationships>",'<Relationship Id="rIdMB1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/mbesq.png"/></Relationships>')}catch(err){console.warn("esquema MB",err)}}
   await pon("rId12",async e=>(await firmaRep(realizo,e))||await vacia(e,"image/png"));
+  const casRel=[];for(const k of casImgs){const e=ext("rIdCAS"+k);if(!e)continue;try{medios["word/media/cas"+k+".png"]=await esqCascota(k,e);casRel.push(`<Relationship Id="rIdCAS${k}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/cas${k}.png"/>`)}catch(err){console.warn("esquema cascota",err)}}
+  // numeración de los esquemas en el orden del documento
+  {let n=0;[...body.getElementsByTagNameNS(WNS,"p")].forEach(p=>{const t=tx(p);if(/^\s*Esquema\s*\d+\.?/.test(t))setT(p,t.replace(/^\s*Esquema\s*\d+\.?\s*/,`Esquema ${++n}. `))})}
   // la de portada es JPEG: si la imagen nueva es PNG, se guarda igual con su contenido (Word lo reconoce por el contenido)
   const extra={};for(const n of Object.keys(E).filter(n=>/^word\/(footer|header)\d+\.xml$/.test(n))){const d=new DOMParser().parseFromString(await txt(n),"application/xml");const ts=[...d.getElementsByTagNameNS(WNS,"t")];
     const i=ts.findIndex(t=>/Informe N°/.test(t.textContent));if(i<0)continue;let j=i+1;const out=[];while(j<ts.length&&!/Pag/i.test(ts[j].textContent)){out.push(ts[j]);j++}
     if(out.length){out[0].textContent=r.consecutivo||"";out.slice(1).forEach(t=>t.textContent="");extra[n]=new TextEncoder().encode(new XMLSerializer().serializeToString(d))}}
   const salida=ents.map(e=>extra[e.name]?{name:e.name,data:extra[e.name]}:e.name==="word/document.xml"?{name:e.name,data:new TextEncoder().encode(new XMLSerializer().serializeToString(doc))}:medios[e.name]?{name:e.name,data:medios[e.name]}:{name:e.name,raw:e});
-  if(relMB){const k=salida.findIndex(x=>x.name==="word/_rels/document.xml.rels");if(k>=0)salida[k]={name:salida[k].name,data:new TextEncoder().encode(relMB)};salida.push({name:"word/media/mbesq.png",data:medios["word/media/mbesq.png"]})}
+  {let rn=relMB||rel;if(casRel.length)rn=rn.replace("</Relationships>",casRel.join("")+"</Relationships>");
+    if(rn!==rel){const k=salida.findIndex(x=>x.name==="word/_rels/document.xml.rels");if(k>=0)salida[k]={name:salida[k].name,data:new TextEncoder().encode(rn)}}
+    if(relMB)salida.push({name:"word/media/mbesq.png",data:medios["word/media/mbesq.png"]});casImgs.forEach(k=>{if(medios["word/media/cas"+k+".png"])salida.push({name:"word/media/cas"+k+".png",data:medios["word/media/cas"+k+".png"]})})}
   const z=await zipEscribir(salida);return new Blob([z],{type:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})}
 async function accionInforme(r,btn){{const dv=await desviaciones(r).catch(()=>[]);if(dv.length&&!(await avisoLista("Desviaciones entre inspectores",dv,"Generar el Word igual","Volver a revisar")))return}
   const t0=btn.textContent;btn.disabled=true;btn.textContent="Generando…";
