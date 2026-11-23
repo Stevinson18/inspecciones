@@ -190,6 +190,8 @@ button.stat[aria-pressed="true"]{background:var(--sunk)}
 .fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
 .fslot{display:grid;gap:4px;min-width:0;position:relative}
 .fstog{position:absolute;top:4px;right:4px;z-index:2;font:inherit;font-size:.72rem;font-weight:700;border-radius:999px;padding:4px 9px;min-height:28px;border:1px solid rgba(255,255,255,.7);background:rgba(22,50,74,.85);color:#fff;cursor:pointer}
+.flug{position:absolute;top:4px;left:4px;z-index:2;font:inherit;font-size:.72rem;font-weight:700;border-radius:999px;padding:4px 9px;min-height:28px;border:1px solid #2f7d4f;background:rgba(255,255,255,.94);color:#2f7d4f;cursor:pointer}
+.flug.pat{border-color:#8a6d1c;color:#8a6d1c}
 .fstog.off{background:rgba(255,255,255,.92);color:#16324a;border-color:#16324a}
 .fimg{position:relative;aspect-ratio:4/3;border:1px dashed var(--line);border-radius:6px;background:var(--surface);color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:inherit;font-size:.8rem;cursor:pointer;overflow:hidden;padding:0}
 .fslot.has .fimg{border-style:solid}
@@ -2051,7 +2053,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v127";
+const LOCAL=!!window.__LOCAL;const APPV="v128";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2083,9 +2085,10 @@ function fotosHtml(it,i,only){
     <div class="fgrid">${sl.map((s,j)=>{const key=`${i}|${gr.k}|${j}`, busy=subiendo.has(key);
       const vacia=can?`<div class="fimg fpick">${busy?`<span class="busy">Subiendo…</span>`:""}<span class="num">${j+1}</span><button type="button" class="fbtn" data-fcam="${gr.k}" data-j="${j}">📷 Cámara</button><button type="button" class="fbtn" data-fgal="${gr.k}" data-j="${j}">🖼 Galería</button><button type="button" class="fbtn" data-fpaste="${gr.k}" data-j="${j}" title="Pega una imagen copiada (por ejemplo de un Excel o de WhatsApp)">📋 Pegar</button></div>`
         :`<div class="fimg"><span class="cam" aria-hidden="true">📷</span><span>Sin foto</span><span class="num">${j+1}</span></div>`;
-      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoMini(s.id))}" alt="" loading="lazy" decoding="async">${stampHtml(s,lugarDe(i,gr.k),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
+      return`<div class="fslot${s.id?" has":""}">${s.id?`<button type="button" class="fimg" data-fshot="${gr.k}" data-j="${j}" aria-label="Ver foto ${j+1}"><img src="${esc(fotoMini(s.id))}" alt="" loading="lazy" decoding="async">${stampHtml(s,lugarDe(i,gr.k,s),fechaIt(i))}<span class="num">${j+1}</span>${busy?`<span class="busy">Subiendo…</span>`:""}</button>`:vacia}
       ${s.id&&(!s.raw||s.pegada)&&!readOnly&&assets?`<button type="button" class="fstog off" data-frest="${gr.k}" data-j="${j}" title="Borra el estampe que trae la foto y le pone el de la app con los datos del punto">↻ Re‑estampar</button>`:""}
       ${s.id&&s.raw&&!readOnly?`<button type="button" class="fstog${s.noStamp?" off":""}" data-fstog="${gr.k}" data-j="${j}" aria-pressed="${!s.noStamp}" title="Activar o quitar el estampado de esta foto">${s.noStamp?"Sin estampe":"Estampe ✓"}</button>`:""}
+      ${s.id&&s.raw&&!s.noStamp&&conLugarFoto(it)?(l=>`<button type="button" class="flug${l==="patio"?" pat":""}" data-flug="${gr.k}" data-j="${j}" title="Lugar del estampe de esta foto (coordenadas de campo o de patio). Toca para cambiarlo"${readOnly?" disabled":""}>📍 ${l==="patio"?"Patio":"Campo"}</button>`)(lugarDe(i,gr.k,s)):""}
       ${s.id&&s.raw&&!s.noStamp?`<label class="ffecha${s.fi?" propia":""}" title="Fecha que sale en el estampe de esta foto"><span>Fecha</span><input type="date" data-ffecha="${gr.k}" data-j="${j}" value="${esc(s.fi||fechaIt(i)||"")}"${readOnly?" disabled":""}></label>`:""}
       <input class="field fcap" data-fcap="${gr.k}" data-j="${j}"${gr.byCap?` data-bycap="1"`:""} list="fcapSug" value="${esc(gr.byCap?(s.desc??s.cap):s.cap)}" placeholder="Descripción (toca para ver sugerencias)" aria-label="Descripción foto ${j+1}"${readOnly?" disabled":""}>${medidaHtml(it,i,s.desc||s.cap,j,gr.k)}</div>`}).join("")}</div>${gr.nota?`<p class="note">${esc(gr.nota)}</p>`:""}
     ${can&&!gr.fixed?`<button class="btn small ghost" type="button" data-fadd="${gr.k}">+ Agregar foto</button>`:""}</div>`}).join("")+(assets||readOnly?"":`<p class="note">Para tomar fotos necesitas permiso de edición en esta página.</p>`);
@@ -2150,7 +2153,9 @@ async function fotoMeta(file,campo){
   return{t,gps,exif:!!ex.fecha};
 }
 // renglones del estampado: fecha, sistema y línea con diámetro, PK y coordenada (de la foto o del punto)
-function lugarDe(i,k){if(i==="P")return k==="UBP"?"patio":k==="UBC"?"ubiC":"campo";const it=formItems[i];return(it?.act==="Biseles"||it?.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo"}
+// biseles / metal base de camisa: el lugar sale del registro, pero cada foto puede llevar el suyo (unas en campo y otras en patio)
+const conLugarFoto=it=>it?.act==="Biseles"||it?.act==="MT metal base camisa";
+function lugarDe(i,k,s){if(i==="P")return k==="UBP"?"patio":k==="UBC"?"ubiC":"campo";const it=formItems[i];if(conLugarFoto(it)&&(s?.lug==="patio"||s?.lug==="campo"))return s.lug;return conLugarFoto(it)&&it.lugarInsp==="Patio"?"patio":"campo"}
 // fecha del estampe: la del día de inspección de la actividad; si no hay, la de la foto
 function stampFor(f,lugar,pt,fi){
   fi=f.fi||fi;const d=/^\d{4}-\d{2}-\d{2}$/.test(fi||"")?new Date(fi+"T12:00:00"):new Date(f.t||Date.now()), p2=n=>String(n).padStart(2,"0");
@@ -2169,7 +2174,7 @@ const fechaIt=i=>{const it=own(i);return it&&it.act!=="__punto"?it.inspFecha||$(
 // al cambiar datos del punto solo se reescribe el texto del estampado (sin rehacer las casillas, para no perder el toque)
 function refreshAllFotos(){document.querySelectorAll("#form .fimg[data-fshot]").forEach(b=>{const st=b.querySelector(".fst");if(!st)return;
   const i=foOf(b), it=own(i); if(!it)return; const k=b.dataset.fshot, j=+b.dataset.j;
-  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw){st.innerHTML=stampFor(s,lugarDe(i,k),null,fechaIt(i)).map(esc).join("<br>");st.hidden=!!s.noStamp}})}
+  const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j]; if(s?.raw){st.innerHTML=stampFor(s,lugarDe(i,k,s),null,fechaIt(i)).map(esc).join("<br>");st.hidden=!!s.noStamp}})}
 async function stampLines(file){
   const t=new Date(file.lastModified&&Math.abs(Date.now()-file.lastModified)<864e5*30?file.lastModified:Date.now());
   const p2=n=>String(n).padStart(2,"0");
@@ -2435,7 +2440,7 @@ function updLeerBtns(){[["UBC","iCoord","btnLeerC"],["UBP","iCoordPatio","btnLee
 // visor de foto
 let fvT=null;
 function verFoto(i,k,j){const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];if(!s?.id)return;
-  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k),null,fechaIt(i)).map(esc).join("<br>"):"";
+  fvT={i,k,j};const st=$("fviewSt");st.hidden=!s.raw||!!s.noStamp;st.innerHTML=s.raw?stampFor(s,lugarDe(i,k,s),null,fechaIt(i)).map(esc).join("<br>"):"";
   $("fvStamp").hidden=!s.raw||readOnly;$("fvRot").hidden=!assets||readOnly;$("fvStamp").textContent=s.noStamp?"Poner estampado":"Quitar estampado";
   $("fviewImg").onload=()=>{const im=$("fviewImg");st.style.fontSize=Math.max(9,Math.round(Math.min(im.clientWidth,im.clientHeight)*0.034))+"px"};
   $("fviewImg").src=fotoSrc(s.id);$("fviewCap").textContent=`${j+1}. ${s.desc||s.cap||""}`;$("fvChange").hidden=$("fvChangeG").hidden=$("fvDel").hidden=!assets||readOnly;$("fview").hidden=false;$("fvClose").focus()}
@@ -2744,6 +2749,9 @@ $("form").addEventListener("click",e=>{
     (async()=>{try{const nb=await borrarEstampe(await blobFoto(s.id));if(!nb){toast("No encontré un estampe en la parte de abajo de esa foto.");refreshFotos(i);return}
       const up=await assets.upload(nb,{type:"image/jpeg"});fotosQuitadas.add(s.id);setFoto(i,k,j,{id:up.id,raw:1,noStamp:false,pegada:0});refreshFotos(i);scheduleDraft();toast("Listo: la foto lleva ahora el estampe de la app con los datos del punto.")}
     catch(err){toast("No se pudo re‑estampar: "+(err.message||err));refreshFotos(i)}})();return}
+  const lg=e.target.closest("[data-flug]");
+  if(lg){const i=foOf(lg),k=lg.dataset.flug,j=+lg.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];
+    if(s?.id){setFoto(i,k,j,{lug:lugarDe(i,k,s)==="patio"?"campo":"patio"});refreshFotos(i);scheduleDraft()}return}
   const tg=e.target.closest("[data-fstog]");
   if(tg){const i=foOf(tg),k=tg.dataset.fstog,j=+tg.dataset.j;const it=own(i);const s=fotoSlots(it,fotoGrupos(it).find(g=>g.k===k)||{k,caps:[]})[j];
     if(s?.id){setFoto(i,k,j,{noStamp:!s.noStamp});refreshFotos(i);scheduleDraft()}return}
@@ -3263,7 +3271,7 @@ async function fotoRep(f,lugar,an,llenar){
   if(f.muestra)return fotoMuestra(f,an,llenar);
   const b=await blobFoto(f.id);const bm=await createImageBitmap(b);
   // estampado sobre la foto en su tamaño real, igual que en la app
-  const est=f.raw&&!f.noStamp?stampFor(f,lugar,REP_PT,f.fi||REP_PT?.fecha):null;
+  if(f.lug==="patio"||f.lug==="campo")lugar=f.lug;const est=f.raw&&!f.noStamp?stampFor(f,lugar,REP_PT,f.fi||REP_PT?.fecha):null;
   // "llenar" (registros PAUT): la imagen se ajusta al recuadro. Fotos: todas del mismo alto y ancho, recortadas al centro
   // para cubrir el recuadro; el estampe se pone después, para que no se corte
   const c=llenar?lienzo(an.cx,an.cy,2):lienzo(an.cx,an.cy);const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.imageSmoothingQuality="high";
