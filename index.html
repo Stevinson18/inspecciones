@@ -2051,7 +2051,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v126";
+const LOCAL=!!window.__LOCAL;const APPV="v127";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -3249,7 +3249,18 @@ async function esqCascota(k,e){const c=lienzo(e.cx,e.cy,3),g=c.getContext("2d"),
   return aBytes(await new Promise(ok=>c.toBlob(ok,"image/png")))}
 function lienzo(cx,cy,esc=3){const c=document.createElement("canvas");c.width=Math.round(cx/9525*esc);c.height=Math.round(cy/9525*esc);return c}
 function encajarEn(g,src,W,H){const w=src.width||src.naturalWidth,h=src.height||src.naturalHeight,k=Math.min(W/w,H/h);g.drawImage(src,(W-w*k)/2,(H-h*k)/2,w*k,h*k)}
+// imágenes de muestra: donde falta una imagen obligatoria (p. ej. el reporte que completa un compañero) va un recuadro
+// "IMAGEN DE MUESTRA" con su pie, para que solo se reemplace. Por junta (PAUT, Scan zona sana) va en cada lado sin imagen;
+// en las fotos de PT / MT van las 6 de siempre cuando el registro no tiene ninguna.
+function conMuestra(it,gr){const sl=fotoSlots(it,gr),con=sl.filter(x=>x.id);if(!gr.min)return con;
+  if(gr.byCap)return sl.map(x=>x.id?x:{...x,muestra:true});if(con.length)return con;return(gr.caps||[]).map(c=>({cap:c,id:null,muestra:true}))}
+async function fotoMuestra(f,an,llenar){const c=llenar?lienzo(an.cx,an.cy,2):lienzo(an.cx,an.cy),g=c.getContext("2d"),W=c.width,H=c.height;
+  g.fillStyle="#e9ecef";g.fillRect(0,0,W,H);g.strokeStyle="#9aa3ab";g.lineWidth=Math.max(2,W/300);g.setLineDash([W/40,W/60]);g.strokeRect(g.lineWidth,g.lineWidth,W-2*g.lineWidth,H-2*g.lineWidth);g.setLineDash([]);
+  g.fillStyle="#5c6670";g.textAlign="center";g.textBaseline="middle";const fs=Math.min(W/13,H/5);g.font=`bold ${fs}px Arial, sans-serif`;g.fillText("IMAGEN DE MUESTRA",W/2,H/2-fs*0.7);
+  g.font=`${fs*0.5}px Arial, sans-serif`;g.fillText("Reemplazar por la imagen real",W/2,H/2+fs*0.15);if(f.cap){g.font=`${fs*0.45}px Arial, sans-serif`;g.fillText(String(f.cap).slice(0,60),W/2,H/2+fs*0.85)}
+  return aBytes(await new Promise(ok=>c.toBlob(ok,"image/jpeg",0.86)))}
 async function fotoRep(f,lugar,an,llenar){
+  if(f.muestra)return fotoMuestra(f,an,llenar);
   const b=await blobFoto(f.id);const bm=await createImageBitmap(b);
   // estampado sobre la foto en su tamaño real, igual que en la app
   const est=f.raw&&!f.noStamp?stampFor(f,lugar,REP_PT,f.fi||REP_PT?.fecha):null;
@@ -3309,7 +3320,9 @@ function marcaBorrador(){const c=document.createElement("canvas");c.width=1600;c
 // --- juntas, longitudes y textos ---
 function largoSeccion(rep,id){const u=rep.unidad||"cm",lg=rep.largos||{};const mmv=v=>{const n=num(v);return n==null?null:Math.round(n*(U2MM[u]||10))};
   const t=rep.tipo;if(t==="Camisa directa"){const k=+(id.match(/^SC(\d+) /)||[])[1];return k?mmv(lg.sup?.[k-1]):mmv(lg.cd?.[0])}if(t==="Camisa puenteada")return mmv(lg.pu?.[0]);
-  if(t==="Camisa armadillo"){const nm=(id.match(/^([AS]\d+)/)||[])[1],p=nm&&armPz(rep).find(q=>q.nm===nm);return p?mmv(p.k==="d"?lg.dir?.[p.i]:lg.sob?.[p.i]):null}
+  if(t==="Camisa armadillo"){const nm=(id.match(/^([AS]\d+)/)||[])[1],P=armPz(rep),p=nm&&P.find(q=>q.nm===nm);if(!p)return null;const v=mmv(p.k==="d"?lg.dir?.[p.i]:lg.sob?.[p.i]);
+    // 12 horas: la longitudinal de una sección (directa) queda tapada 2,5 in (63,5 mm) por cada anillo de cierre montado encima
+    if(rep._h12&&v!=null&&p.k==="d"&&/^S/.test(p.nm)){const n=[p.i-1,p.i].filter(i=>/^A/.test(pzNom(P,"s",i))).length;return Math.round(v-n*63.5)}return v}
   if(t==="Camisa sobre anillo y camisa existente"){if(/^A1/.test(id))return mmv(lg.a1?.[0]);if(/^SC/.test(id))return mmv(lg.sc?.[0])}
   if(t==="Camisa doble anillo sobre existente"){if(/^A1/.test(id))return mmv(lg.a1?.[0]);if(/^A2/.test(id))return mmv(lg.a2?.[0]);if(/^SC/.test(id))return mmv(lg.sc?.[0])}
   if(/anillos/.test(t||"")){if(/^A\d/.test(id))return mmv(lg.an?.[0]);if(/^SC/.test(id))return mmv(lg.sc?.[0])}return null}
@@ -3388,7 +3401,7 @@ function revisarPunto(r){const f=[];const tipoA=r.tipoReparacion==="Camisa Tipo 
   r.items.forEach(it=>{const n=it.act;const ins=realizoDe(it);
     if(n==="Zona sana"&&zsT(it).includes("SCANA"))zsAreasIt(it).forEach(a=>{const k=(zsLectDe(it,"SCANA")[a]||[]).filter(v=>mmNum(v)!=null).length;if(k<NPOS)f.push(`Zona sana: lecturas de ${a} (${k} de ${NPOS})`)});
     if(!ins)f.push(`${n}: inspector`);else if(!firmas[slug(ins)]?.img?.id)f.push(`${n}: firma de ${ins}`);
-    fotoGrupos(it,tipoA).forEach(g=>{const k=fotoSlots(it,g).filter(x=>x.id).length;if(g.min&&k<g.min)f.push(`${n}: ${g.t} (${k} de ${g.min})`)});
+    fotoGrupos(it,tipoA).forEach(g=>{const k=fotoSlots(it,g).filter(x=>x.id).length;if(g.min&&k<g.min)f.push(`${n}: ${g.t} (${k} de ${g.min}) – sale con imágenes de muestra`)});
     tecsDe0(it).forEach(t=>{const e=equipos.find(x=>x.id===it.equipos?.[t]);if(!e)f.push(`${n}: equipo ${t}`);else{const vac=(EQ_CAMPOS[t]||[]).filter(([k])=>/^lote/.test(k)&&!e.campos?.[k]);if(vac.length)f.push(`${n}: lotes del equipo ${t}`)}});
     plTiposDe(it,tipoA).forEach(t=>{const et=t==="LONG"?"TOPE":t==="CIRC"?esqCirc(it.reparacion):t;if(!esqDe(et))f.push(`Esquema del barrido: ${ES_TIPOS[et]}`)});
     plTiposDe(it,tipoA).forEach(t=>{if(!planes.find(p=>p.id===it.planes?.[t]))f.push(`${n}: plan de escaneo ${t==="LONG"?"longitudinales":t==="CIRC"?"circunferenciales":t==="SCANA"?"Scan A":"Scan C"}`)});
@@ -3521,14 +3534,14 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
   // paquete de fotos tal como quedan en el reporte (carpeta por registro)
   const paquete=[];const etiqueta=h=>{const t=/ANEXFOT/.test(h)?"Anexo fotográfico":/PT-BIS/.test(h)?"PT biseles":/MT-ZS/.test(h)?(r.items.some(x=>esTN(x.act))&&!r.items.some(x=>x.act==="Zona sana")?"MT tubería nueva":"MT zona sana"):/SC-ZS/.test(h)?"Scan C zona sana":/Scan A/.test(h)?"Scan A zona sana":/PAUT-LONG/.test(h)?"PAUT longitudinales":/PAUT-CIRC/.test(h)?"PAUT circunferenciales":/PT/.test(h)?"PT soldaduras":/MT/.test(h)?"MT soldaduras":h;
     return /^(PT|MT|PAUT) (soldaduras|longitudinales|circunferenciales)$/.test(t)?t+(/12H|-12\b|1-12/.test(h)?" 12 horas":" 0 horas"):t};
-  const paq=(h,cap,f,an)=>{const it_=fotos[h]?.at(-1);if(it_)paquete.push({carpeta:etiqueta(h),cap,bytes:it_.bytes,ext:it_.ext})};
+  const paq=(h,cap,f,an)=>{const it_=fotos[h]?.at(-1);if(it_&&!f?.muestra)paquete.push({carpeta:etiqueta(h),cap,bytes:it_.bytes,ext:it_.ext})};
   const altura=(h,src)=>{const a=num(src.alturaRef);if(a!=null)C(h,"AC25",a>1?a/100:a)};
   // ilícita: el bisel recto de la cascota va en el mismo registro de PT que las soldaduras (0 horas)
   const bisCas0=r.items.find(x=>(x.act==="Biseles"&&x.reparacion?.tipoCamisa==="cascota")||(x.act==="Ilícitas"&&x.ilBis!==false&&(x.tecnicas||["PT"]).includes("PT")&&fotoSlots(x,fotoGrupos(x,tipoA).find(g=>g.k==="PT")||{k:"PT",caps:[]}).some(f=>f.id)));
   // el bisel recto se describe con las cascotas de la reparación (número y Ø)
   const bisCas=bisCas0&&bisCas0.act==="Ilícitas"?{...bisCas0,reparacion:{tipo:"Biseles",tipoCamisa:"cascota",nCas:nInt(bisCas0.reparacion?.cascotas,1,1,12),diamCas:bisCas0.reparacion?.largos?.cas||[],unidad:bisCas0.reparacion?.unidad||"pulg"}}:bisCas0;
   const ptCas=r.items.find(x=>x.act==="0H"&&(x.tecnicas||[]).includes("PT")&&x.reparacion?.tipo);let bisUsado=false;
-  const fotDe=(x,k)=>fotoSlots(x=x===bisCas?bisCas0:x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(f=>f.id).map(f=>({...f,fi:f.fi||x.inspFecha||r.fecha}));
+  const fotDe=(x,k)=>conMuestra(x=x===bisCas?bisCas0:x,fotoGrupos(x,tipoA).find(g=>g.k===k)||{k,caps:[]}).map(f=>({...f,fi:f.fi||x.inspFecha||r.fecha}));
   const filasBisCas=()=>bisRows(bisCas.reparacion).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(bisCas),"-"]);
   const nCas=x=>nInt(x?.reparacion?.cascotas??x?.reparacion?.nCas,1,1,12);
   let usoMTZS=0;const HOJAS_H={h0:["13.PT-CAM -1","13.PT-CAM -2","13.PT-CAM -3","13F.PT-CAM -4","14.MT-CAM -1","14.MT-CAM -2","14.MT-CAM -3","14F.MT-SOLD -4","16.PAUT-LONG-CAM -1","16.PAUT-LONG-CAM -2","16.PAUT-LONG-CAM -3","16F.PAUT-LONG-CAM -4","16F.PAUT-LONG-CAM -5","16F.PAUT-LONG-CAM -6","15.PAUT-CIRC-CAM -1","15F.PAUT-CIRC-CAM -2"],
@@ -3538,7 +3551,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     return[{...x,_ex:true,tecnicas:["PAUT"],reparacion:rep,soldadores:Object.fromEntries(js.map(j=>[j.id,"NA"])),ind:(x.ind||[]).filter(EXI).map(d=>({...d,tec:"PAUT",j:d.j.slice(3)})),pautSin:{},juntasNoT:{},juntasNo:[],sinAnillos:false,fotos:{PAUTI:x.fotos?.PAUTX||[]}}]};
   const ITS=r.items.flatMap(x=>{const v=exVirt(x);if(!v.length&&!(x.ind||[]).some(EXI))return[x];return[{...x,ind:(x.ind||[]).filter(d=>!EXI(d))},...v]});
   for(let it of ITS){
-    const lugarIt=(it.act==="Biseles"||it.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>fotoSlots(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).filter(x=>x.id).map(x=>({...x,fi:x.fi||it.inspFecha||r.fecha}));
+    const lugarIt=(it.act==="Biseles"||it.act==="MT metal base camisa")&&it.lugarInsp==="Patio"?"patio":"campo";const fot=k=>conMuestra(it,fotoGrupos(it,tipoA).find(g=>g.k===k)||{k,caps:[]}).map(x=>({...x,fi:x.fi||it.inspFecha||r.fecha}));
     if(it===bisCas0&&it.act==="Ilícitas")it=bisCas;
     if(it===bisCas){bisUsado=true;// bisel recto de la cascota: reporte propio (hojas de biseles), separado del PT a las soldaduras
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
@@ -3561,7 +3574,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         for(const h of bases){await clonarHoja(h,h+suf);if(AREA_FOTOS[h])AREA_FOTOS[h+suf]=AREA_FOTOS[h]}
         for(const h of bases){const fn=`xl/worksheets/${hoja[h+suf]}.xml`;let x=extra[fn];for(const b of (H12?HOJAS_H.h12:HOJAS_H.h0))if(hoja[b+suf])x=x.split(`'${xe(b)}'!`).join(`'${xe(b+suf)}'!`);extra[fn]=x}}
       const sfx=s=>{const v=H12?s.h12:s.h0;const m=n=>suf&&hoja[n+suf]?n+suf:n;return Array.isArray(v)?v.map(m):m(v)};const rep=it.reparacion;const js=juntasDe(rep,tipoA,it);const tec=it.tecnicas||[];
-      const fila=j=>[j.id,soldDe(it,j.id)||"-",(j.ex?num(j.len):null)??largoJunta(rep,j,r.diametro,r.espesor)??"-"];
+      const fila=j=>[j.id,soldDe(it,j.id)||"-",(j.ex?num(j.len):null)??largoJunta(H12?{...rep,_h12:true}:rep,j,r.diametro,r.espesor)??"-"];
       const nv=v=>{const n=num(v);return n!=null?n:(String(v??"").trim()||"-")};const indDe=(t,id)=>(it.ind||[]).filter(d=>d.tec===t&&d.j===id),resInd=d=>d.res==="Rechazo"?"RECHAZO":"OK";
       const filaPM=(t,j)=>{const ds=indDe(t,j.id);return ds.length?ds.map((d,k)=>[j.id,k?"":fila(j)[1],k?"":fila(j)[2],nv(d.ini),nv(d.lon),d.interp||"-",resInd(d),d.obs||"-"]):[[...fila(j),"-","-","-",resultado(it),"-"]]};const momento=H12?"12 horas":"0 horas";const ilic=rep.tipo==="Ilícita",nc=nCas(it);const SA=SOLD_ACTS[it.act];const insp=SA?`Inspección${SA.mom||""}`:`Inspección ''${momento}''`;
       const hayJ=js.some(j=>j.tope),hayC=js.some(j=>!j.tope),objE=it._ex?`a las soldaduras ${(d=>/^(de|del)\s/i.test(d)?d:"de "+d)(String(rep.exDesc||"las camisas existentes").trim()).replace(/\bde el\b/gi,"del")}, sobre las que se instala la camisa puenteada`:hayJ?`a las juntas a tope tubo-tubo${hayC?` y a las soldaduras de la ${descCamisa(r,rep)}`:""}`:`a las soldaduras${SA?.adj||""} de la ${descCamisa(r,rep)}`;
