@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Esquemas de Inspección</title>
+<link rel="icon" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f3f4f2;--surface:#fff;--sunk:#e8eae6;--line:#d4d8d1;--fg:#1d2621;--muted:#5d685f;--ink:#16324a;--accent:#e0a100;--accent-fg:#1d2621;--bad:#b4372b;--ok:#2f7d4f;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;--f-body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;--f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;--r:8px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111613;--surface:#1a201c;--sunk:#232a25;--line:#323b35;--fg:#e6ebe6;--muted:#9aa69d;--ink:#9fc3e6;--accent:#f2b928;--accent-fg:#111613;--bad:#f08376;--ok:#6cc48f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111613;--surface:#1a201c;--sunk:#232a25;--line:#323b35;--fg:#e6ebe6;--muted:#9aa69d;--ink:#9fc3e6;--accent:#f2b928;--accent-fg:#111613;--bad:#f08376;--ok:#6cc48f;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.4}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+h1{font-family:var(--f-display);font-weight:700;font-size:1.45rem;margin:0;letter-spacing:.01em;color:var(--ink)}
+.tabs{display:flex;gap:4px;background:var(--sunk);padding:3px;border-radius:999px}
+.tab{font:inherit;font-weight:600;font-size:.9rem;border:0;background:none;color:var(--muted);padding:7px 14px;border-radius:999px;cursor:pointer;min-height:36px}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;padding:16px;max-width:1500px;margin:0 auto;align-items:start}
+@media (max-width:860px){main{grid-template-columns:1fr;padding:12px}header{flex-wrap:wrap}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;min-width:0}
+.prev{position:sticky;top:76px}
+@media (max-width:860px){.prev{position:static}}
+.label{display:block;font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+.f{display:block;min-width:0;margin-bottom:10px}
+.field{width:100%;font:inherit;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);min-height:40px;min-width:0}
+.mono{font-family:var(--f-mono);font-size:.92rem}
+.grid2,.grid3{display:grid;gap:0 10px}
+.grid2{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:420px){.grid3{grid-template-columns:1fr 1fr}}
+.note{font-size:.82rem;color:var(--muted);margin:4px 0 8px}
+.check{display:flex;align-items:center;gap:6px;font-size:.9rem}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:9px 14px;cursor:pointer;min-height:40px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.small{padding:5px 10px;min-height:32px;font-size:.85rem}
+.btn.ghost{background:none}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.drawing{background:#fff;border:1px solid var(--line);border-radius:6px;overflow:auto;padding:6px}
+.drawing svg{display:block;width:100%;height:auto;min-width:520px}
+.sec{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
+.secT{font-family:var(--f-display);font-weight:600;font-size:1.05rem;margin:0 0 8px}
+table.ind{width:100%;border-collapse:collapse;font-size:.88rem}
+table.ind th{font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:left;padding:4px 3px;font-weight:600}
+table.ind td{padding:3px}
+table.ind .field{padding:6px 6px;min-height:36px}
+.rm{font:inherit;border:0;background:none;color:var(--bad);font-size:1.1rem;cursor:pointer;min-width:32px;min-height:32px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:20}
+.indrow{display:grid;grid-template-columns:52px 1fr 1fr 1fr 32px;gap:6px;align-items:end;margin-bottom:6px}
+.indrow2{display:grid;grid-template-columns:52px 1fr 1fr 32px;gap:6px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+.indrow .label,.indrow2 .label{font-size:.64rem;margin-bottom:2px}
+a{color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Esquemas de Inspección</h1>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tabRep" aria-selected="true">Reparación</button>
+    <button class="tab" role="tab" id="tabInd" aria-selected="false">Indicaciones</button>
+  </div>
+</header>
+<main>
+  <section class="card" id="formRep">
+    <p class="note" style="margin-top:0">Llene las medidas y el dibujo sale solo. Las longitudes son opcionales: con ellas cada pieza sale a proporción.</p>
+    <label class="f"><span class="label">Esquema</span><select class="field" id="iRep"></select></label>
+    <div class="grid2">
+      <label class="f"><span class="label">Diámetro tubería (pulg)</span><input class="field mono" id="iDiam" inputmode="decimal" value="10"></label>
+      <label class="f"><span class="label">Mostrar</span><select class="field" id="iVista"><option value="">Reparación</option><option value="Zona sana">Zonas sanas</option><option value="0H+B">0 Horas con bisel (ilícita)</option></select></label>
+    </div>
+    <label class="f" id="wTipoA"><span class="label">Tipo de reparación</span><select class="field" id="iTipoRep"></select></label>
+    <div class="grid2" id="wLT">
+      <label class="f"><span class="label">Longitud total (opcional)</span><input class="field mono" id="iLT" inputmode="decimal" placeholder="3.5" autocomplete="off"></label>
+      <label class="f"><span class="label">Unidad</span><select class="field" id="iLTU"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
+    </div>
+    <div class="grid3" id="repParams"></div>
+    <label class="f" id="wRepNota"><span class="label">Detalle (opcional)</span><input class="field" id="iRepNota" placeholder="Ej: cascotas de 12 pulg, soldadura de filete" autocomplete="off"></label>
+    <label class="check"><input type="checkbox" id="iTit" checked> Con título y resumen en la imagen</label>
+  </section>
+
+  <section class="card" id="formInd" hidden>
+    <p class="note" style="margin-top:0">Ubicación de indicaciones: vista desarrollada de la tubería (hora técnica contra distancia) y corte transversal. Las horas se leen mirando en el sentido del flujo.</p>
+    <div class="grid2">
+      <label class="f"><span class="label">Diámetro tubería (pulg)</span><input class="field mono" id="nDiam" inputmode="decimal" value="10"></label>
+      <label class="f"><span class="label">Referencia (cero)</span><input class="field" id="nRef" value="C1" autocomplete="off"></label>
+    </div>
+    <div class="grid2">
+      <label class="f"><span class="label">Elemento</span><input class="field" id="nElem" value="Soldadura circunferencial" autocomplete="off"></label>
+      <label class="f"><span class="label">Flujo</span><select class="field" id="nFlujo"><option value="der">Hacia la derecha →</option><option value="izq">← Hacia la izquierda</option></select></label>
+    </div>
+    <div class="sec">
+      <p class="secT">Otras referencias (opcional)</p>
+      <p class="note">Soldaduras o bordes que quiera ver en el dibujo, con su distancia desde la referencia (mm). Negativa = antes de la referencia.</p>
+      <div id="refs"></div>
+      <button class="btn small" type="button" id="addRef">+ Referencia</button>
+    </div>
+    <div class="sec">
+      <p class="secT">Indicaciones</p>
+      <div id="inds"></div>
+      <button class="btn small" type="button" id="addInd">+ Indicación</button>
+    </div>
+    <label class="check" style="margin-top:12px"><input type="checkbox" id="nTabla" checked> Incluir tabla de indicaciones en la imagen</label>
+  </section>
+
+  <section class="card prev">
+    <div class="drawing" id="drawing"></div>
+    <div class="btns">
+      <button class="btn pri" type="button" id="btnDesc">Descargar PNG</button>
+      <button class="btn" type="button" id="btnCopy">Copiar imagen</button>
+      <button class="btn" type="button" id="btnShare" hidden>Compartir / Guardar en galería</button>
+    </div>
+    <p class="note">La imagen sale en blanco, recortada y en alta resolución, lista para pegar en el Excel o el Word.</p>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+<script>
+let formItems=[],active=0,readOnly=false;
+const TIPOS_REP=["Ilícita","C&E","Camisa Tipo A","Camisa Tipo Sobre Anillos","Camisa Tipo B directa","Camisa Puenteada","Camisa seccionada o armadillo"];
+const LENS=["Camisa directa","Camisa armadillo","Camisa sobre anillos","Camisa sobre anillos sobre venteo","Camisa doble anillo sobre existente","Camisa sobre anillo y camisa existente","Camisa puenteada","Ilícita"];
+const ESPESORES=["0,250","0,277","0,312","0,322","0,330","0,340","0,344","0,365","0,375","0,400","0,406","0,438","0,500","0,562","0,594","0,625","0,656","0,688","0,719","0,750","0,812","0,844","0,864","0,875"];
+const MATERIALES=["Grado A","Grado B","X46","X52","X56","X60","X65","X65Q","X70"];
+const SISTEMAS=["Oleoducto","Poliducto","Propanoducto","Jetducto","Gasoducto","Combustoleoducto"];
+const LINEAS=["Caño Limón - Coveñas","Caño Limón - Ayacucho","Albán - Mansilla","Villeta - Albán","Sebastopol - Santa Rosa","Santa Rosa - Tocancipá","Sutamarchán - Monterrey","Sutamarchán - Tocancipá","Galán - Chimitá","Galán - Sebastopol","Galán - Salgar","Monterrey - Apiay","Monterrey - Porvenir","Sebastopol - Salgar","Sebastopol - Sutamarchán","Salgar - Mansilla","Salgar - Guaduero","Mansilla - Puente Aranda","Puente Aranda - El Dorado","Vasconia - CIB"];
+const DIAMETROS=["4","6","8","10","12","14","16","18","20","24","30","36","42"];
+const NOMINALES=[...new Set(["0,219","0,250","0,277","0,280",...ESPESORES])].sort((a,b)=>parseFloat(a.replace(",","."))-parseFloat(b.replace(",",".")));
+const INSPECTORES=["Julián Duarte Alferez","Oscar Mauricio Rueda","Jorge Humberto Guzmán","Pablo Stevinson Díaz Ríos","Raul Duarte","Gustavo Navarrete","John Otalvarez","Eder Alexon Jacome Torrado","Fabian Chaparro","William Riveros","Bernardo Merchán Salazar","Yair A. Jácome Torrado","Ferney Caceres"];
+const inspList=s=>String(s||"").split(/[,/]/).map(x=>x.trim()).filter(Boolean);
+// Tipos de reparación y sus parámetros
+const REPS={
+  "Ilícita":{params:[["cascotas","Número de cascotas",3,1,12]],act:"Ilícitas"},
+  "Camisa armadillo":{params:[["directas","Piezas directas (sobre el tubo)",3,1,30],["exLado","¿Hay camisa existente a un lado? (el flujo va a la derecha)","Ninguna",0,0,"sel",["Ninguna","Aguas arriba (izquierda)","Aguas abajo (derecha)"]]]},
+  "Camisa sobre anillos":{params:[]},
+  "Camisa sobre anillos sobre venteo":{params:[["tapa","¿Qué tapa la camisa?","Venteo",0,0,"sel",["Venteo","Cascotas"]],["tapaNum","Número de venteo",1,1,20]]},
+  "Camisa directa":{params:[["capas","Sobrecamisas encima, una sobre otra (0 = ninguna)",0,0,3]]},
+  "Camisa sobre anillo y camisa existente":{params:[["cascota","¿Hay cascota bajo la sobre camisa?",true,0,0,"yesno"],["exTipo","Tipo de camisa existente (hace de segundo anillo)","Camisa sobre anillos",0,0,"sel",["Camisa sobre anillos","Camisa seccionada","Camisa directa","Camisa armadillo","Camisa puenteada","Otra"]],["exLado","¿A qué lado queda la camisa existente? (el flujo va a la derecha)","Aguas abajo (derecha)",0,0,"sel",["Aguas arriba (izquierda)","Aguas abajo (derecha)"]]]},
+  "Camisa doble anillo sobre existente":{params:[["exTipo","Tipo de camisa existente","Camisa sobre anillos",0,0,"sel",["Camisa sobre anillos","Camisa seccionada","Camisa directa","Camisa armadillo","Camisa puenteada","Otra"]],["exLado","¿A qué lado queda la camisa existente? (el flujo va a la derecha)","Aguas arriba (izquierda)",0,0,"sel",["Aguas arriba (izquierda)","Aguas abajo (derecha)"]]]},
+  "Camisa puenteada":{params:[["cascota","¿Hay cascota en el espacio?",true,0,0,"yesno"],["ex1Tipo","Tipo de camisa existente 1 (izquierda)","Directa",0,0,"sel",["Directa","Sobre anillos","Armadillo","Tipo A"]],["ex2Tipo","Tipo de camisa existente 2 (derecha)","Directa",0,0,"sel",["Directa","Sobre anillos","Armadillo","Tipo A"]]]},
+  "Zona sana":{params:[["zonas","Áreas sanas",2,1,8]],act:"Zona sana"},
+  "Biseles":{params:[],act:"Biseles"},
+  "Tubería nueva":{params:[["ids","Identificación de los tubos (ej: 269, 270)","",0,0,"txt"],["tubos","Tubos inspeccionados",1,1,20],["extremo","Cada extremo (mm, todo el perímetro)","110",0,0,"num"],["centro","Centro (mm)","3000",0,0,"num"],["largoTubo","Largo del tubo (m, opcional)","",0,0,"num"]],act:"Tubería nueva"},
+  "Corte y empalme":{params:[["venteos","Venteos",2,0,8],["drenajes","Drenajes",1,0,6],["camisas","¿Zona para camisas sobre venteos?",true,0,0,"yesno"]]},
+  "Otra":{params:[]}
+};
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+const U2MM={mm:1,cm:10,m:1000,pulg:25.4};
+
+function numCirc(L){const m={};if(!L.length)return m;m[L[0].k]="C1";let n=2;const t=L.slice(1).filter(x=>x.tubo).pop();if(t){m[t.k]="C2";n=3}L.forEach(x=>{if(!m[x.k])m[x.k]="C"+n++});return m}
+// camisa seccionada / armadillo: piezas de izquierda a derecha; menos de 300 mm = anillo (A#), 300 mm o más = sección (S#)
+function piezasArm(dir,sob){const o=[],nd=dir.length,ns=sob.length;for(let i=0;i<Math.max(nd,ns);i++){if(i<nd)o.push({k:"d",i,mm:dir[i]});if(i<ns)o.push({k:"s",i,mm:sob[i]})}let a=0,b=0;o.forEach(p=>p.nm=p.mm!=null&&p.mm<300?`A${++a}`:`S${++b}`);return o}
+const mmU=(v,u)=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n*(U2MM[u||"cm"]||10):null};
+const armPz=rep=>{const d=nInt(rep?.directas,3,1,30),u=rep?.unidad||"cm",lg=rep?.largos||{};return piezasArm([...Array(d)].map((_,i)=>mmU(lg.dir?.[i],u)),[...Array(d-1)].map((_,i)=>mmU(lg.sob?.[i],u)))};
+const bisPz=rep=>{const nd=nInt(rep?.nDir,3,1,12),ns=nInt(rep?.nSob,nd-1,0,12),u=rep?.unidad||"cm";return piezasArm([...Array(nd)].map((_,i)=>mmU(rep.largosDir?.[i],u)),[...Array(ns)].map((_,i)=>mmU(rep.largosSob?.[i],u)))};
+const pzNom=(P,k,i)=>P.find(p=>p.k===k&&p.i===i)?.nm||"";
+const armEx=rep=>/arriba|izquierda/i.test(rep?.exLado||"")?"izq":/abajo|derecha/i.test(rep?.exLado||"")?"der":"";
+// circunferenciales del armadillo en orden físico: L = extremo izquierdo, s{i}a / s{i}b = bordes de cada sobre, R = extremo derecho
+function armCirc(rep,tipoA){const d=nInt(rep?.directas,3,1,30),ex=armEx(rep),L=[];
+  if(ex==="izq"||!tipoA)L.push({k:"L",tubo:ex!=="izq",lados:["Lado camisa",ex==="izq"?"Lado camisa existente":"Lado tubo"]});
+  for(let i=0;i<d-1;i++)L.push({k:`s${i}a`,lados:["Lado sobrecamisa","Lado camisa"]},{k:`s${i}b`,lados:["Lado sobrecamisa","Lado camisa"]});
+  if(ex==="der"||!tipoA)L.push({k:"R",tubo:ex!=="der",lados:["Lado camisa",ex==="der"?"Lado camisa existente":"Lado tubo"]});
+  const m=numCirc(L);return L.map(x=>({...x,id:m[x.k]}))}
+const aeIds=rep=>/arriba|izquierda/i.test(rep?.exLado||"")?numCirc([{k:"SCEX"},{k:"SCA1"},{k:"A1T",tubo:1}]):numCirc([{k:"A1T",tubo:1},{k:"SCA1"},{k:"SCEX"}]);
+const aeF=rep=>{const q=aeIds(rep);return{[q.SCEX]:/anillos/i.test(rep?.exTipo||"Camisa sobre anillos")?6:4,[q.SCA1]:4,[q.A1T]:2}};
+const dbIds=rep=>/abajo|derecha/i.test(rep?.exLado||"")?numCirc([{k:"A1T",tubo:1},{k:"A2A1"},{k:"SCA2"},{k:"SCEX"}]):numCirc([{k:"SCEX"},{k:"SCA2"},{k:"A2A1"},{k:"A1T",tubo:1}]);
+
+// ---------- esquema de reparación (SVG) ----------
+const PAL_VAR={bg:"var(--bg)",fg:"var(--fg)",muted:"var(--muted)",pipe:"var(--pipe)",edge:"var(--pipe-edge)",sleeve:"var(--sleeve)",sleeve2:"var(--sleeve2)",weld:"var(--weld)",zs:"var(--zs)",zsEdge:"var(--zs-edge)",zsLine:"var(--zs-line)",zsText:"#ffffff",shell:"var(--shell)",shellHi:"var(--shell-hi)",shellEdge:"var(--shell-edge)",l1:"var(--l1)",l2:"var(--l2)",flow:"var(--ok)",bad:"var(--bad)",ink:"var(--ink)",font:"Barlow, system-ui, sans-serif"};
+const PAL_PNG={bg:"#ffffff",fg:"#1d2621",muted:"#454d48",pipe:"#c9cfd3",edge:"#7b868c",sleeve:"#f3d27a",sleeve2:"#e9a948",weld:"#3b4248",zs:"#3b6fd4",zsEdge:"#1f4aa0",zsLine:"#0d2a63",zsText:"#ffffff",shell:"#6f777c",shellHi:"#8e979c",shellEdge:"#3f464a",l1:"#e02020",l2:"#4caf3a",flow:"#2f7d4f",bad:"#b4372b",ink:"#16324a",font:"Arial, Helvetica, sans-serif"};
+// los esquemas se dibujan siempre como plano técnico claro (igual en pantalla y en la imagen descargada)
+Object.assign(PAL_VAR,PAL_PNG,{font:"Barlow, system-ui, sans-serif"});
+function nInt(v,def,min,max){v=parseInt(v,10);if(isNaN(v))v=def;return Math.max(min,Math.min(max,v))}
+// Corte y empalme: secuencia de áreas sanas a lo largo del tubo (en sentido del flujo)
+function layoutCE(rep){
+  const v=nInt(rep.venteos,2,0,8), d=nInt(rep.drenajes,1,0,6), cams=rep.camisas!==false;
+  const BW=28,SG=12,BG=36,AR=170;
+  const it=[];let fit=0,cam=0;
+  const band=l=>it.push({k:"b",l,w:BW}), gap=w=>it.push({k:"g",w});
+  // numeración: venteos y drenajes por separado (esquemas nuevos); los guardados antes conservan la numeración seguida
+  const sep=!!rep.numSep;let nV=0,nD=0;
+  const vent=i=>{fit++;nV++;const n_=sep?nV:fit;const nv=rep.vDren?.[i]?`AS VENTEO DRENAJE #${n_}`:`AS VENTEO #${n_}`;if(cams){cam++;band(`AS C1 - CAM #${cam}`);gap(SG);band(nv);gap(SG);band(`AS C2 - CAM #${cam}`)}else band(nv);gap(BG)};
+  // ubicación de cada venteo y drenaje; la numeración sigue el orden a lo largo del tubo
+  const posV=[...Array(v)].map((_,i)=>rep.posV?.[i]||(i<Math.ceil(v/2)?"antes":"despues"));
+  const posD=[...Array(d)].map((_,i)=>rep.posD?.[i]||"entre");
+  const drain=()=>{fit++;nD++;band(sep?`AS DRENAJE #${nD}`:`AS DRENAJE VENTEO #${fit}`);gap(BG)};
+  const grp=g=>{posV.forEach((p,i)=>{if(p===g)vent(i)});posD.forEach(p=>{if(p===g)drain()})};
+  grp("antes");
+  band("AS TIE IN #1");gap(BG);
+  grp("entre");
+  it.push({k:"a",w:AR});
+  band("AS TIE IN #2");gap(BG);
+  grp("despues");
+  while(it.length&&it[it.length-1].k==="g")it.pop();
+  return{it,total:it.reduce((s,o)=>s+o.w,0),v,d,cams,cam,BW};
+}
+
+let REPMODE=false; // dibujo para el reporte: sin datos repetidos y el flujo sobre el tubo
+function drawRepair(rep,meta,P,compact){
+  // Camisa Tipo A: no lleva soldaduras de compromiso (las que van directas a la tubería)
+  const sinComp=meta?.tipoReparacion==="Camisa Tipo A";
+  const esZS=rep?.tipo==="Zona sana", esCE=rep?.tipo==="Corte y empalme", esBI=rep?.tipo==="Biseles", esCA=rep?.tipo==="Camisa armadillo", esAN=rep?.tipo==="Camisa sobre anillos", esPU=rep?.tipo==="Camisa puenteada", esIL=rep?.tipo==="Ilícita", esAV=rep?.tipo==="Camisa sobre anillos sobre venteo", esCD=rep?.tipo==="Camisa directa";
+  const ce=esCE?layoutCE(rep):null;
+  const FILA=12,ROWH=225,nFil=esCA&&!compact?Math.ceil(nInt(rep.directas,3,1,30)/FILA):1;
+  const W=esCE?Math.max(720,Math.ceil(ce.total+120)):esBI?760:esCA?Math.max(720,60+125*Math.min(FILA,nInt(rep.directas,3,1,30))+(nFil>1?90:0)):720;
+  const LTv=(()=>{const n=parseFloat(String(rep?.longTotal??"").replace(",","."));return isFinite(n)&&n>0?n:null})();
+  const H=(esCE?(compact?190:310):esBI?(compact?170:310):(compact?150:280))+(!compact&&LTv?36:0)+(nFil-1)*ROWH;
+  const cy=esCE?(compact?95:170):(compact?75:150);
+  const ph=rep?.tipo==="Biseles"&&rep.tipoCamisa==="cascota"?0:rep?.tipo==="Tubería nueva"?(compact?46:62):esCE?(compact?120:170):esZS?64:esIL?(compact?100:136):(esCA||esAN||esAV||esPU||esCD)?60:40;
+  // escala de diámetros: camisa = tubería + 1", sobre camisa = tubería + 2" (ej. 16" → 17" → 18")
+  const DI=parseFloat(String(rep?.diametro??"").replace(",","."))||16, INC=Math.max(6,ph/DI);
+  const py=cy-ph/2, x0=36, x1=W-36;
+  const st=(o)=>Object.entries(o).map(([k,v])=>k+":"+v).join(";");
+  const S=[];
+  const T=(x,y,txt,o={})=>{if(compact)return;S.push(`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" style="${st({fill:o.c||P.fg,"font-family":P.font,"font-size":(o.s||12)+"px","font-weight":o.w||500})}">${esc(txt)}</text>`)};
+  const R=(x,y,w,h,o)=>S.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(0,w).toFixed(1)}" height="${h.toFixed(1)}" rx="${o.rx||0}" style="${st({fill:o.f||"none",stroke:o.s||"none","stroke-width":o.sw||1,"stroke-dasharray":o.d||"none"})}"/>`);
+  const L=(xa,ya,xb,yb,o)=>S.push(`<line x1="${xa.toFixed(1)}" y1="${ya.toFixed(1)}" x2="${xb.toFixed(1)}" y2="${yb.toFixed(1)}" style="${st({stroke:o.s,"stroke-width":o.sw||1,"stroke-dasharray":o.d||"none"})}"/>`);
+  S.push(`<rect x="0" y="0" width="${W}" height="${H}" style="fill:${P.bg}"/>`);
+  // degradados metálicos: tubería, camisas y cara frontal de las camisas
+  S.push(`<defs><linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f878b"/><stop offset=".2" stop-color="#d3d7d9"/><stop offset=".55" stop-color="#8f979b"/><stop offset="1" stop-color="#4f565a"/></linearGradient><linearGradient id="gS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#959ca0"/><stop offset=".18" stop-color="#e9ecee"/><stop offset=".55" stop-color="#a7aeb2"/><stop offset="1" stop-color="#646c70"/></linearGradient><linearGradient id="gF" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#5d6569"/><stop offset=".6" stop-color="#b8bec1"/><stop offset="1" stop-color="#8b9296"/></linearGradient></defs>`);
+  const f1=v=>Number(v).toFixed(1);
+  // camisa / anillo / sección en 3D: cuerpo con extremos curvos y cara visible en el extremo izquierdo
+  // camisa / anillo / sección: cuerpo metálico con extremos apenas redondeados y un borde fino de brillo (sin cara visible)
+  const sleeve=(x,y,w,h,o={})=>{const rx=Math.max(2,Math.min(4,w/10)), ry=h/2, op=o.op?`;fill-opacity:${o.op}`:"";
+    S.push(`<path d="M${f1(x)},${f1(y)} H${f1(x+w)} A${f1(rx)},${f1(ry)} 0 0 1 ${f1(x+w)},${f1(y+h)} H${f1(x)} A${f1(rx)},${f1(ry)} 0 0 1 ${f1(x)},${f1(y)} Z" style="fill:url(#gS);stroke:#3f464a;stroke-width:1.4${op}"/>`);
+    [[x+2,0],[x+w-2,1]].forEach(([xe,sd])=>S.push(`<path d="M${f1(xe)},${f1(y+3)} A${f1(rx)},${f1(ry-3)} 0 0 ${sd} ${f1(xe)},${f1(y+h-3)}" style="fill:none;stroke:#ffffff;stroke-opacity:.6;stroke-width:1.3"/>`));
+  };
+  // tubería
+  // tubería metálica con el símbolo de corte (S) en ambos extremos
+  const pipe=()=>{const a=x0,b=x1,t=py,hh=ph,q=Math.min(14,hh*0.32);
+    S.push(`<path d="M${a},${t} L${b},${t} C${f1(b+q)},${f1(t+hh/3)} ${f1(b-q)},${f1(t+2*hh/3)} ${b},${f1(t+hh)} L${a},${f1(t+hh)} C${f1(a-q)},${f1(t+2*hh/3)} ${f1(a+q)},${f1(t+hh/3)} ${a},${t} Z" style="fill:url(#gP);stroke:#3f464a;stroke-width:1.5"/>`);
+    S.push(`<path d="M${a},${f1(t+hh/2)} Q${f1(a-q*0.75)},${f1(t+hh*0.75)} ${a},${f1(t+hh)} Q${f1(a+q*1.4)},${f1(t+hh*0.75)} ${a},${f1(t+hh/2)} Z" style="fill:#30363a"/>`);
+    S.push(`<path d="M${b},${t} Q${f1(b+q*0.75)},${f1(t+hh*0.25)} ${b},${f1(t+hh/2)} Q${f1(b-q*1.4)},${f1(t+hh*0.25)} ${b},${t} Z" style="fill:#30363a"/>`);
+    if(!compact&&!esZS&&!esCE&&!esCA&&!esAN&&!esPU&&!esIL&&!esAV&&!esCD){L(x0+16,cy,x0+60,cy,{s:P.edge,sw:2});S.push(`<path d="M${x0+60},${cy-5} L${x0+70},${cy} L${x0+60},${cy+5} Z" style="fill:${P.edge}"/>`);T(x0+44,cy-6,"Flujo",{s:10,c:P.muted})}};
+  const weld=(x,h)=>R(x-2.5,cy-h/2,5,h,{f:P.weld});
+  // área sana: franja azul con la línea de referencia punteada al centro
+  const zona=(x,w,label,pos)=>{const h=ph+4;R(x,cy-h/2,w,h,{f:P.zs,s:P.zsEdge,sw:1.2});
+    L(x+w/2,cy-h/2+3,x+w/2,cy+h/2-3,{s:P.zsLine,sw:1.6,d:"5 4"});
+    if(compact||!label)return;
+    if(pos==="left")T(x-10,cy+5,label,{a:"end",s:14,w:700});
+    else if(pos==="right")T(x+w+10,cy+5,label,{a:"start",s:14,w:700});
+    else T(x+w/2,cy-h/2-8,label,{s:12,w:700})};
+  const dim=(xa,xb,y,txt)=>{if(compact)return;L(xa,y,xb,y,{s:P.muted});L(xa,y-5,xa,y+5,{s:P.muted});L(xb,y-5,xb,y+5,{s:P.muted});T((xa+xb)/2,y+15,txt,{s:11,c:P.muted})};
+  const flow=(fx,fy,col)=>{if(compact)return;
+    if(REPMODE&&RA!==null&&RA-x0>50){const sp=RA-x0-12,xm=(x0+12+RA)/2,h=Math.min(46,sp*0.38);T(xm,cy-5,sp<120?"Flujo":"Sentido de flujo",{s:12,w:700,c:"#14324a"});L(xm-h,cy+11,xm+h-14,cy+11,{s:"#14324a",sw:2.5});S.push(`<path d="M${xm+h-14},${cy+5} L${xm+h},${cy+11} L${xm+h-14},${cy+17} Z" style="fill:#14324a"/>`);return}
+   T(fx-10,fy-7,"Sentido de flujo",{s:12,w:700,c:col});L(fx-62,fy+6,fx+40,fy+6,{s:col,sw:2.5});S.push(`<path d="M${fx+40},${fy} L${fx+54},${fy+6} L${fx+40},${fy+12} Z" style="fill:${col}"/>`)};
+  const seam=(a,b,ySolid,yDash)=>{L(a+4,ySolid,b-4,ySolid,{s:P.fg,sw:1.8});L(a+4,yDash,b-4,yDash,{s:P.muted,sw:1.4,d:"6 4"})};
+  const tipo=rep?.tipo||"";
+  const LN=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
+  const U=rep?.unidad||"cm", lg=rep?.largos||{};
+  let titulo="", resumen="", RA=null, RB=null, DL="", zsHecho=false;
+  if(!esBI&&tipo!=="Tubería nueva")pipe();
+  // ZONA SANA DE UNA CAMISA: se inspecciona ANTES de instalarla. Se dibuja el tubo, la(s) camisa(s) existente(s), la cascota
+  // y las áreas sanas (AS C1, AS C2, de izquierda a derecha) donde van a quedar los extremos de la camisa nueva (en línea punteada)
+  if(rep?.vista==="Zona sana"&&/^Camisa (directa|sobre anillos$|armadillo|sobre anillo y camisa existente|doble anillo sobre existente|puenteada)/.test(tipo)){zsHecho=true;
+    const izqAE=/arriba|izquierda/i.test(rep.exLado||""),derDB=/abajo|derecha/i.test(rep.exLado||"");
+    const exI=tipo==="Camisa puenteada"||(tipo==="Camisa sobre anillo y camisa existente"&&izqAE)||(tipo==="Camisa doble anillo sobre existente"&&!derDB)||(tipo==="Camisa armadillo"&&armEx(rep)==="izq");
+    const exD=tipo==="Camisa puenteada"||(tipo==="Camisa sobre anillo y camisa existente"&&!izqAE)||(tipo==="Camisa doble anillo sobre existente"&&derDB)||(tipo==="Camisa armadillo"&&armEx(rep)==="der");
+    const exNom=s_=>`Camisa existente${s_&&s_!=="Directa"?` (${String(s_).replace(/^Camisa /,"").toLowerCase()})`:""}`;
+    const nomI=tipo==="Camisa puenteada"?exNom(rep.ex1Tipo):exNom(rep.exTipo),nomD=tipo==="Camisa puenteada"?exNom(rep.ex2Tipo):exNom(rep.exTipo);
+    const span=x1-x0,ca=x0+span*0.25,cb=x0+span*0.75,hE=ph+2*INC,hF=ph+3*INC,zw=compact?12:28,zv=a_=>meta?.zs?.[a_];
+    // camisas existentes (no se inspeccionan aquí)
+    if(exI){sleeve(x0+8,cy-hE/2,ca+span*0.09-(x0+8),hE,{op:.55});if(!compact)T((x0+8+ca)/2-span*0.04,cy+hF/2+60,nomI,{s:11,c:P.muted})}
+    if(exD){sleeve(cb-span*0.09,cy-hE/2,x1-8-(cb-span*0.09),hE,{op:.55});if(!compact)T((cb+x1-8)/2+span*0.04,cy+hF/2+60,nomD,{s:11,c:P.muted})}
+    // camisa a instalar: solo el contorno (todavía no existe)
+    {const y0=cy-hF/2,y1=cy+hF/2,d_="7 5";L(ca,y0,cb,y0,{s:P.muted,sw:1.3,d:d_});L(ca,y1,cb,y1,{s:P.muted,sw:1.3,d:d_});L(ca,y0,ca,y1,{s:P.muted,sw:1.3,d:d_});L(cb,y0,cb,y1,{s:P.muted,sw:1.3,d:d_});
+      if(!compact)T((ca+cb)/2,y0-8,"Camisa a instalar",{s:11,c:P.muted})}
+    // cascota (lo que se va a cubrir)
+    if(rep.cascota!==false&&/existente|puenteada/.test(tipo)){const gx=(ca+cb)/2,rx=Math.min(46,span*0.06);S.push(`<ellipse cx="${gx.toFixed(1)}" cy="${(cy-ph/2+2).toFixed(1)}" rx="${rx.toFixed(1)}" ry="9" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);if(!compact)T(gx,cy+6,"CASCOTA",{s:12,w:700})}
+    // áreas sanas en los extremos de la camisa a instalar: sobre la existente o sobre el tubo
+    const zs_=[[ca+zw/2+(exI?span*0.035:-zw*0.2),exI],[cb-zw/2-(exD?span*0.035:-zw*0.2),exD]];
+    zs_.forEach(([x,sobreEx],n)=>{const l=`AS C${n+1}`,off=(rep.zsNo||[]).includes(l),h=(sobreEx?hE:ph)+4;R(x-zw/2,cy-h/2,zw,h,{f:off?"#e4e7e9":P.zs,s:off?"#b5bcc0":P.zsEdge,sw:1.2});
+      if(!compact){const yb=cy+hF/2;T(x,yb+17,l,{s:12,w:700,c:off?"#8d969b":P.zsEdge});T(x,yb+31,sobreEx?"sobre la existente":"sobre la tubería",{s:10,c:P.muted});if(zv(l))T(x,yb+45,`e mín ${zv(l)}"`,{s:11,w:700,c:P.ink})}});
+    flow((ca+cb)/2,cy+hF/2+34,P.zs);RA=ca;RB=cb;
+    titulo="Zonas sanas para la instalación de la camisa";DL="";
+    resumen=`AS C1 ${exI?"sobre la camisa existente":"sobre la tubería"} · AS C2 ${exD?"sobre la camisa existente":"sobre la tubería"}`;
+  } else if(tipo==="Ilícita"){
+    // cascotas circulares sobre el tubo (vistas en perspectiva), cada una con su zona sana
+    const n=nInt(rep.cascotas,3,1,12), LC=[...Array(n)].map((_,i)=>LN(lg.cas?.[i])), knownC=LC.every(Boolean);
+    const Dc=knownC?LC:LC.map(()=>1), a0=x0+200, a1=x1-70, step=n>1?(a1-a0)/(n-1):0;
+    const k=Math.min(120/Math.max(...Dc),(n>1?step*0.8:200)/Math.max(...Dc)), ty=py+16;
+    for(let i=0;i<n;i++){const cx=n>1?a0+step*i:(a0+a1)/2, rx=Math.max(14,Dc[i]*k/2), ry=Math.max(6,rx*0.28), cb=ty+2*ry;if(RA===null)RA=cx-rx;RB=cx+rx;
+      S.push(`<ellipse cx="${cx.toFixed(1)}" cy="${(ty+ry).toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" style="fill:${P.zs};stroke:${P.zsEdge};stroke-width:1.5"/>`);
+      if(!compact){const ly=cb+40;
+        L(cx,ly-14,cx,cb+9,{s:P.bad,sw:1.6});
+        S.push(`<path d="M${(cx-4.5).toFixed(1)},${(cb+11).toFixed(1)} L${cx.toFixed(1)},${(cb+2).toFixed(1)} L${(cx+4.5).toFixed(1)},${(cb+11).toFixed(1)} Z" style="fill:${P.bad}"/>`);
+        const zsV=!rep.vista||rep.vista==="Zona sana";T(cx,ly,zsV?"Zona sana":`Cascota #${i+1}`,{s:12,w:zsV?600:700});T(cx,ly+15,zsV?`Cascota #${i+1}`:`${rep.vista==="0H+B"?"Bisel recto y soldadura de filete":"Soldadura de filete"}${knownC?` · L ${perCascota(U,LC[i])} mm`:""}`,{s:zsV?12:11,w:600});
+        const zv=meta?.zs?.[`Zona sana Cascota #${i+1}`];if(zv)T(cx,ly+(knownC?44:30),`e mín ${zv}"`,{s:11,w:700,c:P.ink});
+        if(knownC)T(cx,ly+30,`Ø ${LC[i]} ${U}`,{s:11,c:P.muted})}}
+    if(!compact){T(x0+22,py+ph-24,"Sentido flujo",{a:"start",s:13,w:700,c:"#ffffff"});
+      L(x0+22,py+ph-12,x0+126,py+ph-12,{s:"#5aa2ff",sw:3});
+      S.push(`<path d="M${x0+126},${py+ph-18} L${x0+140},${py+ph-12} L${x0+126},${py+ph-6} Z" style="fill:#5aa2ff"/>`)}
+    titulo="Reparación de ilícita";resumen=rep.vista&&rep.vista!=="Zona sana"?`${n} ${n===1?"cascota":"cascotas"} · soldadura de filete por todo el perímetro`:`${n} ${n===1?"cascota":"cascotas"} · zona sana por cascota`;
+  } else if(tipo==="Camisa armadillo"&&nFil>1){
+    // camisa larga (más de 12 directas): se dibuja en varias filas de 12, numeración continua; la sobrecamisa que une dos filas abre la fila siguiente
+    const d=nInt(rep.directas,3,1,30), s=d-1;
+    const LD=[...Array(d)].map((_,i)=>LN(lg.dir?.[i])), LS=[...Array(s)].map((_,i)=>LN(lg.sob?.[i]));
+    const known=LD.every(Boolean)&&LS.every(Boolean);
+    const D=known?LD:LD.map(()=>1), Sl=known?LS:LS.map(()=>0.8);
+    const avail=x1-x0-150;let kD=Infinity;
+    for(let r=0;r<nFil;r++){const a=r*FILA,b=Math.min(d,a+FILA);const sd=D.slice(a,b).reduce((x,y)=>x+y,0),ss=Sl.slice(Math.max(0,a-1),b-1).reduce((x,y)=>x+y,0);kD=Math.min(kD,130/Math.max(...D),avail/(sd+ss*0.45))}
+    const wS=Sl.map(v=>Math.max(46,v*kD)), gS=wS.map(w=>w*0.45), hD=ph+INC, hS=ph+2*INC, PZ=armPz(rep), EX=armEx(rep), CM=Object.fromEntries(armCirc(rep,sinComp).map(c=>[c.k,c.id]));
+    for(let r=0;r<nFil;r++){const a=r*FILA,b=Math.min(d,a+FILA),dy=r*ROWH;if(r>0){S.push(`<g transform="translate(0,${dy})">`);pipe()}
+      const pos=[];let xx=r>0?gS[a-1]:0;for(let i=a;i<b;i++){pos.push([i,xx]);xx+=D[i]*kD+(i<b-1?gS[i]:0)}
+      const sx=(W-xx)/2;if(r===0)RA=sx;RB=sx+xx;
+      const dxi=i=>sx+pos.find(q=>q[0]===i)[1],dwi=i=>D[i]*kD;
+      for(let i=a;i<b;i++){sleeve(dxi(i),cy-hD/2,dwi(i),hD);seam(dxi(i),dxi(i)+dwi(i),cy-2,cy+12)}
+      const sobs=[];for(let i=Math.max(0,a-1);i<b-1;i++){const gc=i===a-1?dxi(a)-gS[i]/2:dxi(i)+dwi(i)+gS[i]/2,w=wS[i],xa=gc-w/2;sobs.push([i,xa,w]);sleeve(xa,cy-hS/2,w,hS);seam(xa,xa+w,cy-2,cy+12)}
+      if(!compact){
+        for(let i=a;i<b;i++){const sl=sobs.find(q=>q[0]===i-1),sr=sobs.find(q=>q[0]===i),A=sl?sl[1]+sl[2]:dxi(i),B=sr?sr[1]:dxi(i)+dwi(i),m=(A+B)/2;
+          const nm=pzNom(PZ,"d",i);T(m,cy-7,`${nm} L1`,{s:12,w:700});T(m,cy+26,`${nm} L2`,{s:11,c:P.muted});T(m,cy-hD/2-8,nm,{s:13,w:700,c:P.ink});if(known)T(m,cy-hD/2-24,`${LD[i]} ${U}`,{s:11,c:P.muted})}
+        sobs.forEach(([i,xa,w])=>{const nm=pzNom(PZ,"s",i),m=xa+w/2;T(m,cy-7,`${nm} L1`,{s:12,w:700});T(m,cy+26,`${nm} L2`,{s:11,c:P.muted});T(m,cy+hS/2+16,nm,{s:13,w:700,c:P.ink});if(known)T(m,cy+hS/2+30,`${LS[i]} ${U}`,{s:11,c:P.muted});
+          T(xa-4,cy-hD/2+12,CM[`s${i}a`],{a:"end",s:11,w:700,c:P.bad});T(xa+w+4,cy-hD/2+12,CM[`s${i}b`],{a:"start",s:11,w:700,c:P.bad})});
+        if(CM.L&&r===0)T(dxi(0)-4,cy-hD/2+12,CM.L+(EX==="izq"?" (contra existente)":""),{a:"end",s:11,w:700,c:P.bad});
+        if(CM.R&&r===nFil-1)T(dxi(d-1)+dwi(d-1)+4,cy-hD/2+12,CM.R+(EX==="der"?" (contra existente)":""),{a:"start",s:11,w:700,c:P.bad});
+        if(r<nFil-1)T(x1-6,cy+hS/2+48,`Continúa en la fila ${r+2} ↓`,{a:"end",s:11,w:600,c:P.muted});
+        if(r>0)T(x0+6,cy-hS/2-30,`Viene de la fila ${r} (Sec. ${a})`,{a:"start",s:11,w:600,c:P.muted});
+        if(r===0)flow(W/2,cy+hS/2+58,P.flow)}
+      if(r>0)S.push(`</g>`)}
+    const nW=Object.keys(CM).length;
+    titulo="Camisa armadillo (seccionada)";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";resumen=`${d} directas + ${s} sobrecamisas en ${nFil} filas · soldaduras C1–C${nW}`;
+  } else if(tipo==="Camisa armadillo"){
+    // N directas; N-1 sobrecamisas tapan cada espacio (la N+1 tapa 1-2...). Soldaduras: C1/C2 en los extremos, C3-C4, C5-C6… en cada sobrecamisa
+    const d=nInt(rep.directas,3,1,30), s=d-1;
+    const LD=[...Array(d)].map((_,i)=>LN(lg.dir?.[i])), LS=[...Array(s)].map((_,i)=>LN(lg.sob?.[i]));
+    const known=LD.every(Boolean)&&LS.every(Boolean);
+    const D=known?LD:LD.map(()=>1), Sl=known?LS:LS.map(()=>0.8);
+    // cada sobrecamisa tapa un espacio igual al 45% de su longitud y monta 27,5% sobre cada directa vecina
+    // sobrecamisas con ancho mínimo legible; las directas se ajustan al espacio que queda
+    const EX=armEx(rep),EXW=EX?(compact?28:104):0,PZ=armPz(rep),CM=Object.fromEntries(armCirc(rep,sinComp).map(c=>[c.k,c.id]));
+    const avail=x1-x0-90-EXW, k0=Math.min(130/Math.max(...D),avail/(D.reduce((a,b)=>a+b,0)+Sl.reduce((a,b)=>a+b,0)*0.45));
+    const wS=Sl.map(v=>Math.max(46,v*k0)), gS=wS.map(w=>w*0.45);
+    const kD=Math.min(130/Math.max(...D),(avail-gS.reduce((a,b)=>a+b,0))/D.reduce((a,b)=>a+b,0)), hD=ph+INC, hS=ph+2*INC;
+    const xs=[];let xx=0;for(let i=0;i<d;i++){xs.push(xx);xx+=D[i]*kD+(i<s?gS[i]:0)}
+    const sx=(W-xx)/2+(EX==="izq"?EXW/2:EX==="der"?-EXW/2:0), dx=i=>sx+xs[i], dw=i=>D[i]*kD;RA=sx;RB=sx+xx;
+    // camisa existente (gris, no inspeccionada): la pieza del extremo monta sobre ella
+    const hX=i=>(EX==="izq"&&i===0)||(EX==="der"&&i===d-1)?hD+INC:hD;
+    if(EX){const eh=hD-2,ea=EX==="izq"?dx(0)-EXW:dx(d-1)+dw(d-1)*0.55,eb=EX==="izq"?dx(0)+dw(0)*0.45:dx(d-1)+dw(d-1)+EXW;
+      R(ea,cy-eh/2,eb-ea,eh,{f:"#d5dadd",s:"#9aa3a8",sw:1.2,rx:3});T(EX==="izq"?ea+EXW/2:eb-EXW/2,cy+hS/2+16,"Camisa existente",{s:11,w:600,c:"#5f6b71"})}
+    for(let i=0;i<d;i++){sleeve(dx(i),cy-hX(i)/2,dw(i),hX(i));seam(dx(i),dx(i)+dw(i),cy-2,cy+12)}
+    const welds=[], sob=[];if(CM.L)welds.push([dx(0),CM.L,1]);if(CM.R)welds.push([dx(d-1)+dw(d-1),CM.R,0]);
+    for(let i=0;i<s;i++){const w=wS[i], gc=dx(i)+dw(i)+gS[i]/2, xa=gc-w/2;sob.push([xa,w]);
+      sleeve(xa,cy-hS/2,w,hS);seam(xa,xa+w,cy-2,cy+12);
+      welds.push([xa,CM[`s${i}a`],1],[xa+w,CM[`s${i}b`],0])}
+    if(!compact){
+      for(let i=0;i<d;i++){const a=i===0?dx(0):sob[i-1][0]+sob[i-1][1], b=i===d-1?dx(i)+dw(i):sob[i][0], m=(a+b)/2, nm=pzNom(PZ,"d",i);
+        T(m,cy-7,`${nm} L1`,{s:12,w:700});T(m,cy+26,`${nm} L2`,{s:11,c:P.muted});T(m,cy-hX(i)/2-8,nm,{s:13,w:700,c:P.ink});
+        if(known)T(m,cy-hX(i)/2-24,`${LD[i]} ${U}`,{s:11,c:P.muted})}
+      // sobrecamisas rotuladas abajo para no amontonar los rótulos de arriba
+      sob.forEach(([xa,w],i)=>{const nm=pzNom(PZ,"s",i),m=xa+w/2;T(m,cy-7,`${nm} L1`,{s:w<60?10:12,w:700});T(m,cy+26,`${nm} L2`,{s:w<60?10:11,c:P.muted});T(m,cy+hS/2+16,nm,{s:13,w:700,c:P.ink});
+        if(known)T(m,cy+hS/2+30,`${LS[i]} ${U}`,{s:11,c:P.muted})});
+      // el nombre de cada circunferencial va al lado de afuera de su soldadura
+      welds.forEach(([x,l,left])=>{T(left?x-4:x+4,cy-hD/2+12,l,{a:left?"end":"start",s:11,w:700,c:P.bad})});
+      flow(W/2,cy+hS/2+58,P.flow);
+    }
+    const nW=welds.length;
+    titulo="Camisa armadillo (seccionada)";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";resumen=`${d} ${d===1?"directa":"directas"} + ${s} ${s===1?"sobrecamisa":"sobrecamisas"}${nW?` · soldaduras C1–C${nW}`:""}${EX?` · camisa existente ${EX==="izq"?"a la izquierda":"a la derecha"}`:""}`;
+  } else if(tipo==="Camisa sobre anillos"||tipo==="Camisa sobre anillos sobre venteo"){
+    const AV=tipo!=="Camisa sobre anillos";
+    const la=LN(lg.an?.[0]), ls=LN(lg.sc?.[0]), knownA=!!(la&&ls);
+    const A=knownA?la:1, Sc=knownA?ls:2.6, ovU=0.3*A, totU=Math.max(2*A+Sc-2*ovU,2*A+0.1);
+    const k=Math.min(520/totU,150/A), hA=ph+INC, hS=ph+2*INC, aw=A*k, ov=ovU*k;
+    let swd=Sc*k, gap=swd-2*ov; if(gap<10){gap=10;swd=gap+2*ov}
+    const tot=2*aw+gap, sx=(W-tot)/2, a2=sx+aw+gap, sa=sx+aw-ov;RA=sx;RB=sx+tot;
+    [sx,a2].forEach(x=>{sleeve(x,cy-hA/2,aw,hA);seam(x,x+aw,AV?cy-8:cy+10,AV?cy+10:cy-8)});
+    sleeve(sa,cy-hS/2,swd,hS);seam(sa,sa+swd,cy-8,cy+10);
+    // lo que queda tapado bajo la sobre camisa: un venteo o varias cascotas
+    const isV=rep.tapa!=="Cascotas", nT=isV?1:nInt(rep.tapaNum,1,1,12);
+    if(AV){const z0=sx+aw,z1=a2,st=(z1-z0)/nT;
+      for(let i=0;i<nT;i++){const cxx=z0+st*(i+0.5), rx=Math.min(34,st*0.42);
+        S.push(`<ellipse cx="${cxx.toFixed(1)}" cy="${cy-hS/2+11}" rx="${rx.toFixed(1)}" ry="8" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);
+        T(cxx,cy-hS/2+14.5,isV?`Venteo #${nInt(rep.tapaNum,1,1,20)}`:`Cascota ${i+1}`,{s:rx<26?8:9,w:700})}}
+    if(!compact){
+      const v1=(sx+sa)/2, v2=(sa+swd+a2+aw)/2, m=sa+swd/2;
+      const lab=(x,up,dn)=>{T(x,cy-13,up,{s:12,w:up.endsWith("L1")?700:400,c:up.endsWith("L1")?P.fg:P.muted});T(x,cy+25,dn,{s:12,w:dn.endsWith("L1")?700:400,c:dn.endsWith("L1")?P.fg:P.muted})};
+      lab(v1,AV?"A1L1":"A1L2",AV?"A1L2":"A1L1");lab(v2,AV?"A2L1":"A2L2",AV?"A2L2":"A2L1");
+      const mx=AV?a2-18:m;T(mx,cy-13,"L1",{s:13,w:700,a:AV?"end":"middle"});T(mx,cy+25,"L2",{s:12,c:P.muted,a:AV?"end":"middle"});
+      const cyL=cy-hA/2+15;
+      if(!sinComp){T(sx-5,cyL,"C1",{a:"end",s:13,w:700,c:P.bad});T(a2+aw+5,cyL,"C2",{a:"start",s:13,w:700,c:P.bad})}
+      T(sa-5,cyL,sinComp?"C1":"C3",{a:"end",s:13,w:700,c:P.bad});T(sa+swd+5,cyL,sinComp?"C2":"C4",{a:"start",s:13,w:700,c:P.bad});
+      T(v1,cy+hA/2+18,"Anillo 1"+(knownA?` · ${la} ${U}`:""),{s:11,c:P.muted});T(v2,cy+hA/2+18,"Anillo 2"+(knownA?` · ${la} ${U}`:""),{s:11,c:P.muted});T(m,cy+hS/2+18,"Sobre camisa"+(knownA?` · ${ls} ${U}`:""),{s:11,c:P.muted});
+      flow(W/2,cy+hS/2+46,P.zs);
+    }
+    const sw=sinComp?" · soldaduras C1–C2":" · soldaduras C1–C4";
+    titulo=AV?"Camisa sobre anillos sobre venteo":"Camisa sobre anillos";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";
+    resumen=AV?(isV?`Tapa el venteo #${nInt(rep.tapaNum,1,1,20)}`:`Tapa ${nT} ${nT===1?"cascota":"cascotas"}`)+sw:"2 anillos + sobre camisa"+sw;
+  } else if(tipo==="Tubería nueva"){
+    // tubo nuevo (metal base): extremos inspeccionados en todo el perímetro y una franja central
+    const ext=LN(rep.extremo)??110, cen=LN(rep.centro)??3000, lt=LN(rep.largoTubo), nt=nInt(rep.tubos,1,1,20), span=x1-x0, fm=v=>String(v).replace(".",",");
+    S.push(`<rect x="${x0}" y="${f1(py)}" width="${span}" height="${ph}" style="fill:url(#gP);stroke:#3f464a;stroke-width:1.5"/>`);
+    const ew=Math.max(compact?10:30,lt?span*ext/(lt*1000):0), cw=Math.min(span*0.6,Math.max(compact?50:150,lt?span*cen/(lt*1000):0)), cxa=x0+span/2-cw/2;
+    const band=(x,w,lab,sub,a)=>{R(x,py-3,w,ph+6,{f:P.zs,s:P.zsEdge,sw:1.2});if(compact)return;const tx=a==="start"?x:a==="end"?x+w:x+w/2;T(tx,py-24,lab,{s:13,w:700,a});T(tx,py-9,sub,{s:11,c:P.muted,a})};
+    band(x0,ew,"Extremo 1",`${fm(ext)} mm · 360°`,"start");band(x1-ew,ew,"Extremo 2",`${fm(ext)} mm · 360°`,"end");band(cxa,cw,"Centro",`${fm(cen)} mm`);
+    RA=x0;RB=x1;if(lt&&!compact)dim(x0,x1,cy+ph/2+26,`Largo del tubo: ${fm(lt)} m`);
+    titulo="Tubería nueva · metal base";resumen=`Extremos ${fm(ext)} mm (todo el perímetro) + centro ${fm(cen)} mm${nt>1?` · ${nt} tubos`:""}`;
+  } else if(tipo==="Zona sana"){
+    const n=nInt(rep.zonas,2,1,8), zw=36, span=x1-x0;
+    const a=x0+span*0.2, b=x0+span*0.76, step=n>1?(b-a)/(n-1):0;
+    for(let i=0;i<n;i++){const x=(n===1?x0+span*0.3:a+step*i)-zw/2;if(RA===null)RA=x;RB=x+zw;
+      zona(x,zw,"AS C"+(i+1),i===0?"left":i===n-1?"right":"top");
+      const zv=meta?.zs?.["AS C"+(i+1)];if(zv&&!compact)T(x+zw/2,cy+ph/2+18,`e mín ${zv}"`,{s:11,w:700,c:P.ink})}
+    if(!compact){
+      const fy=n<=2?cy:py-22, fx=n<=2?(a+b)/2:W/2;
+      T(fx,fy-6,"Sentido de flujo",{s:14,w:700,c:P.ink});
+      L(fx-62,fy+10,fx+52,fy+10,{s:P.ink,sw:2});
+      S.push(`<path d="M${fx+52},${fy+4} L${fx+64},${fy+10} L${fx+52},${fy+16} Z" style="fill:${P.ink}"/>`);
+    }
+    titulo="Zona sana";resumen=`${n} ${n===1?"área sana":"áreas sanas"} (AS C1${n>1?"–C"+n:""})`;
+  } else if(tipo==="Biseles"&&rep.tipoCamisa==="cascota"){
+    const n=nInt(rep.nCas,1,1,12),u=rep.unidad||"cm",D=[...Array(n)].map((_,i)=>LN(rep.diamCas?.[i])),dm=Math.max(...D.map(d=>d||1));
+    const a0=x0+90,a1=x1-90,step=n>1?(a1-a0)/(n-1):0,R0=Math.min(compact?40:70,(n>1?step*0.42:110));
+    for(let i=0;i<n;i++){const cx=n>1?a0+step*i:(a0+a1)/2,rr=Math.max(18,R0*(D[i]||dm)/dm),ccy=cy-6;
+      S.push(`<circle cx="${f1(cx)}" cy="${f1(ccy)}" r="${f1(rr)}" style="fill:${P.shell};stroke:${P.shellEdge};stroke-width:1.2"/>`);
+      S.push(`<circle cx="${f1(cx)}" cy="${f1(ccy)}" r="${f1(rr-3)}" style="fill:none;stroke:${P.l1};stroke-width:4;stroke-dasharray:7 4"/>`);
+      if(!compact){T(cx,ccy+4,`#${i+1}`,{s:14,w:700});T(cx,ccy+rr+20,`Bisel recto Cascota #${i+1}`,{s:12,w:700});
+        if(D[i])T(cx,ccy+rr+35,`Ø ${D[i]} ${u} · L ${perCascota(u,D[i])} mm`,{s:11,c:P.muted})}}
+    if(!compact){const ly=cy-6+R0+58;L(x0,ly,x0+30,ly,{s:P.l1,sw:4});T(x0+38,ly+4,"Bisel recto (todo el perímetro)",{a:"start",s:12,w:600})}
+    titulo="Biseles rectos de cascota";resumen=`${n} ${n===1?"cascota":"cascotas"} · PT al bisel recto en todo el perímetro`;
+  } else if(tipo==="Biseles"){
+    // vista despiezada: fila de medias cañas superiores (CPS) y fila de inferiores (CPI), en orden físico
+    const u=rep.unidad||"cm";
+    const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n:null};
+    let secs=[];
+    const exIzq=/arriba|izquierda/i.test(rep.exLado||"");
+    if(rep.tipoCamisa==="anilloex"){// un anillo y la sobre camisa que llega a la camisa existente (que hace de segundo anillo)
+      const dos=+rep.nAn===2,a1={n:1,tag:"A1",cap:"Anillo 1",nota:dos?"directo":"",sobre:false,len:num(rep.largoAnillo)},a2={n:2,tag:"A2",cap:"Anillo 2",nota:"sobre A1",sobre:false,len:num(rep.largoAnillo2)},sc={n:3,tag:"SC",cap:"Sobre camisa",sobre:true,len:num(rep.largoSobre)};
+      const fila=dos?[a1,a2,sc]:[a1,sc];secs=exIzq?fila.reverse():fila;
+    } else if(rep.tipoCamisa==="anillos"){
+      secs=[{n:1,tag:"A1",cap:"Anillo 1",sobre:false,len:num(rep.largoAnillo)},{n:3,tag:"SC",cap:"Sobre camisa",sobre:true,len:num(rep.largoSobre)},{n:2,tag:"A2",cap:"Anillo 2",sobre:false,len:num(rep.largoAnillo)}];
+    } else if(/^(directa|puenteada)$/.test(rep.tipoCamisa)){
+      secs=[{n:1,tag:"",cap:rep.tipoCamisa==="puenteada"?"Camisa puenteada":"Camisa directa",sobre:false,len:num(rep.largoCamisa)}];
+    } else {
+      const nd=nInt(rep.nDir,3,1,12), ns=nInt(rep.nSob,nd-1,0,12);
+      const PZ=bisPz(rep),capOf=nm=>(nm[0]==="A"?"Anillo ":"Sección ")+nm.slice(1);
+      const D=[...Array(nd)].map((_,i)=>{const nm=pzNom(PZ,"d",i);return{n:i+1,tag:nm,cap:capOf(nm),sobre:false,len:num(rep.largosDir?.[i])}});
+      const Sb=[...Array(ns)].map((_,i)=>{const nm=pzNom(PZ,"s",i);return{n:nd+i+1,tag:nm,cap:capOf(nm),sobre:true,len:num(rep.largosSob?.[i])}});
+      D.forEach((d,i)=>{secs.push(d);if(i<nd-1&&Sb[i])secs.push(Sb[i])});
+      Sb.slice(Math.max(0,nd-1)).forEach(s=>secs.push(s));
+    }
+    const allKnown=secs.every(s=>s.len);
+    const wts=secs.map(s=>allKnown?s.len:(s.sobre?0.45:1));
+    const GAP=compact?10:16, avail=W-80-(rep.tipoCamisa==="anilloex"?(compact?50:170):0)-GAP*(secs.length-1), tw=wts.reduce((a,b)=>a+b,0);
+    let ws=wts.map(w=>Math.max(compact?12:46,avail*w/tw));
+    const sw0=ws.reduce((a,b)=>a+b,0); if(sw0>avail)ws=ws.map(w=>w*avail/sw0);
+    if(secs.length===1)ws=[Math.min(ws[0],380)];
+    let x=(W-(ws.reduce((a,b)=>a+b,0)+GAP*(secs.length-1)))/2+(rep.tipoCamisa==="anilloex"?(exIzq?1:-1)*(compact?25:85):0);
+    // las sobre camisas tienen mayor diámetro que las directas
+    const top1=compact?16:88, hD=46, hS=60, top2=top1+hS+(compact?16:24);
+    const MB=!!rep.mb;// MT al metal base: se resalta toda la pieza, no los biseles
+    const shell=(xx,yy,w,h,label,sup)=>{
+      if(MB){const off=(rep.mbNo||[]).includes(label);R(xx,yy,w,h,off?{f:"#e4e7e9",s:"#b5bcc0",sw:1.4}:{f:"#e3f4e6",s:"#2e9e4f",sw:2.6});T(xx+w/2,yy+h/2+5,label,{s:w<70?11:13,w:700,c:off?"#8d969b":"#1d5c30"});return}
+      R(xx,yy,w,h,{f:P.shell,s:P.shellEdge,sw:1.2});
+      R(xx+1,sup?yy+1:yy+h-1-h*0.28,w-2,h*0.28,{f:P.shellHi});
+      const a=xx+5,b=xx+w-5;
+      if(sup){L(a,yy+h-10,b,yy+h-10,{s:P.l1,sw:3});L(a,yy+h-3.5,b,yy+h-3.5,{s:P.l2,sw:3})}
+      else{L(a,yy+3.5,b,yy+3.5,{s:P.l2,sw:3});L(a,yy+10,b,yy+10,{s:P.l1,sw:3})}
+      T(xx+w/2,yy+h/2+(sup?0:6),label,{s:w<70?11:13,w:700,c:"#ffffff"});
+    };
+    secs.forEach((s,i)=>{const w=ws[i],h=s.sobre?hS:hD;
+      if(RA===null)RA=x;RB=x+w;
+      // una sola sección (camisa directa): sin prefijo de sección, solo CPS / CPI
+      const tag=s.tag??("S"+s.n), pre=tag?tag+" ":"";
+      shell(x,top1+hS-h,w,h,`${pre}CPS`,true);
+      shell(x,top2,w,h,`${pre}CPI`,false);
+      if(!(REPMODE&&LTv&&secs.length===1)){T(x+w/2,top2+hS+22,s.cap||`Sección ${s.n}`,{s:13,w:700});
+      T(x+w/2,top2+hS+38,(s.len?s.len+" "+u:"sin longitud")+(s.sobre?" · sobre":"")+(s.nota?" · "+s.nota:""),{s:11,c:P.muted})}
+      // camisa existente (gris, no inspeccionada) junto a la sobre camisa
+      if(rep.tipoCamisa==="anilloex"&&s.tag==="SC"){const ew=compact?30:130,eh=h*0.78,ex=exIzq?x-ew-6:x+w+6;[top1+hS-h+(h-eh)/2,top2+(h-eh)/2].forEach((ey,q)=>{R(ex,ey,ew,eh,{f:"#d5dadd",s:"#9aa3a8",sw:1.2});if(!compact)T(ex+ew/2,ey+eh/2+4,q?(rep.exTipo||"Sobre anillos").toLowerCase():"Camisa existente",{s:10,w:600,c:"#5f6b71"})})}
+      // camisa puenteada: las camisas existentes a lado y lado (gris, no inspeccionadas)
+      if(rep.tipoCamisa==="puenteada"){const ew=compact?30:Math.min(130,x-34),eh=h*0.78;[[x-ew-6,"Camisa existente 1"],[x+w+6,"Camisa existente 2"]].forEach(([ex,lab])=>{[top1+hS-h+(h-eh)/2,top2+(h-eh)/2].forEach((ey,q)=>{R(ex,ey,ew,eh,{f:"#d5dadd",s:"#9aa3a8",sw:1.2});if(!compact)T(ex+ew/2,ey+eh/2+4,q?"":lab,{s:10,w:600,c:"#5f6b71"})})});
+        if(!compact){const cy_=(top1+hS+top2)/2+4;T(x-3,cy_,"C1",{s:11,w:700,c:"#b42318",a:"end"});T(x+w+3,cy_,"C2",{s:11,w:700,c:"#b42318",a:"start"})}}
+      x+=w+GAP;});
+    if(!compact){
+      if(MB){const hayNo=(rep.mbNo||[]).length;S.push(`<g data-fijo="135">`);R(20,62,32,16,{f:"#e3f4e6",s:"#2e9e4f",sw:2.2});T(58,74,hayNo?"Metal base inspeccionado MT fluorescente":"Metal base inspeccionado MT fluorescente (100 %)",{a:"start",s:12,w:600});
+        if(hayNo){R(360,62,32,16,{f:"#e4e7e9",s:"#b5bcc0",sw:1.4});T(398,74,"No inspeccionado",{a:"start",s:12,w:600})}S.push(`</g>`)}else{
+      S.push(`<g data-fijo="135">`);L(20,70,52,70,{s:P.l1,sw:3});T(58,74,"Biseles L1",{a:"start",s:12,w:600});
+      L(150,70,182,70,{s:P.l2,sw:3});T(188,74,"Biseles L2",{a:"start",s:12,w:600});S.push(`</g>`)}
+    }
+    titulo=MB?"Metal base de la camisa · MT":"Biseles";
+    if(rep.tipoCamisa==="anilloex")resumen=+rep.nAn===2?`Doble anillo + existente ${(rep.exTipo||"sobre anillos").toLowerCase()} ${exIzq?"a la izquierda":"a la derecha"} · A1 ${num(rep.largoAnillo)??"—"} · A2 ${num(rep.largoAnillo2)??"—"} · SC ${num(rep.largoSobre)??"—"} ${u}`:`Anillo + existente ${(rep.exTipo||"sobre anillos").toLowerCase()} ${exIzq?"a la izquierda":"a la derecha"} · anillo ${num(rep.largoAnillo)??"—"} ${u} · sobre camisa ${num(rep.largoSobre)??"—"} ${u}`;else
+    if(rep.tipoCamisa==="anillos")resumen=`Camisa sobre anillos · anillos ${num(rep.largoAnillo)??"—"} ${u} · sobre camisa ${num(rep.largoSobre)??"—"} ${u}`;
+    else if(/^(directa|puenteada)$/.test(rep.tipoCamisa))resumen=`${rep.tipoCamisa==="puenteada"?"Camisa puenteada (une 2 camisas existentes)":"Camisa directa"} · ${num(rep.largoCamisa)??"—"} ${u}`;
+    else{const nd=nInt(rep.nDir,3,1,12), ns=nInt(rep.nSob,nd-1,0,12);resumen=`Camisa seccionada · ${nd} directas + ${ns} sobre camisa`}
+  } else if(tipo==="Corte y empalme"){
+    let x=(W-ce.total)/2;
+    ce.it.forEach(o=>{
+      if(o.k==="b"){if(o.l==="AS TIE IN #1")RA=x+o.w/2;if(o.l==="AS TIE IN #2")RB=x+o.w/2;const h=ph+4,off=(rep.zsNo||[]).includes(o.l);R(x,cy-h/2,o.w,h,{f:off?"#e4e7e9":P.zs,s:off?"#b5bcc0":P.zsEdge,sw:1.2});
+        const zv=meta?.zs?.[o.l];if(zv&&!compact)T(x+o.w/2,cy+h/2+14,zv,{s:10,w:700,c:P.ink});
+        if(!compact){const tx=(x+o.w/2).toFixed(1);S.push(`<text transform="rotate(-90 ${tx} ${cy})" x="${tx}" y="${cy}" text-anchor="middle" dominant-baseline="central" style="fill:${off?"#8d969b":P.zsText};font-family:${P.font};font-size:11px;font-weight:700">${esc(o.l)}</text>`)}}
+      else if(o.k==="a"&&!compact){const fx=x+o.w/2,fy=py+28;
+        T(fx,fy-8,"Sentido flujo",{s:13,w:700,c:P.ink});
+        L(fx-52,fy+6,fx+40,fy+6,{s:P.ink,sw:2.5});
+        S.push(`<path d="M${fx+40},${fy} L${fx+54},${fy+6} L${fx+40},${fy+12} Z" style="fill:${P.ink}"/>`)}
+      x+=o.w;
+    });
+    titulo="Corte y empalme";DL=" (Tie In 1 a Tie In 2)";
+    resumen=`${ce.v} ${ce.v===1?"venteo":"venteos"} · ${ce.d} ${ce.d===1?"drenaje":"drenajes"} · ${ce.cams&&ce.v?ce.cam+(ce.cam===1?" camisa sobre venteo":" camisas sobre venteos"):"sin camisas sobre venteos"}`;
+  } else if(tipo==="Camisa doble anillo sobre existente"){
+    // camisa existente (gris) + sobre camisa que monta sobre ella y sobre el anillo 2; el anillo 2 va sobre el anillo 1 y este sobre el tubo.
+    // El flujo siempre va a la derecha: la existente puede quedar aguas arriba (izquierda) o aguas abajo (derecha)
+    const lx=LN(lg.ex?.[0]),ls=LN(lg.sc?.[0]),l2=LN(lg.a2?.[0]),l1=LN(lg.a1?.[0]),known=!!(ls&&l2&&l1);
+    const exT=rep.exTipo||"Camisa sobre anillos",der=/abajo|derecha/i.test(rep.exLado||""),exAn=/anillos/.test(exT);
+    // a escala, pero con un ancho mínimo para que los anillos (cortos) se lean
+    const SC=known?ls:2.6,A2=Math.max(known?l2:1,SC*0.38),A1=Math.max(known?l1:1,SC*0.38),EX=Math.max(lx&&known?Math.min(lx,SC*0.9):SC*0.55,SC*0.5);
+    const ovE=Math.min(SC*0.28,EX*0.6),ovA=A2*0.4,a1o=A2*0.45;
+    const u0=exAn?-EX*0.25:0,s0=EX-ovE,s1=s0+SC,a2s=s1-ovA,a2e=a2s+A2,a1s=a2s+a1o,a1e=Math.max(a1s+A1,a2e+A1*0.3),tot=a1e-u0;
+    const k=Math.min((W-90)/tot,170/Math.max(A1,A2)),X0=u=>(W-tot*k)/2+(u-u0)*k,X=u=>der?W-X0(u):X0(u);
+    const box=(ua,ub,h,o)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));sleeve(a,cy-h/2,b-a,h,o)},sm=(ua,ub)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));seam(a,b,cy-8,cy+10)};
+    const hR=ph+INC,hE=exAn?ph+2*INC:ph+2*INC,h1=ph+INC,h2=ph+2*INC,hS=ph+3*INC;RA=Math.min(X(s0),X(a1e));RB=Math.max(X(s0),X(a1e));
+    if(exAn)box(u0,u0+EX*0.3,hR,{op:.35});box(0,EX,hE,{op:.35});
+    box(a1s,a1e,h1);sm(a2e,a1e);box(a2s,a2e,h2);sm(s1,a2e);box(s0,s1,hS);sm(EX,a2s);
+    if(!compact){const cyL=cy-hS/2-6,an=der?"end":"start",dx=der?-4:4;
+      const mS=(X(EX)+X(a2s))/2,m2=(X(s1)+X(a2e))/2,m1=(X(a2e)+X(a1e))/2;
+      T(mS,cy-13,"SC L1",{s:12,w:700});T(mS,cy+25,"SC L2",{s:12,c:P.muted});
+      T(m2,cy-13,"A2L1",{s:11,w:700});T(m2,cy+25,"A2L2",{s:11,c:P.muted});T(m1,cy-13,"A1L1",{s:11,w:700});T(m1,cy+25,"A1L2",{s:11,c:P.muted});
+      const q=dbIds(rep);T(X(s0),cyL,q.SCEX,{s:13,w:700,c:P.bad});T(X(s1),cyL,q.SCA2,{s:13,w:700,c:P.bad});T(X(a2e)+dx,cy-h2/2-6,q.A2A1,{a:an,s:13,w:700,c:P.bad});T(X(a1e)+dx,cy-h1/2-6,q.A1T,{a:an,s:13,w:700,c:P.bad});
+      T((X(s0)+X(s1))/2,cy+hS/2+18,"Sobre camisa"+(known?` · ${ls} ${U}`:""),{s:11,c:P.muted});
+      T(m2,cy+hS/2+32,"Anillo 2"+(known?` · ${l2} ${U}`:""),{s:11,c:P.muted});T(m1+(der?-18:18),cy+hS/2+46,"Anillo 1"+(known?` · ${l1} ${U}`:""),{s:11,c:P.muted});
+      T((X(u0)+X(EX))/2,cy+hS/2+34,`Existente (${exT.replace(/^Camisa /,"")})`+(lx?` · ${lx} ${U} a la vista`:""),{s:11,c:P.muted});
+      flow(W/2,cy+hS/2+62,P.zs)}
+    titulo="Camisa doble anillo sobre camisa existente";DL=(q_=>` (${[q_.SCEX,q_.A1T].sort().join(" a ")})`)(dbIds(rep));resumen=`Sobre camisa sobre la existente (${exT.replace(/^Camisa /,"")}, ${der?"aguas abajo":"aguas arriba"}) + anillo 2 sobre anillo 1 · C1–C4 (${dbIds(rep).A1T} compromiso camisa‑tubo)`;
+  } else if(tipo==="Camisa sobre anillo y camisa existente"){
+    // un anillo nuevo sobre el tubo y la sobre camisa que va del anillo a la camisa existente (que hace de segundo anillo).
+    // El flujo va a la derecha: la existente puede quedar aguas arriba (izquierda) o aguas abajo (derecha)
+    const lx=LN(lg.ex?.[0]),ls=LN(lg.sc?.[0]),l1=LN(lg.a1?.[0]),known=!!(ls&&l1);
+    const exT=rep.exTipo||"Camisa sobre anillos",izq=/arriba|izquierda/i.test(rep.exLado||""),exAn=/anillos/i.test(exT);
+    const SC=known?ls:2.6,A1=Math.max(known?l1:1,SC*0.3),EX=Math.max(lx&&known?Math.min(lx,SC*0.8):SC*0.5,SC*0.45);
+    const ovE=Math.min(SC*0.22,EX*0.5),ovA=A1*0.55;
+    const u0=exAn?-EX*0.25:0,s0=EX-ovE,s1=s0+SC,a1s=s1-ovA,a1e=a1s+A1,tot=a1e-u0;
+    const k=Math.min((W-150)/tot,170/A1),X0=u=>(W-tot*k)/2+(u-u0)*k,X=u=>izq?X0(u):W-X0(u);
+    const box=(ua,ub,h,o)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));sleeve(a,cy-h/2,b-a,h,o)},sm=(ua,ub)=>{const a=Math.min(X(ua),X(ub)),b=Math.max(X(ua),X(ub));seam(a,b,cy-8,cy+10)};
+    const hR=ph+INC,hE=exAn?ph+2*INC:ph+INC,h1=ph+INC,hS=hE+INC;RA=Math.min(X(s0),X(a1e));RB=Math.max(X(s0),X(a1e));
+    if(exAn)box(u0,u0+EX*0.3,hR,{op:.35});box(0,EX,hE,{op:.35});
+    // soldaduras de la camisa existente (sin numerar): longitudinales en lo que queda a la vista y circunferenciales en sus uniones
+    {const xs=(ua,ub)=>[Math.min(X(ua),X(ub)),Math.max(X(ua),X(ub))],lw=(ua,ub)=>{const[a,b]=xs(ua,ub);if(b-a>12){L(a+4,cy-8,b-4,cy-8,{s:P.muted,sw:1.4});L(a+4,cy+10,b-4,cy+10,{s:P.muted,sw:1.2,d:"6 4"})}},cw=(u,h)=>L(X(u),cy-h/2+1,X(u),cy+h/2-1,{s:P.weld,sw:2.4});
+      lw(0,s0);if(exAn){lw(u0,0);cw(u0,hR);cw(0,hE)}else cw(0,hE)}
+    box(a1s,a1e,h1);sm(s1,a1e);box(s0,s1,hS);sm(s0,s1);
+    // cascota bajo la sobre camisa, entre la existente y el anillo
+    if(rep.cascota!==false){const gx=X(EX)+(X(a1s)-X(EX))*0.2,rx=Math.min(30,Math.abs(X(a1s)-X(EX))/5);S.push(`<ellipse cx="${gx.toFixed(1)}" cy="${(cy+1).toFixed(1)}" rx="${rx.toFixed(1)}" ry="7" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);if(!compact)T(gx,cy+4,"Cascota",{s:9,w:600})}
+    // zona sana: AS sobre el tubo (después del anillo) y AS sobre la camisa existente, numeradas de izquierda a derecha
+    if(rep.vista==="Zona sana"){zsHecho=true;const zw=compact?12:26,xt=X(a1e)+(izq?1:-1)*(zw/2+(compact?6:16)),xe=X((Math.max(u0,0)+s0)/2),bands=[[xt,ph+4],[xe,hE+4]].sort((a,b)=>a[0]-b[0]);
+      bands.forEach(([x,h],n)=>{const l=`AS C${n+1}`,off=(rep.zsNo||[]).includes(l);R(x-zw/2,cy-h/2,zw,h,{f:off?"#e4e7e9":P.zs,s:off?"#b5bcc0":P.zsEdge,sw:1.2});if(!compact)T(x,cy+h/2+15,l,{s:12,w:700,c:off?"#8d969b":P.zsEdge})})}
+    if(!compact){const cyL=cy-hS/2-6,an=izq?"start":"end",dx=izq?4:-4;
+      const mS=(X(EX)+X(a1s))/2,m1=(X(s1)+X(a1e))/2;
+      T(mS,cy-13,"SC L1",{s:12,w:700});T(mS,cy+25,"SC L2",{s:12,c:P.muted});T(m1,cy-13,"A1L1",{s:11,w:700});T(m1,cy+25,"A1L2",{s:11,c:P.muted});
+      const q=aeIds(rep);T(X(s0),cyL,q.SCEX,{s:13,w:700,c:P.bad});T(X(s1),cyL,q.SCA1,{s:13,w:700,c:P.bad});T(X(a1e)+dx,cy-h1/2-6,q.A1T,{a:an,s:13,w:700,c:P.bad});
+      T((X(s0)+X(s1))/2,cy+hS/2+18,"Sobre camisa"+(known?` · ${ls} ${U}`:""),{s:11,c:P.muted});
+      T(m1,cy+hS/2+34,"Anillo 1"+(known?` · ${l1} ${U}`:""),{s:11,c:P.muted});
+      T((X(u0)+X(EX))/2,cy+hS/2+34,`Camisa existente (${exT.replace(/^Camisa /,"")})`+(lx?` · ${lx} ${U} a la vista`:""),{s:11,c:P.muted});
+      flow(W/2,cy+hS/2+62,P.zs)}
+    titulo="Camisa sobre anillo + existente";DL=(q_=>` (${[q_.SCEX,q_.A1T].sort().join(" a ")})`)(aeIds(rep));resumen=`Existente ${izq?"a la izquierda":"a la derecha"} (${exT.replace(/^Camisa /,"").toLowerCase()})${rep.cascota!==false?" · con cascota":""} · C1–C3`;
+  } else if(tipo==="Camisa puenteada"){
+    // dos camisas existentes y una sobre camisa que las une tapando el espacio entre ellas
+    const e1=LN(lg.ex1?.[0]), e2=LN(lg.ex2?.[0]), pu=LN(lg.pu?.[0]), knownP=!!(e1&&e2&&pu);
+    const E1=knownP?e1:1.6, E2=knownP?e2:1.6, PU=knownP?pu:1;
+    // con lo que queda a la vista del anillo (o extremo) de cada existente, la puenteada va de anillo a anillo y el espacio sale a escala
+    const VA=LN(lg.vx1?.[0]),VB=LN(lg.vx2?.[0]),LAP=0.75,conV=!!(knownP&&VA&&VB&&PU-LAP*(VA+VB)>0&&VA<E1&&VB<E2);
+    const gapU=conV?PU-LAP*(VA+VB):PU*0.5, k=Math.min((x1-x0-120)/(E1+E2+gapU),(conV?380:300)/PU);
+    let w1=E1*k, w2=E2*k, g=gapU*k, wp=PU*k;
+    if(!conV&&wp<220){wp=220;g=110}
+    // cada camisa existente se dibuja según su tipo (directa / tipo A, sobre anillos o armadillo).
+    // La puenteada monta sobre el anillo (o la sección directa) del extremo de cada existente, nunca sobre su sobre camisa
+    const t1=rep.ex1Tipo||"Directa",t2=rep.ex2Tipo||"Directa";
+    const tot=w1+g+w2, sx=(W-tot)/2, xe2=sx+w1+g;let xp=sx+w1+g/2-wp/2;const hE=ph+INC, hP=ph+2*INC, gc=sx+w1+g/2;if(conV)xp=sx+w1-LAP*VA*k;RA=xp;RB=xp+wp;
+    const exDraw=(x,w,t,izq)=>{const h1=ph+INC,h2=ph+2*INC;
+      // u se mide desde el extremo interno (el que queda bajo la puenteada) hacia afuera
+      const VIS=compact?8:30,uE=conV?Math.max((izq?VA:VB)*k,LAP*(izq?VA:VB)*k+VIS):Math.min(w*0.5,Math.max(0,izq?(x+w)-(xp-VIS):(xp+wp+VIS)-x)),X_=u=>izq?x+w-u:x+u,box=(u0,u1,h)=>{const a=Math.min(X_(u0),X_(u1)),b=Math.max(X_(u0),X_(u1));sleeve(a,cy-h/2,b-a,h)};
+      // piezas (en u) para dibujar luego las soldaduras existentes inspeccionadas
+      if(/anillos/i.test(t)){const rw=Math.max(18,(w-uE)*0.28);box(0,uE+rw*0.6,h1);box(w-rw,w,h1);box(uE,w-rw*0.5,h2);return{X_,h1,h2,in:[0,uE],sc:[uE,w-rw*0.5],out:[w-rw*0.5,w]}}
+      else if(/armadillo/i.test(t)){const Lz=w-uE,dw=Lz/3.8,gp=dw*0.4;box(0,uE+dw,h1);box(uE+dw+gp,uE+2*dw+gp,h1);box(uE+2*dw+2*gp,w,h1);
+        box(uE+0.7*dw,uE+dw+gp+0.3*dw,h2);box(uE+2*dw+gp-0.3*dw,uE+2*dw+2*gp+0.3*dw,h2);return{X_,h1,h2,in:[0,uE+dw],sc:[uE+0.7*dw,uE+dw+gp+0.3*dw],out:[uE+2*dw+2*gp,w]}}
+      box(0,w,hE);return{X_,h1:hE,h2:hE,in:[0,w],sc:[0,w],out:[0,w]}};
+    const G1=exDraw(sx,w1,t1,true),G2=exDraw(xe2,w2,t2,false);
+    if(rep.cascota!==false){S.push(`<ellipse cx="${gc.toFixed(1)}" cy="${cy-ph/2-4}" rx="${Math.min(28,g/2.5).toFixed(1)}" ry="9" style="fill:${P.shellHi};stroke:${P.shellEdge};stroke-width:1.2"/>`);T(gc,cy-ph/2-1,"Cascota",{s:9,w:600})}
+    sleeve(xp,cy-hP/2,wp,hP,{op:.62});
+    seam(xp,xp+wp,cy-12,cy+4);
+    // soldaduras de las camisas existentes inspeccionadas (rojo): longitudinales sobre su pieza, circunferenciales en su unión
+    if(rep.exSold?.length){const RJ="#d92d20";
+      exJuntas(rep.exSold).forEach((j,n)=>{const ps=exPos(j);if(!ps)return;const[c,q]=ps.split("|"),G=c==="2"?G2:G1;
+        if(j.tipo==="long"){const pz=G[q]||G.in,h=q==="sc"?G.h2:G.h1,a=Math.min(G.X_(pz[0]),G.X_(pz[1])),b=Math.max(G.X_(pz[0]),G.X_(pz[1])),l2=/L2\s*$/i.test(j.id),y=l2?cy+h/2-7:cy-h/2+7;
+          L(a+2,y,b-2,y,{s:RJ,sw:3,...(l2?{d:"7 4"}:{})});if(!compact)c==="2"?T(b+4,y+4,j.id,{a:"start",s:10,w:700,c:RJ}):T(a-4,y+4,j.id,{a:"end",s:10,w:700,c:RJ})}
+        else{const u={"in-t":G.in[0],"sc-in":G.sc[0],"sc-out":G.sc[1],"out-t":G.out[1]}[q]??G.in[0],h=/^sc/.test(q)?G.h2:G.h1,x=G.X_(u);
+          L(x,cy-h/2-3,x,cy+h/2+3,{s:RJ,sw:3.4});if(!compact)T(x+(c==="2"?4:-4),cy+h/2+13,j.id,{a:c==="2"?"start":"end",s:10,w:700,c:RJ})}})}
+    if(!compact){
+      T(gc+g*0.45,cy-17,"L1",{s:13,w:700});T(gc+g*0.45,cy+18,"L2",{s:12,c:P.muted});
+      T(gc-10,cy+21,"Sentido flujo",{s:11,w:700,c:"#1f4aa0"});L(xp+18,cy+28,xp+wp-30,cy+28,{s:P.zs,sw:2.5});
+      S.push(`<path d="M${xp+wp-30},${cy+23} L${xp+wp-18},${cy+28} L${xp+wp-30},${cy+33} Z" style="fill:${P.zs}"/>`);
+      const v1=(sx+xp)/2, v2=(xp+wp+xe2+w2)/2, n1=xp-sx>120?"Camisa existente 1":"Existente 1", n2=xe2+w2-xp-wp>120?"Camisa existente 2":"Existente 2";
+      // nombre, tipo y longitud de cada existente debajo del tubo, para que no se monten sobre el dibujo
+      const tl=t=>t==="Tipo A"?"tipo A":t.toLowerCase(),yb=cy+hP/2+20,ex1x=Math.min(v1,xp-70),ex2x=Math.max(v2,xp+wp+70);
+      T(ex1x,yb,"Camisa existente 1",{s:12,w:600});T(ex2x,yb,"Camisa existente 2",{s:12,w:600});
+      T(ex1x,yb+15,(knownP?`${e1} ${U} · `:"")+tl(t1),{s:11,c:P.muted});T(ex2x,yb+15,(knownP?`${e2} ${U} · `:"")+tl(t2),{s:11,c:P.muted});
+      if(VA)T(ex1x,yb+29,`${/anillos/i.test(t1)?"anillo":"extremo"} a la vista: ${VA} ${U}`,{s:10,c:P.muted});if(VB)T(ex2x,yb+29,`${/anillos/i.test(t2)?"anillo":"extremo"} a la vista: ${VB} ${U}`,{s:10,c:P.muted})
+      // C1 y C2 van sobre el anillo (o extremo) de cada existente: anillo 2 de la existente 1 y anillo 1 de la existente 2
+      T(xp,cy-hP/2-8,"C1",{s:13,w:700,c:P.bad});T(xp+wp,cy-hP/2-8,"C2",{s:13,w:700,c:P.bad});
+      const an=(t,n)=>/anillos/i.test(t)?`sobre anillo ${n}`:/armadillo/i.test(t)?"sobre sección directa":"sobre camisa";
+      T(xp-4,cy-hP/2-22,an(t1,2),{a:"end",s:10,c:P.muted});T(xp+wp+4,cy-hP/2-22,an(t2,1),{a:"start",s:10,c:P.muted});
+      T(gc,cy+hP/2+20,"Camisa puenteada"+(knownP?` · ${pu} ${U}`:""),{s:12,w:600});
+    }
+    titulo="Camisa puenteada";DL=" (C1 a C2)";resumen=`Une 2 camisas existentes (${[rep.ex1Tipo,rep.ex2Tipo].map(t=>t==="Tipo A"?"tipo A":(t||"Directa").toLowerCase()).join(" / ")})${rep.cascota!==false?" · con cascota":""} · soldaduras C1–C2`;
+  } else if(tipo==="Camisa directa"){
+    // una sola camisa sobre el tubo; Tipo B con soldaduras de compromiso C1/C2, Tipo A sin ellas
+    const nc=nInt(rep.capas,0,0,3),stepX=Math.min(52,(x1-x0)*0.08),stepY=16;
+    const lc=LN(lg.cd?.[0]), wC=Math.min(380-2*nc*stepX,(x1-x0)*0.52-2*nc*stepX), hC=ph+INC, sx=(W-wC)/2;
+    // sobrecamisas superpuestas: cada una más larga y de mayor diámetro que la de abajo (se dibujan de afuera hacia adentro)
+    for(let k=nc;k>=1;k--){const xk=sx-k*stepX,wk=wC+2*k*stepX,hk=hC+2*k*stepY;sleeve(xk,cy-hk/2,wk,hk);
+      if(!compact){T(xk+4,cy+hk/2-4,`SC${k} C1`,{a:"start",s:10,w:700,c:P.bad});T(xk+wk-4,cy+hk/2-4,`SC${k} C2`,{a:"end",s:10,w:700,c:P.bad});T(W/2,cy-hk/2+12,`Sobrecamisa ${k}`+(LN(lg.sup?.[k-1])?` · ${LN(lg.sup?.[k-1])} ${U}`:""),{s:10,w:600})}}
+    sleeve(sx,cy-hC/2,wC,hC);seam(sx,sx+wC,cy-4,cy+12);RA=sx-nc*stepX;RB=sx+wC+nc*stepX;
+    if(!compact){
+      T(sx+wC/2,cy-9,"L1",{s:13,w:700});T(sx+wC/2,cy+26,"L2",{s:12,c:P.muted});
+      if(!sinComp){T(sx-5,cy-hC/2+12,"C1",{a:"end",s:13,w:700,c:P.bad});T(sx+wC+5,cy-hC/2+12,"C2",{a:"start",s:13,w:700,c:P.bad})}
+      if(!(REPMODE&&LTv))T(sx+wC/2,cy+hC/2+18,"Camisa directa"+(lc?` · ${lc} ${U}`:""),{s:12,w:600});
+      flow(W/2,cy+hC/2+52,P.zs);
+    }
+    titulo=sinComp?"Camisa directa Tipo A":"Camisa directa";DL=sinComp?" (extremos de la camisa)":" (C1 a C2)";
+    resumen=(sinComp?"Sin soldaduras de compromiso":"Soldaduras de compromiso C1–C2")+(nc?` · ${nc} ${nc>1?"sobrecamisas superpuestas":"sobrecamisa encima"}`:"");
+  } else if(tipo==="Otra"){
+    R(W/2-80,cy-34,160,68,{f:P.sleeve,s:P.edge,sw:1.5,d:"6 4",rx:4});T(W/2,cy+5,"Reparación",{s:13,w:700});
+    titulo="Reparación";resumen=rep.nota||"Sin detalle";
+  }
+  if(!compact&&LTv&&!(zsHecho&&REPMODE)){const a=RA??x0+20,b=RB??x1-20;dim(Math.min(a,b-60),Math.max(b,a+60),H-50,`Longitud total de reparación${DL}: ${LTv} ${rep.longUnidad||"m"}`);
+    const lc=checkLen(rep);if(lc&&!lc.ok)T((a+b)/2,H-58,lc.max>=lc.min?`⚠ No cuadra con las piezas: real máx. ${Math.round(lc.max).toLocaleString("es-CO")} mm`:"⚠ Las piezas no cuadran",{s:11,w:700,c:P.bad})}
+  if(!compact){
+    T(20,28,titulo,{a:"start",s:18,w:700,c:P.ink});
+    const m=[meta.pk&&"PK "+meta.pk,meta.linea,meta.consecutivo,rep.diametro&&"Ø "+rep.diametro+"\"",meta.zsNom?"Nominal "+meta.zsNom+"\"":(meta.espesor&&"Esp. "+meta.espesor+"\""),meta.zsMat?"Tubería "+meta.zsMat:meta.material].filter(Boolean).join("  ·  ");
+    T(20,48,m,{a:"start",s:12,c:P.muted});
+    // si el título y el resumen no caben en la misma línea, el resumen baja a una línea propia
+    if(titulo.length*10.2+resumen.length*6.9>W-60){if(!REPMODE)T(20,66,resumen,{a:"start",s:12,w:600})}else T(W-20,28,resumen,{a:"end",s:12,w:600});
+    if(rep.nota&&tipo!=="Otra")T(W-20,48,rep.nota,{a:"end",s:11,c:P.muted});
+    T(20,H-12,"Esquema ilustrativo, sin escala",{a:"start",s:10,c:P.muted});
+    if(sinComp&&(esCA||esAN||esAV||esBI||esCD))T(W-20,H-12,"Camisa Tipo A: sin soldaduras de compromiso a la tubería",{a:"end",s:11,w:700,c:P.bad});
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(titulo+": "+resumen)}">${S.join("")}</svg>`;
+}
+const repLabel=rep=>{if(!rep?.tipo)return"";const t=rep.tipo;
+  if(t==="Ilícita")return`Ilícita · ${nInt(rep.cascotas,3,1,12)} cascotas`;
+  if(t==="Camisa armadillo"){const d=nInt(rep.directas,3,1,30);return`Armadillo · ${d} directas + ${d-1} sobre`}
+  if(t==="Camisa sobre anillos")return"Camisa sobre anillos";
+  if(t==="Camisa sobre anillos sobre venteo")return rep.tapa==="Cascotas"?`Anillos sobre ${nInt(rep.tapaNum,1,1,12)} cascotas`:`Anillos sobre venteo #${nInt(rep.tapaNum,1,1,20)}`;
+  if(t==="Camisa sobre anillo y camisa existente")return`Sobre anillo + camisa existente (${(rep.exTipo||"Camisa sobre anillos").replace(/^Camisa /,"")}, ${/arriba|izquierda/.test(rep.exLado||"")?"aguas arriba":"aguas abajo"})`;
+  if(t==="Camisa doble anillo sobre existente")return`Doble anillo sobre existente (${(rep.exTipo||"Camisa sobre anillos").replace(/^Camisa /,"")}, ${/abajo/.test(rep.exLado||"")?"aguas abajo":"aguas arriba"})`;
+  if(t==="Camisa puenteada")return"Camisa puenteada";
+  if(t==="Camisa directa"){const nc=nInt(rep.capas,0,0,3);return nc?`Camisa directa + ${nc} sobre`:"Camisa directa"}
+  if(t==="Zona sana")return`Zona sana · ${nInt(rep.zonas,2,1,8)} áreas`;
+  if(t==="Tubería nueva"){const n=nInt(rep.tubos,1,1,20);return`Tubería nueva · extremos ${String(rep.extremo||110).replace(".",",")} mm + centro ${String(rep.centro||3000).replace(".",",")} mm${n>1?` · ${n} tubos`:""}`}
+  if(t==="Biseles"&&rep.tipoCamisa==="cascota"){const n=nInt(rep.nCas,1,1,12);return`Biseles rectos · ${n} ${n===1?"cascota":"cascotas"}`}
+  if(t==="Biseles"&&rep.mb)return`MT metal base · ${rep.tipoCamisa==="anilloex"?(+rep.nAn===2?"doble anillo + existente":"anillo + existente"):rep.tipoCamisa==="anillos"?"sobre anillos":rep.tipoCamisa==="directa"?"camisa directa":rep.tipoCamisa==="puenteada"?"camisa puenteada":`${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`}`;
+  if(t==="Biseles")return rep.tipoCamisa==="anilloex"?(+rep.nAn===2?"Biseles · doble anillo + existente":"Biseles · anillo + existente"):rep.tipoCamisa==="anillos"?"Biseles · sobre anillos":rep.tipoCamisa==="directa"?"Biseles · camisa directa":rep.tipoCamisa==="puenteada"?"Biseles · camisa puenteada":`Biseles · ${nInt(rep.nDir,3,1,12)} D + ${nInt(rep.nSob,nInt(rep.nDir,3,1,12)-1,0,12)} S`;
+  if(t==="Corte y empalme")return`Corte y empalme · ${nInt(rep.venteos,2,0,8)} V · ${nInt(rep.drenajes,1,0,6)} D${rep.camisas===false?"":" · camisas"}`;
+  return rep.nota?`Otra · ${rep.nota}`:"Otra"};
+
+
+function readRep(){
+  const tipo=$("iRep").value; if(!tipo) return null;
+  const rep={tipo,diametro:$("iDiam").value.trim(),nota:$("iRepNota").value.trim(),longTotal:$("iLT").value.replace(",",".").trim(),longUnidad:$("iLTU").value};
+  if(tipo==="Corte y empalme")Object.assign(rep,readPos());
+  if(tipo==="Biseles"){Object.assign(rep,readBiseles());if(formItems[active]?.act==="MT metal base camisa")rep.mb=true}
+  if(LENS.includes(tipo))Object.assign(rep,readLens());
+  rep.nomV=2;
+  (REPS[tipo].params||[]).forEach(([k,,def,min,max,ty])=>{const el=$("rp_"+k);rep[k]=ty==="sel"?(el?.value||def):ty==="num"?String(el?.value??def).replace(",",".").trim():ty==="txt"?String(el?.value??def).trim():ty==="yesno"?(el?el.value!=="no":def):nInt(el?.value,def,min,max)});
+  return rep;
+}
+// ---- longitudes de camisas y cascotas (para dibujar a proporción) ----
+function renderLens(unit,lg){
+  const box=$("lenBox"); if(!box)return; lg=lg||{};
+  const tipo=$("iRep").value; let h="";
+  const inp=(k,i,lab,val)=>`<label class="f"><span class="label">${lab}</span><input class="field mono" data-lk="${k}" data-li="${i}" inputmode="decimal" value="${esc(val??"")}"></label>`;
+  if(tipo==="Camisa armadillo"){const d=nInt($("rp_directas")?.value,3,1,12);
+    h+=`<p class="note" style="grid-column:1/-1">Cada pieza de menos de 300 mm se nombra anillo (A1, A2…) y la de 300 mm o más sección (S1, S2…), de izquierda a derecha. C1 es la primera circunferencial de la izquierda, C2 la otra junta directa al tubo y las demás siguen de izquierda a derecha.</p>`;
+    for(let i=0;i<d;i++)h+=inp("dir",i,`Directa ${i+1} (${i===0?"extremo izq.":i===d-1?"extremo der.":"entre sobres"})`,lg.dir?.[i]);
+    for(let i=0;i<d-1;i++)h+=inp("sob",i,`Sobre ${i+1} (entre directa ${i+1} y ${i+2})`,lg.sob?.[i]);}
+  else if(tipo.startsWith("Camisa sobre anillos")){h+=inp("an",0,"Cada anillo",lg.an?.[0]);h+=inp("sc",0,"Sobre camisa",lg.sc?.[0])}
+  else if(tipo==="Camisa directa"){h+=inp("cd",0,"Longitud de la camisa",lg.cd?.[0]);const nc=nInt($("rp_capas")?.value,0,0,3);for(let k=0;k<nc;k++)h+=inp("sup",k,`Sobrecamisa ${k+1} (encima)`,lg.sup?.[k])}
+  else if(tipo==="Camisa sobre anillo y camisa existente"){h+=inp("sc",0,"Sobre camisa",lg.sc?.[0]);h+=inp("a1",0,"Anillo 1 (sobre el tubo)",lg.a1?.[0]);h+=inp("ex",0,"Camisa existente a la vista",lg.ex?.[0])}
+  else if(tipo==="Camisa doble anillo sobre existente"){h+=inp("sc",0,"Sobre camisa",lg.sc?.[0]);h+=inp("a2",0,"Anillo 2 (sobre anillo 1)",lg.a2?.[0]);h+=inp("a1",0,"Anillo 1 (sobre el tubo)",lg.a1?.[0]);h+=inp("ex",0,"Camisa existente a la vista",lg.ex?.[0])}
+  else if(tipo==="Camisa puenteada"){h+=inp("ex1",0,"Camisa existente 1",lg.ex1?.[0]);h+=inp("ex2",0,"Camisa existente 2",lg.ex2?.[0]);h+=inp("pu",0,"Sobre camisa a instalar",lg.pu?.[0]);h+=inp("vx1",0,"Existente 1: anillo a la vista",lg.vx1?.[0]);h+=inp("vx2",0,"Existente 2: anillo a la vista",lg.vx2?.[0])}
+  else if(tipo==="Ilícita"){const n=nInt($("rp_cascotas")?.value,3,1,12);for(let i=0;i<n;i++)h+=inp("cas",i,`Ø cascota ${i+1}`,lg.cas?.[i])}
+  box.innerHTML=`<div class="drawbar" style="margin:2px 0 8px"><span class="label">${tipo==="Ilícita"?"Diámetro de cada cascota":"Longitud de cada pieza"}</span><label class="check" style="font-size:.85rem">Unidad <select class="field" id="lUni" style="padding:4px 8px"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label></div><div class="grid3">${h}</div>`;
+  $("lUni").value=unit||"cm";
+  box.querySelectorAll("input,select").forEach(i=>i.disabled=readOnly);
+}
+function readLens(){
+  const lg={};
+  document.querySelectorAll("#lenBox [data-lk]").forEach(i=>{(lg[i.dataset.lk]=lg[i.dataset.lk]||[])[+i.dataset.li]=String(i.value).replace(",",".").trim()});
+  return{unidad:$("lUni")?.value||"cm",largos:lg};
+}
+function avLabel(){const l=$("rp_tapaNum")?.closest("label")?.querySelector(".label");if(l)l.textContent=$("rp_tapa")?.value==="Cascotas"?"Cantidad de cascotas tapadas":"Número de venteo"}
+// ---- corte y empalme: ubicación de venteos y drenajes ----
+function renderPos(r){
+  const box=$("posBox"); if(!box)return; r=r||{};
+  const v=nInt($("rp_venteos")?.value,2,0,8), d=nInt($("rp_drenajes")?.value,1,0,6);
+  const opt=sel=>[["antes","Antes del Tie In 1"],["entre","Entre Tie In 1 y 2"],["despues","Después del Tie In 2"]].map(([k,l])=>`<option value="${k}"${k===sel?" selected":""}>${l}</option>`).join("");
+  let h="";
+  for(let i=0;i<v;i++)h+=`<label class="f"><span class="label">Venteo ${i+1}</span><select class="field" data-pv="${i}">${opt(r.posV?.[i]||(i<Math.ceil(v/2)?"antes":"despues"))}</select><span class="check" style="margin-top:4px"><input type="checkbox" data-vd="${i}"${r.vDren?.[i]?" checked":""}> también es drenaje</span></label>`;
+  for(let i=0;i<d;i++)h+=`<label class="f"><span class="label">Drenaje ${i+1}</span><select class="field" data-pd="${i}">${opt(r.posD?.[i]||"entre")}</select></label>`;
+  box.innerHTML=h?`<p class="note" style="margin:2px 0 8px">¿Dónde va cada venteo y drenaje? El esquema los numera en el orden en que quedan sobre el tubo.</p><div class="grid3">${h}</div>`:"";
+  box.querySelectorAll("select,input").forEach(s=>s.disabled=readOnly);
+}
+function readPos(){return{numSep:true,vDren:[...document.querySelectorAll("#posBox [data-vd]")].map(s=>s.checked),posV:[...document.querySelectorAll("#posBox [data-pv]")].map(s=>s.value),posD:[...document.querySelectorAll("#posBox [data-pd]")].map(s=>s.value)}}
+// ---- biseles: tipo de camisa y longitudes ----
+function buildBiseles(rep){
+  const r=rep||{};
+  $("repParams").innerHTML=`<label class="f"><span class="label">Tipo de camisa</span><select class="field" id="bTipo"><option value="directa">Directa</option><option value="puenteada">Puenteada (une 2 camisas existentes)</option><option value="anillos">Sobre anillos</option><option value="anilloex">Sobre anillo + camisa existente</option><option value="seccionada">Seccionada</option><option value="cascota">Cascota (ilícita) · bisel recto</option></select></label>
+  <label class="f"><span class="label">Unidad de longitud</span><select class="field" id="bUni"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
+  <div id="bBody" style="grid-column:1/-1;min-width:0"></div><div id="bMB" style="grid-column:1/-1;min-width:0"></div>`;
+  $("bTipo").value=r.tipoCamisa||"seccionada";$("bUni").value=r.unidad||"cm";
+  bisBody(r);
+}
+function bisBody(r){
+  const b=$("bBody");
+  if($("bTipo").value==="cascota"){const n=nInt(r?.nCas,1,1,12);
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Número de cascotas</span><input class="field mono" type="number" min="1" max="12" id="bNC" value="${n}"></label></div><div class="grid3" id="bCas">${[...Array(n)].map((_,i)=>`<label class="f"><span class="label">Ø cascota ${i+1}</span><input class="field mono" data-lc="${i}" inputmode="decimal" value="${esc(r?.diamCas?.[i]??"")}"></label>`).join("")}</div>`;
+  } else if(/^(directa|puenteada)$/.test($("bTipo").value)){
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Longitud de la camisa</span><input class="field mono" id="bLC" inputmode="decimal" value="${esc(r?.largoCamisa??"")}"></label></div>`;
+  } else if($("bTipo").value==="anilloex"){
+    const dos=+r?.nAn===2;
+    b.innerHTML=`<div class="grid3"><label class="f"><span class="label">Anillos nuevos</span><select class="field" id="bNA"><option value="1"${dos?"":" selected"}>1 anillo</option><option value="2"${dos?" selected":""}>2 anillos (A2 sobre A1)</option></select></label><label class="f"><span class="label">${dos?"Anillo 1 (directo)":"Longitud del anillo"}</span><input class="field mono" id="bLA" inputmode="decimal" value="${esc(r?.largoAnillo??"")}"></label>${dos?`<label class="f"><span class="label">Anillo 2 (sobre A1)</span><input class="field mono" id="bLA2" inputmode="decimal" value="${esc(r?.largoAnillo2??"")}"></label>`:""}<label class="f"><span class="label">Longitud de la sobre camisa</span><input class="field mono" id="bLS" inputmode="decimal" value="${esc(r?.largoSobre??"")}"></label><label class="f"><span class="label">Camisa existente</span><select class="field" id="bET">${["Sobre anillos","Seccionada","Directa"].map(o=>`<option${(r?.exTipo||"Sobre anillos")===o?" selected":""}>${o}</option>`).join("")}</select></label><label class="f"><span class="label">¿A qué lado queda la camisa existente?</span><select class="field" id="bEL"><option${/arriba|izquierda/i.test(r?.exLado||"")?"":" selected"}>Aguas abajo (derecha)</option><option${/arriba|izquierda/i.test(r?.exLado||"")?" selected":""}>Aguas arriba (izquierda)</option></select></label></div>`;
+  } else if($("bTipo").value==="anillos"){
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Longitud de cada anillo directo</span><input class="field mono" id="bLA" inputmode="decimal" value="${esc(r?.largoAnillo??"")}"></label><label class="f"><span class="label">Longitud de la sobre camisa</span><input class="field mono" id="bLS" inputmode="decimal" value="${esc(r?.largoSobre??"")}"></label></div>`;
+  } else {
+    const nd=nInt(r?.nDir,3,1,12), ns=nInt(r?.nSob,nd-1,0,12);
+    b.innerHTML=`<div class="grid2"><label class="f"><span class="label">Secciones directas</span><input class="field mono" type="number" min="1" max="12" id="bND" value="${nd}"></label><label class="f"><span class="label">Secciones sobre camisa</span><input class="field mono" type="number" min="0" max="12" id="bNS" value="${ns}"></label></div><p class="note" style="margin:10px 0 6px">Longitud de cada sección</p><div class="grid3" id="bLens"></div>`;
+    bisLens(r?.largosDir||[],r?.largosSob||[]);
+  }
+  mbSel(r?.mbNo);
+}
+// MT metal base: qué medias cañas (CPS / CPI de cada sección) se inspeccionaron; las demás salen en gris y no van en la tabla
+function mbSel(no){const b=$("bMB");if(!b)return;if(formItems[active]?.act!=="MT metal base camisa"||$("bTipo")?.value==="cascota"){b.innerHTML="";return}
+  const ks=mbRows({...readBiseles(),mbNo:[]});const N=new Set(no||[]);
+  b.innerHTML=`<span class="label">Metal base inspeccionado</span><p class="note">Desmarca las partes que no se inspeccionaron: salen en gris en el esquema y no van en la tabla.</p><div class="eqrow" style="flex-wrap:wrap;gap:6px 14px">${ks.map(([l,,k])=>`<label class="check"><input type="checkbox" data-mbk="${esc(k)}"${N.has(k)?"":" checked"}> ${esc(l)}</label>`).join("")}</div>`}
+function bisLens(ld,ls){
+  const nd=nInt($("bND").value,3,1,12), ns=nInt($("bNS").value,nd-1,0,12);
+  let h="";
+  for(let i=0;i<nd;i++)h+=`<label class="f"><span class="label">Sección ${i+1} · directa</span><input class="field mono" data-ld="${i}" inputmode="decimal" value="${esc(ld[i]??"")}"></label>`;
+  for(let i=0;i<ns;i++)h+=`<label class="f"><span class="label">Sección ${nd+i+1} · sobre</span><input class="field mono" data-ls="${i}" inputmode="decimal" value="${esc(ls[i]??"")}"></label>`;
+  $("bLens").innerHTML=h;
+}
+function readBiseles(){
+  const v=x=>String(x??"").replace(",",".").trim();
+  const r={tipoCamisa:$("bTipo")?.value||"seccionada",unidad:$("bUni")?.value||"cm"};
+  if(r.tipoCamisa==="cascota"){r.nCas=nInt($("bNC")?.value,1,1,12);r.diamCas=[...document.querySelectorAll("#bCas [data-lc]")].map(i=>v(i.value)).slice(0,r.nCas)}
+  else if(/^(directa|puenteada)$/.test(r.tipoCamisa)){r.largoCamisa=v($("bLC")?.value)}
+  else if(r.tipoCamisa==="anillos"){r.largoAnillo=v($("bLA")?.value);r.largoSobre=v($("bLS")?.value)}
+  else if(r.tipoCamisa==="anilloex"){r.nAn=+($("bNA")?.value||1);if(r.nAn===2)r.largoAnillo2=v($("bLA2")?.value);r.largoAnillo=v($("bLA")?.value);r.largoSobre=v($("bLS")?.value);r.exLado=$("bEL")?.value||"Aguas abajo (derecha)";r.exTipo=$("bET")?.value||"Sobre anillos"}
+  else{r.nDir=nInt($("bND")?.value,3,1,12);r.nSob=nInt($("bNS")?.value,r.nDir-1,0,12);
+    r.largosDir=[...document.querySelectorAll("#bLens [data-ld]")].map(i=>v(i.value)).slice(0,r.nDir);
+    r.largosSob=[...document.querySelectorAll("#bLens [data-ls]")].map(i=>v(i.value)).slice(0,r.nSob)}
+  const mb=[...document.querySelectorAll("#bMB [data-mbk]")];if(mb.length)r.mbNo=mb.filter(c=>!c.checked).map(c=>c.dataset.mbk);
+  return r;
+}
+function buildParams(rep){
+  const tipo=$("iRep").value;
+  const ps=tipo?REPS[tipo].params:[];
+  $("repParams").innerHTML=ps.map(([k,lab,def,min,max,ty,opts])=>ty==="sel"
+    ?`<label class="f"><span class="label">${lab}</span><select class="field" id="rp_${k}">${opts.map(o=>`<option${(rep&&rep[k]!=null?rep[k]:def)===o?" selected":""}>${o}</option>`).join("")}</select></label>`
+    :ty==="yesno"
+    ?`<label class="f"><span class="label">${lab}</span><select class="field" id="rp_${k}"><option value="si">Sí</option><option value="no">No</option></select></label>`
+    :ty==="txt"
+    ?`<label class="f" style="grid-column:1/-1"><span class="label">${lab}</span><input class="field" id="rp_${k}" value="${esc(String(rep&&rep[k]!=null?rep[k]:def))}" autocomplete="off"></label>`
+    :ty==="num"
+    ?`<label class="f"><span class="label">${lab}</span><input class="field mono" id="rp_${k}" value="${esc(String(rep&&rep[k]!=null?rep[k]:def).replace(".",","))}" inputmode="decimal" autocomplete="off"></label>`
+    :`<label class="f"><span class="label">${lab}</span><input class="field mono" type="number" id="rp_${k}" min="${min}" max="${max}" value="${rep&&rep[k]!=null?rep[k]:def}" inputmode="numeric"></label>`).join("");
+  ps.forEach(([k,,def,,,ty])=>{if(ty==="yesno")$("rp_"+k).value=(rep&&rep[k]!=null?rep[k]:def)?"si":"no"});
+  $("repParams").hidden=!ps.length&&tipo!=="Biseles"&&!LENS.includes(tipo);
+  if(tipo==="Biseles")buildBiseles(rep);
+  if(LENS.includes(tipo)){$("repParams").insertAdjacentHTML("beforeend",`<div id="lenBox" style="grid-column:1/-1;min-width:0"></div>`);renderLens(rep?.unidad,rep?.largos)}
+  if(tipo==="Corte y empalme"){$("repParams").insertAdjacentHTML("beforeend",`<div id="posBox" style="grid-column:1/-1;min-width:0"></div>`);renderPos(rep)}
+  if(tipo==="Camisa sobre anillos sobre venteo")avLabel();
+  $("wRepNota").hidden=!tipo; $("wLT").hidden=!tipo;
+  $("iRepNota").placeholder=tipo==="Otra"?"Describe la reparación":"Opcional: medidas, material, tipo de soldadura";
+  $("repParams").querySelectorAll("input,select").forEach(i=>i.disabled=readOnly);
+  updateDrawing();
+}
+
+// ---------------- app de esquemas ----------------
+const LS="esquemas.v1";
+const guarda=o=>{try{localStorage.setItem(LS,JSON.stringify(o))}catch(e){}};
+const lee=()=>{try{return JSON.parse(localStorage.getItem(LS)||"null")}catch(e){return null}};
+function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2400)}
+let modo="rep";
+
+// ---- reparación ----
+const REP_OPC=Object.keys(REPS).filter(k=>k!=="Otra");
+$("iRep").innerHTML=REP_OPC.map(k=>`<option>${esc(k)}</option>`).join("");
+$("iTipoRep").innerHTML=`<option value="">—</option>`+TIPOS_REP.map(t=>`<option>${esc(t)}</option>`).join("");
+function svgRep(paraImg){const rep=readRep();if(!rep)return"";rep.vista=$("iVista").value;
+  const meta={tipoReparacion:$("iTipoRep").value,zs:null};
+  if(paraImg&&!$("iTit").checked){REPMODE=true;try{return drawRepair(rep,meta,PAL_PNG,false)}finally{REPMODE=false}}
+  return drawRepair(rep,meta,PAL_PNG,false)}
+function updateDrawing(){if(modo!=="rep")return;$("drawing").innerHTML=svgRep(false);
+  $("wTipoA").hidden=!/^Camisa/.test($("iRep").value);
+  guarda({...(lee()||{}),rep:{...readRep(),vistaSel:$("iVista").value,tipoRep:$("iTipoRep").value,tit:$("iTit").checked}})}
+$("iRep").addEventListener("change",()=>buildParams(null));
+$("repParams").addEventListener("input",e=>{
+  if(e.target.id==="rp_directas"||e.target.id==="rp_cascotas"||e.target.id==="rp_capas"){const c=readLens();renderLens(c.unidad,c.largos)}
+  if(e.target.id==="rp_venteos"||e.target.id==="rp_drenajes")renderPos(readPos());
+  if(e.target.id==="rp_tapa")avLabel();
+  if($("iRep").value==="Biseles"){const id=e.target.id;
+    if(id==="bTipo"||id==="bNA"||id==="bNC")bisBody(readBiseles());
+    else if(id==="bND"||id==="bNS"){if(id==="bND")$("bNS").value=Math.max(0,nInt(e.target.value,3,1,12)-1);const c=readBiseles();bisLens(c.largosDir,c.largosSob)}}
+  updateDrawing()});
+["iDiam","iRepNota","iLT","iLTU","iVista","iTipoRep","iTit"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,updateDrawing)));
+
+// ---- indicaciones ----
+const HORAS=[];for(let h=0;h<12;h++)for(const m of["00","30"])HORAS.push(`${h===0?12:h}:${m}`);
+const TIPOS_IND=["Lineal longitudinal","Lineal circunferencial","Redondeada","Área / zona"];
+let inds=[{id:"I1",x:"120",hora:"3:00",lon:"15",tipo:"Lineal longitudinal",desc:""}],refs=[];
+const num=v=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)?n:null};
+const horaH=s=>{const m=String(s||"").match(/^(\d{1,2})(?::(\d{1,2}))?$/);if(!m)return null;let h=+m[1]%12;return h+(+m[2]||0)/60};
+function renderInds(){
+  $("inds").innerHTML=inds.map((d,i)=>`<div class="indrow" data-i="${i}">
+    <label><span class="label">Id</span><input class="field" data-k="id" value="${esc(d.id)}"></label>
+    <label><span class="label">Desde ref. (mm)</span><input class="field mono" data-k="x" inputmode="decimal" value="${esc(d.x)}"></label>
+    <label><span class="label">Hora técnica</span><input class="field mono" data-k="hora" list="horas" value="${esc(d.hora)}" placeholder="3:00"></label>
+    <label><span class="label">Longitud (mm)</span><input class="field mono" data-k="lon" inputmode="decimal" value="${esc(d.lon)}"></label>
+    <button class="rm" type="button" data-rm="${i}" title="Quitar" aria-label="Quitar indicación">✕</button></div>
+    <div class="indrow2" data-i="${i}"><span></span>
+    <label><span class="label">Tipo</span><select class="field" data-k="tipo">${TIPOS_IND.map(t=>`<option${t===d.tipo?" selected":""}>${t}</option>`).join("")}</select></label>
+    <label><span class="label">Descripción (opcional)</span><input class="field" data-k="desc" value="${esc(d.desc)}" placeholder="Ej: grieta, poro, laminación"></label><span></span></div>`).join("")||`<p class="note">Sin indicaciones.</p>`;
+  $("refs").innerHTML=refs.map((d,i)=>`<div class="grid3" data-r="${i}" style="grid-template-columns:1fr 1fr 32px;align-items:end">
+    <label class="f"><span class="label">Nombre</span><input class="field" data-k="n" value="${esc(d.n)}" placeholder="C2"></label>
+    <label class="f"><span class="label">Distancia (mm)</span><input class="field mono" data-k="x" inputmode="decimal" value="${esc(d.x)}"></label>
+    <button class="rm" type="button" data-rmr="${i}" aria-label="Quitar referencia" style="margin-bottom:10px">✕</button></div>`).join("")}
+document.body.insertAdjacentHTML("beforeend",`<datalist id="horas">${HORAS.map(h=>`<option value="${h}">`).join("")}</datalist>`);
+$("formInd").addEventListener("input",e=>{const r=e.target.closest("[data-i]"),q=e.target.closest("[data-r]"),k=e.target.dataset.k;
+  if(r&&k)inds[+r.dataset.i][k]=e.target.value;if(q&&k)refs[+q.dataset.r][k]=e.target.value;drawInd()});
+$("formInd").addEventListener("change",()=>drawInd());
+$("formInd").addEventListener("click",e=>{const a=e.target.closest("[data-rm]"),b=e.target.closest("[data-rmr]");
+  if(a){inds.splice(+a.dataset.rm,1);renderInds();drawInd()}if(b){refs.splice(+b.dataset.rmr,1);renderInds();drawInd()}});
+$("addInd").addEventListener("click",()=>{const u=inds.at(-1);inds.push({id:"I"+(inds.length+1),x:"",hora:u?.hora||"12:00",lon:"",tipo:u?.tipo||"Lineal longitudinal",desc:""});renderInds();drawInd()});
+$("addRef").addEventListener("click",()=>{refs.push({n:"C"+(refs.length+2),x:""});renderInds();drawInd()});
+
+function svgInd(){
+  const D=num($("nDiam").value)||10,C=Math.PI*D*25.4,ref=$("nRef").value.trim()||"Referencia",izq=$("nFlujo").value==="izq",tabla=$("nTabla").checked;
+  const L=inds.map(d=>({...d,X:num(d.x),H:horaH(d.hora),N:Math.max(0,num(d.lon)||0)})).filter(d=>d.X!=null&&d.H!=null);
+  const R=refs.map(r=>({n:r.n||"",X:num(r.x)})).filter(r=>r.X!=null);
+  // rango axial (mm)
+  const xs=[0,...R.map(r=>r.X),...L.flatMap(d=>d.tipo==="Lineal longitudinal"||d.tipo==="Área / zona"?[d.X-d.N/2,d.X+d.N/2]:[d.X])];
+  let a=Math.min(...xs),b=Math.max(...xs);const pad=Math.max(40,(b-a)*0.12);a-=pad;b+=pad;if(b-a<200){const m=(a+b)/2;a=m-100;b=m+100}
+  const W=920,dx0=70,dW=560,dy0=78,dH=280,cxC=770,cyC=dy0+dH/2,rC=92;
+  const X=v=>dx0+(v-a)/(b-a)*dW, Y=h=>dy0+h/12*dH;
+  const nT=tabla?L.length:0,H=dy0+dH+72+(nT?14+24+nT*24+12:0);
+  const S=[],T=(x,y,t,o={})=>S.push(`<text x="${x}" y="${y}" text-anchor="${o.a||"middle"}" font-family="Arial,Helvetica,sans-serif" font-size="${o.s||12}" font-weight="${o.w||400}" fill="${o.c||"#1d2621"}"${o.rot?` transform="rotate(${o.rot} ${x} ${y})"`:""}>${esc(t)}</text>`);
+  const Ln=(x1,y1,x2,y2,c,w,d)=>S.push(`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="${w||1}"${d?` stroke-dasharray="${d}"`:""}/>`);
+  S.push(`<rect width="${W}" height="${H}" fill="#fff"/>`);
+  if($("nTit")?.checked!==false){T(dx0,28,"Ubicación de indicaciones",{a:"start",s:18,w:700,c:"#16324a"});T(dx0,48,`Ø ${D}" · perímetro ${Math.round(C)} mm · ${$("nElem").value.trim()} · distancias desde ${ref}`,{a:"start",s:12,c:"#454d48"})}
+  // vista desarrollada
+  S.push(`<defs><linearGradient id="gD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfd4d7"/><stop offset=".5" stop-color="#eef0f1"/><stop offset="1" stop-color="#cfd4d7"/></linearGradient></defs>`);
+  S.push(`<rect x="${dx0}" y="${dy0}" width="${dW}" height="${dH}" fill="url(#gD)" stroke="#3f464a" stroke-width="1.4"/>`);
+  [0,3,6,9,12].forEach(h=>{const y=Y(h);Ln(dx0,y,dx0+dW,y,"#9aa3ab",1,h%12?"4 4":"");T(dx0-8,y+4,(h===0?12:h)+":00",{a:"end",s:11,c:"#454d48"})});
+  T(dx0-46,dy0+dH/2,"Hora técnica",{s:11,c:"#454d48",rot:-90});
+  // referencias (soldaduras)
+  const weld=(x,n,main)=>{S.push(`<rect x="${(X(x)-3).toFixed(1)}" y="${dy0}" width="6" height="${dH}" fill="${main?"#3b4248":"#6f777c"}"/>`);T(X(x),dy0-8,n,{s:12,w:700,c:main?"#b4372b":"#3b4248"})};
+  weld(0,ref,true);R.forEach(r=>weld(r.X,r.n,false));
+  // escala axial
+  const paso=[10,20,25,50,100,200,250,500,1000,2000].find(p=>(b-a)/p<=8)||5000;
+  for(let v=Math.ceil(a/paso)*paso;v<=b;v+=paso){const x=X(v);Ln(x,dy0+dH,x,dy0+dH+5,"#454d48",1);T(x,dy0+dH+18,String(v),{s:10,c:"#454d48"})}
+  T(dx0+dW/2,dy0+dH+36,`Distancia desde ${ref} (mm)`,{s:11,c:"#454d48"});
+  // flujo
+  const fy=dy0+dH+56,fx=dx0+dW/2;Ln(fx-60,fy,fx+60,fy,"#2f7d4f",2.2);
+  S.push(izq?`<path d="M${fx-60},${fy-6} L${fx-72},${fy} L${fx-60},${fy+6} Z" fill="#2f7d4f"/>`:`<path d="M${fx+60},${fy-6} L${fx+72},${fy} L${fx+60},${fy+6} Z" fill="#2f7d4f"/>`);
+  T(fx+(izq?90:-90),fy+4,"Sentido de flujo",{s:11,w:600,c:"#2f7d4f",a:izq?"start":"end"});
+  // indicaciones
+  const RED="#d0201b";
+  L.forEach(d=>{const x=X(d.X),y=Y(d.H),px=dW/(b-a),py=dH/C;
+    if(d.tipo==="Lineal longitudinal"){const h=Math.max(6,d.N*px)/2;S.push(`<line x1="${(x-h).toFixed(1)}" y1="${y}" x2="${(x+h).toFixed(1)}" y2="${y}" stroke="${RED}" stroke-width="3.2" stroke-linecap="round"/>`)}
+    else if(d.tipo==="Lineal circunferencial"){const h=Math.max(6,d.N*py)/2;S.push(`<line x1="${x}" y1="${(y-h).toFixed(1)}" x2="${x}" y2="${(y+h).toFixed(1)}" stroke="${RED}" stroke-width="3.2" stroke-linecap="round"/>`)}
+    else if(d.tipo==="Área / zona"){const w=Math.max(10,d.N*px),h=Math.max(10,d.N*py);S.push(`<ellipse cx="${x}" cy="${y}" rx="${(w/2).toFixed(1)}" ry="${(h/2).toFixed(1)}" fill="${RED}" fill-opacity=".22" stroke="${RED}" stroke-width="1.6"/>`)}
+    else S.push(`<circle cx="${x}" cy="${y}" r="4.5" fill="${RED}"/>`);
+    T(x+8,y-8,d.id,{a:"start",s:12,w:700,c:RED})});
+  // corte transversal (visto en el sentido del flujo)
+  S.push(`<circle cx="${cxC}" cy="${cyC}" r="${rC}" fill="url(#gD)" stroke="#3f464a" stroke-width="2.4"/><circle cx="${cxC}" cy="${cyC}" r="${rC-12}" fill="#fff" stroke="#7b868c" stroke-width="1"/>`);
+  for(let h=0;h<12;h++){const t=h/12*2*Math.PI,s=Math.sin(t),c=-Math.cos(t);Ln(cxC+s*(rC-4),cyC+c*(rC-4),cxC+s*(rC+4),cyC+c*(rC+4),"#3f464a",h%3?1:2);
+    if(h%3===0)T(cxC+s*(rC+18),cyC+c*(rC+18)+4,(h||12)+":00",{s:11,w:600,c:"#3f464a"})}
+  T(cxC,cyC+4,"Vista en el sentido",{s:10,c:"#6f777c"});T(cxC,cyC+17,"del flujo",{s:10,c:"#6f777c"});
+  L.forEach(d=>{const t=d.H/12*2*Math.PI,s=Math.sin(t),c=-Math.cos(t);S.push(`<circle cx="${(cxC+s*(rC-6)).toFixed(1)}" cy="${(cyC+c*(rC-6)).toFixed(1)}" r="5" fill="${RED}" stroke="#fff" stroke-width="1.2"/>`);
+    T(cxC+s*(rC-26),cyC+c*(rC-26)+4,d.id,{s:11,w:700,c:RED})});
+  // tabla
+  if(nT){let y=dy0+dH+86;const cols=[["Id",60],["Desde "+ref+" (mm)",150],["Hora técnica",110],["Longitud (mm)",120],["Tipo",170],["Descripción",210]];
+    let x=dx0;cols.forEach(([h,w])=>{S.push(`<rect x="${x}" y="${y}" width="${w}" height="24" fill="#e8eae6" stroke="#9aa3ab"/>`);T(x+w/2,y+16,h,{s:11,w:700});x+=w});
+    L.forEach(d=>{y+=24;x=dx0;[d.id,String(d.X).replace(".",","),d.hora,d.N?String(d.N).replace(".",","):"–",d.tipo,d.desc||""].forEach((v,k)=>{const w=cols[k][1];S.push(`<rect x="${x}" y="${y}" width="${w}" height="24" fill="#fff" stroke="#9aa3ab"/>`);T(x+w/2,y+16,String(v).slice(0,34),{s:11});x+=w})})}
+  return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${S.join("")}</svg>`}
+function drawInd(){if(modo!=="ind")return;$("drawing").innerHTML=svgInd();
+  guarda({...(lee()||{}),ind:{inds,refs,diam:$("nDiam").value,ref:$("nRef").value,elem:$("nElem").value,flujo:$("nFlujo").value,tabla:$("nTabla").checked}})}
+["nDiam","nRef","nElem","nFlujo","nTabla"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,drawInd)));
+
+// ---- pestañas ----
+function setModo(m){modo=m;$("tabRep").setAttribute("aria-selected",m==="rep");$("tabInd").setAttribute("aria-selected",m==="ind");$("formRep").hidden=m!=="rep";$("formInd").hidden=m!=="ind";
+  if(m==="rep")updateDrawing();else drawInd();guarda({...(lee()||{}),modo:m})}
+$("tabRep").addEventListener("click",()=>setModo("rep"));$("tabInd").addEventListener("click",()=>setModo("ind"));
+
+// ---- exportar ----
+const cargar=src=>new Promise((ok,ko)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=ko;i.src=src});
+async function png(){
+  const svg=modo==="rep"?svgRep(true):svgInd();if(!svg)return null;
+  const vb=svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/),w=+vb[1],h=+vb[2],k=3;
+  const sz=svg.replace(/<svg([^>]*?)>/,(m,a)=>`<svg${a.replace(/\s(width|height)="[^"]*"/g,"")} width="${w*k}" height="${h*k}">`);
+  const im=await cargar("data:image/svg+xml;charset=utf-8,"+encodeURIComponent(sz));
+  const c=document.createElement("canvas");c.width=w*k;c.height=h*k;const g=c.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,c.width,c.height);g.drawImage(im,0,0,c.width,c.height);
+  // recorta el blanco sobrante
+  const d=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=0,y1=0;
+  for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){const i=(y*c.width+x)*4;if(d[i]<245||d[i+1]<245||d[i+2]<245){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+  if(x1<=x0)return new Promise(ok=>c.toBlob(ok,"image/png"));
+  const m=10*k/2,o=document.createElement("canvas");o.width=x1-x0+2*m;o.height=y1-y0+2*m;const go=o.getContext("2d");go.fillStyle="#fff";go.fillRect(0,0,o.width,o.height);go.drawImage(c,x0,y0,x1-x0,y1-y0,m,m,x1-x0,y1-y0);
+  return new Promise(ok=>o.toBlob(ok,"image/png"))}
+const nombre=()=>"Esquema_"+(modo==="rep"?$("iRep").value:"Indicaciones").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^\w]+/g,"_")+".png";
+$("btnDesc").addEventListener("click",async()=>{const b=await png();if(!b)return;const u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download=nombre();document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);toast("Imagen descargada")});
+$("btnCopy").addEventListener("click",async()=>{try{await navigator.clipboard.write([new ClipboardItem({"image/png":png()})]);toast("Imagen copiada: péguela en el Excel o el Word")}catch(e){toast("Este navegador no deja copiar imágenes; use Descargar")}});
+if(navigator.canShare&&navigator.canShare({files:[new File([new Blob(["x"],{type:"image/png"})],"a.png",{type:"image/png"})]})){$("btnShare").hidden=false;
+  $("btnShare").addEventListener("click",async()=>{const b=await png();if(!b)return;try{await navigator.share({files:[new File([b],nombre(),{type:"image/png"})],title:"Esquema"})}catch(e){}})}
+
+// ---- arranque ----
+(()=>{const s=lee();
+  if(s?.rep?.tipo&&REP_OPC.includes(s.rep.tipo)){$("iRep").value=s.rep.tipo;$("iDiam").value=s.rep.diametro||"10";$("iRepNota").value=s.rep.nota||"";$("iLT").value=s.rep.longTotal||"";$("iLTU").value=s.rep.longUnidad||"m";
+    $("iVista").value=s.rep.vistaSel||"";$("iTipoRep").value=s.rep.tipoRep||"";$("iTit").checked=s.rep.tit!==false;buildParams(s.rep)}else{$("iRep").value="Camisa sobre anillos";buildParams(null)}
+  if(s?.ind){inds=s.ind.inds||inds;refs=s.ind.refs||[];$("nDiam").value=s.ind.diam||"10";$("nRef").value=s.ind.ref||"C1";$("nElem").value=s.ind.elem||"";$("nFlujo").value=s.ind.flujo||"der";$("nTabla").checked=s.ind.tabla!==false}
+  renderInds();setModo(s?.modo==="ind"?"ind":"rep")})();
+</script>
+</body>
+</html>
