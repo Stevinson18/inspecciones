@@ -219,6 +219,7 @@ function layoutCE(rep){
 
 let REPMODE=false; // dibujo para el reporte: sin datos repetidos y el flujo sobre el tubo
 function drawRepair(rep,meta,P,compact){
+  meta=meta?{...meta,zs:null}:meta; // el espesor mínimo va en el reporte, no en el esquema
   // Camisa Tipo A: no lleva soldaduras de compromiso (las que van directas a la tubería)
   const sinComp=meta?.tipoReparacion==="Camisa Tipo A";
   const esZS=rep?.tipo==="Zona sana", esCE=rep?.tipo==="Corte y empalme", esBI=rep?.tipo==="Biseles", esCA=rep?.tipo==="Camisa armadillo", esAN=rep?.tipo==="Camisa sobre anillos", esPU=rep?.tipo==="Camisa puenteada", esIL=rep?.tipo==="Ilícita", esAV=rep?.tipo==="Camisa sobre anillos sobre venteo", esCD=rep?.tipo==="Camisa directa";

@@ -713,6 +713,7 @@ function layoutCE(rep){
 
 let REPMODE=false; // dibujo para el reporte: sin datos repetidos y el flujo sobre el tubo
 function drawRepair(rep,meta,P,compact){
+  meta=meta?{...meta,zs:null}:meta; // el espesor mínimo va en el reporte, no en el esquema
   // Camisa Tipo A: no lleva soldaduras de compromiso (las que van directas a la tubería)
   const sinComp=meta?.tipoReparacion==="Camisa Tipo A";
   const esZS=rep?.tipo==="Zona sana", esCE=rep?.tipo==="Corte y empalme", esBI=rep?.tipo==="Biseles", esCA=rep?.tipo==="Camisa armadillo", esAN=rep?.tipo==="Camisa sobre anillos", esPU=rep?.tipo==="Camisa puenteada", esIL=rep?.tipo==="Ilícita", esAV=rep?.tipo==="Camisa sobre anillos sobre venteo", esCD=rep?.tipo==="Camisa directa";
@@ -1492,7 +1493,7 @@ function calcInsp(rep,diam,esp,tipoA){
   const Cw=(lab,dia)=>{const p=Math.PI*dia;rows.push([lab,`π × ${mm1(dia)} mm`,p]);circ+=p};
   const ok=a=>a.every(x=>x!=null);
   if(rep.tipo==="Camisa directa"){
-    const lc=toIn(lg.cd?.[0],u);if(lc==null)return{err:"Falta la longitud de la camisa en el esquema."};
+    const lc=toIn(cdDe(rep),u);if(lc==null)return{err:"Falta la longitud de la camisa en el esquema."};
     Lw("Camisa · L1 y L2",lc,0);if(!tipoA){Cw("C1",D+2*t);Cw("C2",D+2*t)}
     for(let k=1;k<=nInt(rep.capas,0,0,3);k++){const ls=toIn(lg.sup?.[k-1],u);if(ls==null)return{err:`Falta la longitud de la sobrecamisa ${k} en el esquema.`};Lw(`Sobrecamisa ${k} · L1 y L2`,ls,0);Cw(`SC${k} C1`,D+2*(k+1)*t);Cw(`SC${k} C2`,D+2*(k+1)*t)}
   } else if(rep.tipo==="Camisa armadillo"){
@@ -1524,7 +1525,12 @@ const conTec=a=>a==="0H"||a==="12H"||!!SOLD_ACTS[a];
 const HORAS_LIG=["12H","6H","9H"];
 function repHoras(it,items){if(!it||!HORAS_LIG.includes(it.act)||it.repPropio)return it?.reparacion;const h0=(items||REP_PT?.items||[]).find(y=>y.act==="0H"&&y.reparacion?.tipo);
   return h0&&(!it.reparacion?.tipo||it.reparacion.tipo===h0.reparacion.tipo)?h0.reparacion:it.reparacion}
-const ligarHoras=items=>items.map(x=>{const rp=repHoras(x,items);if(rp===x.reparacion)return x;const h0=items.find(y=>y.act==="0H"&&y.reparacion===rp);return{...x,reparacion:rp,soldadores:{...(h0?.soldadores||{}),...Object.fromEntries(Object.entries(x.soldadores||{}).filter(([,v])=>String(v||"").trim()))}}});
+// observaciones de la actividad; en zona sana también el "Detalle" del esquema (ahí suelen escribirla)
+const obsIt=it=>{const a=[it?.observaciones,it?.act==="Zona sana"?it?.reparacion?.nota:""].map(x=>String(x||"").trim()).filter(Boolean);return a.length?" "+[...new Set(a)].join(" "):""};
+const ligarHoras=items=>items.map(x=>{const rp=repHoras(x,items);if(rp===x.reparacion)return x;const h0=items.find(y=>y.act==="0H"&&y.reparacion===rp);return{...x,reparacion:rp,soldadores:{...(h0?.soldadores||{}),...Object.fromEntries(Object.entries(x.soldadores||{}).filter(([,v])=>String(v||"").trim()))}}})
+  // las indicaciones reportadas a 0 h siguen en la soldadura: si la inspección de 12 h (o 6/9 h) no trae indicaciones, salen las de 0 h
+  .map((x,_,arr)=>{if(!HORAS_LIG.includes(x.act)||(x.ind||[]).length)return x;const con=y=>y.act==="0H"&&(y.ind||[]).length;const h0=arr.find(y=>con(y)&&y.reparacion?.tipo===x.reparacion?.tipo)||arr.find(con);if(!h0)return x;
+    const ts=x.tecnicas||[];const ind=h0.ind.filter(d=>!ts.length||!d.tec||ts.includes(d.tec)).map(d=>({...d}));return ind.length?{...x,ind,indDe0H:true}:x});
 // técnicas fijas (PT / MT a soldaduras) o permitidas (bajado: PAUT, PT, MT)
 function fixTec(it){const S=SOLD_ACTS[it?.act];if(!S)return;if(S.tec)it.tecnicas=[...S.tec];else{it.tecnicas=(it.tecnicas||[]).filter(t=>["PAUT","PT","MT"].includes(t));
   if(it.juntasTT==null){const tn=formItems.find(x=>esTN(x.act)&&x.reparacion?.tubos);it.juntasTT=tn?nInt(tn.reparacion.tubos,1,1,20)+1:2}}}
@@ -2065,7 +2071,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v129";
+const LOCAL=!!window.__LOCAL;const APPV="v130";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2592,6 +2598,8 @@ function addItem(){
 }
 // ---- revisión automática: la longitud total debe cuadrar con las piezas del esquema ----
 const U2MM={mm:1,cm:10,m:1000,pulg:25.4};
+// longitud de la camisa directa; si no se llenó en el esquema, la longitud total de la reparación (pasada a la unidad del esquema)
+function cdDe(rep){const v=rep?.largos?.cd?.[0];if(num(v)!=null)return v;const lt=num(rep?.longTotal);if(lt==null||lt<=0)return v;const u=rep.unidad||"cm",lu=rep.longUnidad||"m";return String(Math.round(lt*(U2MM[lu]||1000)/(U2MM[u]||10)*1000)/1000)}
 const toMm=(v,u)=>{const n=parseFloat(String(v??"").replace(",","."));return isFinite(n)&&n>0?n*(U2MM[u]||10):null};
 const COVER_MM=2*25.4; // traslape mínimo de 2" donde una camisa monta sobre otra
 function checkLen(rep){
@@ -2610,7 +2618,7 @@ function checkLen(rep){
     const sD=D.reduce((a,b)=>a+b,0), sS=Sx.reduce((a,b)=>a+b,0);
     max=sD+sS-2*COVER_MM*Sx.length; min=sD; desc=`${D.length} directas (${fmt(sD)} mm en total), ${Sx.length} sobrecamisas (${fmt(sS)} mm) y traslape mínimo de 2" (50,8 mm) por lado`;
   } else if(t==="Camisa directa"||(t==="Biseles"&&/^(directa|puenteada)$/.test(rep.tipoCamisa))){
-    let L=t==="Biseles"?toMm(rep.largoCamisa,u):toMm(lg.cd?.[0],u); if(L==null)return null;const sup=t==="Biseles"?[]:[...Array(nInt(rep.capas,0,0,3))].map((_,k)=>toMm(lg.sup?.[k],u)).filter(x=>x!=null);if(sup.length)L=Math.max(L,...sup); min=max=L; desc=sup.length?`una camisa con ${sup.length} sobrecamisa(s) encima; la más larga mide ${fmt(L)} mm`:`una camisa de ${fmt(L)} mm`;
+    let L=t==="Biseles"?toMm(rep.largoCamisa,u):toMm(cdDe(rep),u); if(L==null)return null;const sup=t==="Biseles"?[]:[...Array(nInt(rep.capas,0,0,3))].map((_,k)=>toMm(lg.sup?.[k],u)).filter(x=>x!=null);if(sup.length)L=Math.max(L,...sup); min=max=L; desc=sup.length?`una camisa con ${sup.length} sobrecamisa(s) encima; la más larga mide ${fmt(L)} mm`:`una camisa de ${fmt(L)} mm`;
   } else if(t==="Camisa puenteada"){
     const P=toMm(lg.pu?.[0],u); if(P==null)return null; min=max=P; desc=`una sobre camisa de ${fmt(P)} mm (de C1 a C2)`;
   } else return null;
@@ -2949,7 +2957,7 @@ $("itemsBox").addEventListener("change",e=>{const f=e.target.dataset.f, card=e.t
     else if(conTec(e.target.value)&&copiarDeHoras(i)){if(i===active)loadRep(formItems[i].reparacion);else card.querySelector(".itrep").innerHTML=repSummaryHtml(formItems[i],i);toast("Copié el esquema, longitudes, soldadores y técnicas de la otra actividad. Marca las juntas que se inspeccionaron.")}
     else if((e.target.value==="MT metal base camisa"||e.target.value==="Biseles")&&cur?.tipo!=="Biseles"){// toma secciones y longitudes de la camisa ya dibujada (si hay)
       const cam=cur?.tipo&&/Camisa/.test(cur.tipo)?cur:formItems.map(x=>x.reparacion).find(x=>x?.tipo&&/Camisa/.test(x.tipo));const b=defaultRep(e.target.value);
-      if(cam){const lg=cam.largos||{};b.unidad=cam.unidad||"cm";if(cam.tipo==="Camisa directa"){b.tipoCamisa="directa";b.largoCamisa=lg.cd?.[0]||""}
+      if(cam){const lg=cam.largos||{};b.unidad=cam.unidad||"cm";if(cam.tipo==="Camisa directa"){b.tipoCamisa="directa";b.largoCamisa=cdDe(cam)||""}
         else if(cam.tipo==="Camisa puenteada"){b.tipoCamisa="puenteada";b.largoCamisa=lg.pu?.[0]||""}
         else if(cam.tipo==="Camisa doble anillo sobre existente"){b.tipoCamisa="anilloex";b.nAn=2;b.largoAnillo=lg.a1?.[0]||"";b.largoAnillo2=lg.a2?.[0]||"";b.largoSobre=lg.sc?.[0]||"";b.exLado=cam.exLado||"Aguas abajo (derecha)";b.exTipo=/seccionada|armadillo/i.test(cam.exTipo||"")?"Seccionada":/directa/i.test(cam.exTipo||"")?"Directa":"Sobre anillos"}
         else if(cam.tipo==="Camisa sobre anillo y camisa existente"){b.tipoCamisa="anilloex";b.largoAnillo=lg.a1?.[0]||"";b.largoSobre=lg.sc?.[0]||"";b.exLado=cam.exLado||"Aguas abajo (derecha)";b.exTipo=/seccionada|armadillo/i.test(cam.exTipo||"")?"Seccionada":/directa/i.test(cam.exTipo||"")?"Directa":"Sobre anillos"}
@@ -3339,7 +3347,7 @@ function marcaBorrador(){const c=document.createElement("canvas");c.width=1600;c
   return new Promise(ok=>c.toBlob(async b=>ok(await aBytes(b)),"image/png"))}
 // --- juntas, longitudes y textos ---
 function largoSeccion(rep,id){const u=rep.unidad||"cm",lg=rep.largos||{};const mmv=v=>{const n=num(v);return n==null?null:Math.round(n*(U2MM[u]||10))};
-  const t=rep.tipo;if(t==="Camisa directa"){const k=+(id.match(/^SC(\d+) /)||[])[1];return k?mmv(lg.sup?.[k-1]):mmv(lg.cd?.[0])}if(t==="Camisa puenteada")return mmv(lg.pu?.[0]);
+  const t=rep.tipo;if(t==="Camisa directa"){const k=+(id.match(/^SC(\d+) /)||[])[1];return k?mmv(lg.sup?.[k-1]):mmv(cdDe(rep))}if(t==="Camisa puenteada")return mmv(lg.pu?.[0]);
   if(t==="Camisa armadillo"){const nm=(id.match(/^([AS]\d+)/)||[])[1],P=armPz(rep),p=nm&&P.find(q=>q.nm===nm);if(!p)return null;const v=mmv(p.k==="d"?lg.dir?.[p.i]:lg.sob?.[p.i]);
     // 12 horas: la longitudinal de una sección (directa) queda tapada 2,5 in (63,5 mm) por cada anillo de cierre montado encima
     if(rep._h12&&v!=null&&p.k==="d"&&/^S/.test(p.nm)){const n=[p.i-1,p.i].filter(i=>/^A/.test(pzNom(P,"s",i))).length;return Math.round(v-n*63.5)}return v}
@@ -3476,9 +3484,9 @@ async function generarReporte(r,modo){r={...r,items:ligarHoras(r.items||[])};REP
   Object.entries({AI6:r.consecutivo,T7:r.sistema,X7:r.linea,AH7:r.pk,X8:num(r.diametro),AI8:num(r.nominal)??(r.items.length&&r.items.every(x=>esTN(x.act))?num(r.espesor):null),H9:r.tipoReparacion,AH9:serial(r.fecha),H10:r.base,T10:lugar,H13:largoTot??"-",AF13:num(r.espesor),I14:num(r.diametro),AG14:"API 5L",AI14:r.materialTub,AG15:"API 5L",AI15:r.material,D60:realizoDe(primero)}).forEach(([k,v])=>C("Matriz1",k,v));
   {const pb=perBase(r.base);C("Matriz1","R60",pb?.qc||"",true);C("Matriz1","AD60",pb?.res||"",true)}
   const obsTxt=(it,que,tq,ids)=>{const ds=(it.ind||[]).filter(d=>(!tq||d.tec===tq)&&(!ids||ids.includes(d.j))),rz=ds.filter(d=>d.res==="Rechazo");
-  if(ds.length)return`Observaciones: ${que}, en las cuales ${ds.length>1?`se identificaron ${ds.length} indicaciones`:"se identificó 1 indicación"} (${[...new Set(ds.map(d=>d.j))].join(", ")})${rz.length?`; ${rz.length>1?`${rz.length} son causa de rechazo`:"1 es causa de rechazo"} (${[...new Set(rz.map(d=>d.j))].join(", ")})`:`, ${ds.length>1?"aceptables":"aceptable"} bajo el código de construcción API 1104`}; las demás soldaduras se encuentran aceptadas.${it.observaciones?" "+it.observaciones:""}`;
+  if(ds.length)return`Observaciones: ${que}, en las cuales ${ds.length>1?`se identificaron ${ds.length} indicaciones`:"se identificó 1 indicación"} (${[...new Set(ds.map(d=>d.j))].join(", ")})${rz.length?`; ${rz.length>1?`${rz.length} son causa de rechazo`:"1 es causa de rechazo"} (${[...new Set(rz.map(d=>d.j))].join(", ")})`:`, ${ds.length>1?"aceptables":"aceptable"} bajo el código de construcción API 1104`}; las demás soldaduras se encuentran aceptadas.${obsIt(it)}`;
   return obsTxt0(it,que)};
-const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo, por lo tanto se encuentran aceptadas bajo el código de construcción API 1104"}.${it.observaciones?" "+it.observaciones:""}`;
+const obsTxt0=(it,que)=>`Observaciones: ${que}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo, por lo tanto se encuentran aceptadas bajo el código de construcción API 1104"}.${obsIt(it)}`;
   const resultado=it=>it.novedad?"Ver obs.":"OK";
   // llena una tabla repartiendo filas en las hojas disponibles (cada hoja tiene ~14 filas)
   async function tabla(nombres,filas,cols,cab){const usadas=[];let i=0;
@@ -3536,11 +3544,11 @@ const utCompleto=src=>{if(!src)return src;const K=["modulo","softAdq","softAna"]
   const dig=x=>String(x??"").replace(/\D/g,""),sd=dig(src.serie);const cand=equipos.filter(e=>e.tecnica==="PAUT"&&e.campos);
   const m=(sd&&cand.find(e=>{const d=dig(e.campos.serie);return d&&(d===sd||d.endsWith(sd)||sd.endsWith(d))&&K.some(k=>String(e.campos[k]??"").trim())}))||cand.find(e=>K.every(k=>String(e.campos[k]??"").trim())&&String(e.campos.modelo||"").trim()&&String(e.campos.modelo).trim()===String(src.modelo||"").trim());
   if(!m)return src;const o={...src};K.forEach(k=>{if(!String(o[k]??"").trim()&&String(m.campos[k]??"").trim())o[k]=m.campos[k]});return o};
-const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa===EQ_UT||mapa===EQ_PT||mapa===EQ_MT)&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
+const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);if(mapa===EQ_MT&&src){const c=String(src.contraste||"").trim(),m=c.match(/\/\s*(.+)$/);src={...src,loteCont:/^n\.?\s*\/?\s*a\.?$/i.test(c)?"N/A":src.loteCont||(m?m[1].trim():"")}}const todo=(mapa===EQ_UT||mapa===EQ_PT||mapa===EQ_MT)&&Object.keys(src||{}).length>0;Object.entries(mapa).forEach(([cel,k])=>{const v=String(src[k]??"").trim();if(v)C(h,cel,/^\d+([.,]\d+)?$/.test(v)?num(v):v);else if(todo)C(h,cel,"-",true)})};
   // equipo de la actividad; si no lo tiene, el que se usó para esa técnica en otra actividad del punto
   const eqDe=(it,ts)=>{for(const x of [it,...r.items.filter(y=>y!==it)])for(const t of ts){const e=equipos.find(q=>q.id===x.equipos?.[t]);if(e)return e.campos||{}}return{}};
   const EQ_PT={H20:"tipoPen",V20:"metodo",H23:"marcaKit",E24:"limpiador",K24:"loteLimp",R24:"revelador",W24:"loteRev",AD24:"penetrante",AI24:"lotePen",AI22:"tPen",AI23:"tRev"};
-  const EQ_MT={I20:"tipoPart",I22:"tecnica",G23:"tipoYoke",I24:"metodo",W24:"corriente",W25:"marcaYoke",AI25:"serieYoke",H25:"marcaKit",K26:"loteLimp",AI26:"lotePart"};
+  const EQ_MT={I20:"tipoPart",I22:"tecnica",G23:"tipoYoke",I24:"metodo",W24:"corriente",W25:"marcaYoke",AI25:"serieYoke",H25:"marcaKit",K26:"loteLimp",W26:"loteCont",AI26:"lotePart"};
   const EQ_UT={E21:"marca",E22:"modelo",E23:"serie",O21:"modulo",O22:"softAdq",O23:"softAna"};
   const PL_UT={AC20:"palpador",V22:"zapata",V23:"angRef",AC23:"frecuencia",AC22:"pitch",AJ21:"elemLey",AJ22:"pasoAng",AJ23:"elem1",AJ24:"elemUlt",AC26:"angIni",AE26:"angFin",AJ26:"profFocal",W26:"rangoBarrido",AC24:"ganancia",Q25:"vRef",H25:"bloqueCal",H26:"bloqueRef",H27:"reflector",AJ27:"resolX"};
   const PL_SC={AC20:"palpador",V22:"zapata",V23:"angRef",AC23:"frecuencia",AC22:"pitch",AJ21:"elemLey",AJ22:"paso",AJ23:"elem1",AJ24:"elemUlt",AJ26:"profFocal",AC26:"rangoBarrido",AC24:"ganancia",Q25:"vRef",H25:"bloqueCal",H27:"reflector",AJ27:"resolXY",V13:"axial",V14:"perimetral"};
@@ -3575,17 +3583,17 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
     if(it===bisCas0&&it.act==="Ilícitas")it=bisCas;
     if(it===bisCas){bisUsado=true;// bisel recto de la cascota: reporte propio (hojas de biseles), separado del PT a las soldaduras
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filasBisCas(),["A","G","K","O","R","U","Z","AD"],()=>{});const n=nCas(it);
-      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes al bisel recto de ${n>1?"las cascotas":"la cascota"} para la reparación de la válvula ilícita${it.novedad?"":", en el cual no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,it.reparacion);C(h,"H9","Cascotas");C(h,"T9","Bisel recto");C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
+      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes al bisel recto de ${n>1?"las cascotas":"la cascota"} para la reparación de la válvula ilícita${it.novedad?"":", en el cual no se identificaron indicaciones relevantes causales de rechazo"}.${obsIt(it)}`,true,it.reparacion);C(h,"H9","Cascotas");C(h,"T9","Bisel recto");C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
       await fotosEn(["12F.PT-BIS-CAM 2","12F.PT-BIS-CAM 6","12F.PT-BIS-CAM 7"],fotDe(it,"PT"),lugarIt)}
     else if(it.act==="Biseles"&&it!==bisCas&&it.reparacion?.tipo){const rep=it.reparacion;const filas=bisRows(rep).map(([id,len])=>[id,"N/A",len,"-","-","-",resultado(it),"-"]);
       const hs=await tabla(["12.PT-BIS-CAM 3","12.PT-BIS-CAM 4","12.PT-BIS-CAM 5","12.PT-BIS-CAM 1"],filas,["A","G","K","O","R","U","Z","AD"],()=>{});
-      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes a los biseles de la ${descCamisa(r,repCam||rep)}${it.novedad?"":", en los cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
+      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por líquidos penetrantes a los biseles de la ${descCamisa(r,repCam||rep)}${it.novedad?"":", en los cuales no se identificaron indicaciones relevantes causales de rechazo"}.${obsIt(it)}`,true,rep);C(h,"AF13",num(r.espesor));ponEq(h,EQ_PT,equipo(it,"PT"))}
       await fotosEn(["12F.PT-BIS-CAM 2","12F.PT-BIS-CAM 6","12F.PT-BIS-CAM 7"],fot("PT"),lugarIt)}
     if(it.act==="MT metal base camisa"&&it.reparacion?.tipo){const rep=it.reparacion;let hMT="4.MT-ZS cam2";const n=usoMTZS++;
       if(n){hMT=`4.MT-ZS cam2 #${n+1}`;if(!hoja[hMT]){await clonarHoja("4.MT-ZS cam2",hMT);if(AREA_FOTOS["4.MT-ZS cam2"])AREA_FOTOS[hMT]=AREA_FOTOS["4.MT-ZS cam2"]}}
       const tp=String(equipo(it,"MT")?.tipoPart||"").toLowerCase(),tpT=/visib/.test(tp)?" visibles":/fluor/.test(tp)?" fluorescentes":"";
       const hs=await tabla([hMT],mbRows(rep).map(([id,len])=>[id,"NA",len,"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
-      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por partículas magnéticas${tpT} ${mbTxt(rep)} de la ${descCamisa(r,repCam||rep)}${it.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo"}.${it.observaciones?" "+it.observaciones:""}`,true,rep);
+      for(const h of hs){await cabecera(h,it,`Observaciones: Se realizó la inspección por partículas magnéticas${tpT} ${mbTxt(rep)} de la ${descCamisa(r,repCam||rep)}${it.lugarInsp==="Patio"?" (en patio, antes de su instalación)":""}${it.novedad?"":", en las cuales no se identificaron indicaciones relevantes causales de rechazo"}.${obsIt(it)}`,true,rep);
         C(h,"H9","Camisa");C(h,"T9","Metal base camisa");if(num(r.espesor)!=null)C(h,"AH13",num(r.espesor));C(h,"V13","100 %");C(h,"Y13","");ponEq(h,EQ_MT,equipo(it,"MT"))}
       await fotosEn([hMT],fot("MT"),lugarIt)}
     if(conTec(it.act)&&it.reparacion?.tipo){fixTec(it);const H12=it.act==="12H";const dupN=ITS.slice(0,ITS.indexOf(it)).filter(x=>conTec(x.act)&&(x.act==="12H")===H12&&x.reparacion?.tipo).length;const suf=dupN?` #${dupN+1}`:"";
@@ -3627,10 +3635,10 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
       const desc=`${etT?etT.trim()+", ":""}al metal base de la tubería nueva, ${tb.join(" y ")} (${fm(ext)} mm en cada extremo en todo el perímetro y ${fm(cen)} mm en el centro)`;
       const encab=h=>{C(h,"H9","Tubería nueva");C(h,"T9",et?`Metal base · ${et.toLowerCase()}`:"Metal base");C(h,"V13",2*ext+cen);const e=num(r.nominal)??num(r.espesor);if(e!=null)C(h,"AH13",e);if(r.materialTub||r.material)C(h,"AJ14",r.materialTub||r.material)};
       if(tec.includes("MT")){const hs=await tabla([nh("4.MT-ZS cam2")],tb.map(t=>[t,"NA",L??"-","-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
-        for(const h of hs){await cabecera(h,it,`Observaciones: Inspección MT fluorescente${etT} al metal base de la tubería nueva, ${tb.join(" y ")}: ${fm(ext)} mm en cada extremo (todo el perímetro) y ${fm(cen)} mm en el centro.${it.novedad?"":" No se identificaron indicaciones relevantes."}${it.observaciones?" "+it.observaciones:""}`,true,rp);encab(h);ponEq(h,EQ_MT,equipo(it,"MT"))}
+        for(const h of hs){await cabecera(h,it,`Observaciones: Inspección MT fluorescente${etT} al metal base de la tubería nueva, ${tb.join(" y ")}: ${fm(ext)} mm en cada extremo (todo el perímetro) y ${fm(cen)} mm en el centro.${it.novedad?"":" No se identificaron indicaciones relevantes."}${obsIt(it)}`,true,rp);encab(h);ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([nh("4.MT-ZS cam2")],[...fot("MT"),...fot("GEN")],"campo")}
       if(tec.includes("SCANC")){const h=nh("3.SC-ZS CAM2");if(hoja[h]){visibles.add(h);await cabecera(h,it,"",true,rp);encab(h);const a=ANCLAS_REP[h];
-        C(h,"A50",conFechas(it,`Observaciones: Se realizó la inspección por ultrasonido Scan C ${desc}.${it.observaciones?" "+it.observaciones:""}`));
+        C(h,"A50",conFechas(it,`Observaciones: Se realizó la inspección por ultrasonido Scan C ${desc}.${obsIt(it)}`));
         const imgs=fot("SCI");for(let k=0;k<imgs.length&&k<(a.fotos||[]).length;k++)P(h,a.fotos[k],await fotoRep({...imgs[k],noStamp:imgs[k].noStamp!==false},"campo",a.fotos[k],true),"jpeg");
         ponEq(h,EQ_UT,equipo(it,"PAUT"));const pl=plan(it,"SCANC");ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC")}}}
     if(it.act==="Zona sana"&&it.zsNo?.length&&it.reparacion)it.reparacion={...it.reparacion,zsNo:it.zsNo};
@@ -3646,7 +3654,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
           ["AM32","A57","E57","O57","S57"].forEach(c=>C(h,c,"",true));
           const que=ilic?`Se realiza medición de espesores en la zona sana dónde se va a instalar la cascota #${k+1} que cubrirá la zona afectada por la válvula ilícita ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`
             :`Se realiza medición de espesores por ultrasonido (Scan A, palpador dual) en la ${lab.toLowerCase()}, ubicada en el PK ${r.pk||""} del ${[r.sistema,r.linea].filter(Boolean).join(" ")} ${r.diametro||""} in.`;
-          C(h,"A50",conFechas(it,`Observaciones: ${que}${it.novedad?"":""}${it.observaciones?" "+it.observaciones:""}`));
+          C(h,"A50",conFechas(it,`Observaciones: ${que}${it.novedad?"":""}${obsIt(it)}`));
           C(h,"N48",`Registro medición de espesores en ${ilic?"zona de Cascota #"+(k+1):lab.toLowerCase()}`);
           const im=imgs.find(x=>x.cap===a)||imgs[k];if(im&&an.reg){P(h,an.reg,await fotoRep({...im,noStamp:im.noStamp!==false},"campo",an.reg,true),"jpeg");paq(h,`Registro ${a}`,im,an.reg)}
           C(h,"AT64","si");quitar(h,an.esq);await barrido(h,"SCANA")}}}
@@ -3658,12 +3666,12 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         const hs=[base];for(let k=1;k<pares.length;k++)hs.push(await clonarHoja(base,`3.SC-ZS CAM2 (${k+1})`));
         const imgs=fot("ZSI"),pl=plan(it,"SCANC");
         for(let p=0;p<hs.length;p++){const h=hs[p],a=ANCLAS_REP[h];visibles.add(h);const par=pares[p]||[];
-          const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${it.observaciones?" "+it.observaciones:""}`;
+          const obsSC=`Observaciones: Se realizó la inspección por ultrasonido Scan C de ${(q=>q.length>1?"las zonas sanas "+q.join(" y "):"la zona sana "+q[0])(par.map(x=>x.replace(/^zona sana\s*/i,"")))} ${desZS(r,it)}${it.novedad?"":", en la cual no se identificaron indicaciones tipo laminación"}.${obsIt(it)}`;
           await cabecera(h,it,obsSC,false,null);C(h,"A50",conFechas(it,obsSC));
           ponEq(h,EQ_UT,eqDe(it,["PAUT"]));ponEq(h,PL_SC,pl);altura(h,pl);await barrido(h,"SCANC");nominalCache(h);C(h,"V13",num(it.zsDim?.axial)??200);C(h,"V14",num(it.zsDim?.perim)??200);
           // esquema de ubicación: el de la reparación con solo las zonas de este reporte resaltadas (reemplaza el dibujo fijo de la plantilla)
           if(it.reparacion?.tipo){const anE={fr:"<xdr:from><xdr:col>0</xdr:col><xdr:colOff>30000</xdr:colOff><xdr:row>52</xdr:row><xdr:rowOff>20000</xdr:rowOff></xdr:from>",to:"<xdr:to><xdr:col>24</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>56</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>",cx:4300000,cy:880000};
-            quitar(h,{fr:anE.fr,to:anE.to,maxCol:23});const repE={...it.reparacion,zsNo:zsAreas(it.reparacion).filter(a=>!par.includes(a)),diametro:r.diametro};P(h,anE,await esquemaRep(repE,{tipoReparacion:r.tipoReparacion},anE),"png")}
+            quitar(h,{fr:anE.fr,to:anE.to,maxCol:23});const repE={...it.reparacion,zsNo:zsAreas(it.reparacion).filter(a=>!par.includes(a)),diametro:r.diametro,vista:"Zona sana"};P(h,anE,await esquemaRep(repE,{tipoReparacion:r.tipoReparacion},anE),"png")}
           const circ=a=>a&&a!=="-"?String(a):"";// la parte que se inspeccionó en este reporte
           [["E47","K47","A57","E57"],["X47","AC47","O57","S57"]].forEach(([l1,v1,l2,v2],s_)=>{const cc=circ(par[s_]);C(h,l1,cc?`CIRCUNFERENCIAL ${s_+1}:`:"",true);C(h,v1,cc,true);C(h,l2,cc?`Circunf ${s_+1}:`:"",true);C(h,v2,cc,true)});
           // ubicación de la costura longitudinal de cada zona (debajo de su circunferencial)
@@ -3677,7 +3685,7 @@ const ponEq=(h,mapa,src)=>{if(mapa===EQ_UT)src=utCompleto(src);const todo=(mapa=
         const areas=zsAreasIt(it),dim=`${num(it.zsDim?.axial)??200} × ${num(it.zsDim?.perim)??200} mm`,OD=odOf(r.diametro),per=OD?`${Math.round(Math.PI*OD*25.4)}`:dim;
         const lonZ=a=>/VENTEO|DRENAJE|TIE IN/i.test(a)?dim:/\bC\d\b/.test(a)?per:dim;
         const hs=await tabla([hMT],areas.map(a=>[a,"NA",lonZ(a),"-","-","-",resultado(it),"-"]),["A","G","K","O","R","U","Z","AD"],()=>{});
-        for(const h of hs){await cabecera(h,it,`Observaciones: Inspección MT fluorescente al metal base de ${areas.length>1?"las zonas sanas":"la zona sana"} (${areas.join(", ")}) ${desZS(r,it)}.${it.novedad?"":" No se identificaron indicaciones relevantes."}${it.observaciones?" "+it.observaciones:""}`,true,it.reparacion);
+        for(const h of hs){await cabecera(h,it,`Observaciones: Inspección MT fluorescente al metal base de ${areas.length>1?"las zonas sanas":"la zona sana"} (${areas.join(", ")}) ${desZS(r,it)}.${it.novedad?"":" No se identificaron indicaciones relevantes."}${obsIt(it)}`,true,it.reparacion);
           C(h,"H9","Tubería");C(h,"T9","Metal base - zona sana");ponEq(h,EQ_MT,equipo(it,"MT"))}
         await fotosEn([hMT],fot("MT"),"campo")}
       const g=fot("GEN");if(g.length)await fotosEn([hMT],g,"campo")}
@@ -4169,7 +4177,7 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
     // consumibles: solo referencia y lote; varios lotes de la misma referencia van seguidos ("E-59A lote 10001 lote 10002")
     const cons=pares=>{const m=new Map();pares.forEach(([ref,lote])=>{ref=v(ref);if(!ref||/^n\/?a$/i.test(ref))return;const k=ref.toUpperCase().replace(/[\s-]/g,"");if(!m.has(k))m.set(k,{ref,l:[]});const L=m.get(k).l;String(lote??"").split(/[,;/]|\s+y\s+/).map(x=>x.replace(/^\s*lote\s*/i,"").trim()).filter(Boolean).forEach(x=>{if(!L.includes(x))L.push(x)})});
       return[...m.values()].map(o=>o.ref+o.l.map(x=>` lote ${x}`).join("")).join("; ")};
-    put(5,1,cons(mt.flatMap(c=>[[c.particulas,c.lotePart],[c.contraste,""]])));
+    put(5,1,cons(mt.flatMap(c=>[[c.particulas,c.lotePart],[String(c.contraste||"").split("/")[0].trim(),String(c.contraste||"").includes("/")?String(c.contraste).split("/").slice(1).join("/"):""]])));
     put(1,2,cons([...pt.map(c=>[c.limpiador,c.loteLimp]),...pt.map(c=>[c.penetrante,c.lotePen]),...pt.map(c=>[c.revelador,c.loteRev])]));
     // auxiliares (luxómetro, termómetro, etc.)
     const aux=k=>jn(ax.map(c=>v(c[k])&&`S/N ${v(c[k])}`));const ad=(ri,ci,lab,k)=>{const s=aux(k);if(s)put(ri,ci,`${lab} ${s}`)};
@@ -4195,7 +4203,7 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
   // ---- alcance y dimensiones ----
   setT(K[14],`Aplicación de END ${tn&&!desc?"al metal base de la tubería nueva":`en instalación de la ${elem}`} ${enPK}, así:`);
   {const t=K[20],f=filasDe(t);const u=repCam?.unidad||"cm",mmv=v=>{const n=num(v);return n==null?null:n*(U2MM[u]||10)};const lg=repCam?.largos||{};let secs=[];const tt=repCam?.tipo;
-    if(tt==="Camisa directa"){secs=[["S#1",mmv(lg.cd?.[0])]];for(let k=0;k<nInt(repCam.capas,0,0,3);k++)secs.push([`SC${k+1}`,mmv(lg.sup?.[k])])}
+    if(tt==="Camisa directa"){secs=[["S#1",mmv(cdDe(repCam))]];for(let k=0;k<nInt(repCam.capas,0,0,3);k++)secs.push([`SC${k+1}`,mmv(lg.sup?.[k])])}
     else if(tt==="Camisa armadillo")armPz(repCam).forEach(p=>secs.push([p.nm,mmv(p.k==="d"?lg.dir?.[p.i]:lg.sob?.[p.i])]));
     else if(tt==="Camisa sobre anillo y camisa existente")secs=[["SC",mmv(lg.sc?.[0])],["A1",mmv(lg.a1?.[0])]];
     else if(tt==="Camisa doble anillo sobre existente")secs=[["SC",mmv(lg.sc?.[0])],["A2",mmv(lg.a2?.[0])],["A1",mmv(lg.a1?.[0])]];
@@ -4310,7 +4318,7 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
     [K[48],K[56],MB.cap,K[64]].filter(n=>n&&n.isConnected).forEach((p,i)=>setT(p,tx(p).replace(/^Esquema\s*\d+\.?/,`Esquema ${i+1}.`)))}
   conc.forEach(([i,t])=>{if(t)setT(K[i],t);else{K[i].remove();K[i+1]?.localName==="p"&&!tx(K[i+1]).trim()&&K[i+1].remove()}});
   // novedades escritas en las actividades
-  const obs=A.filter(x=>x.observaciones).map(x=>`${x.act}: ${x.observaciones}`);if(obs.length){const q=K[116].cloneNode(true);setT(q,obs.join(" · "));K[116].after(q)}
+  const obs=A.filter(x=>obsIt(x)).map(x=>`${x.act}:${obsIt(x)}`);if(obs.length){const q=K[116].cloneNode(true);setT(q,obs.join(" · "));K[116].after(q)}
   // ---- firma y anexos ----
   {const f=filasDe(K[161]);const c=celdasDe(f[2]).find(tc=>/Pablo|Stevinson|\w/.test(tx(tc)));if(c){const ps=kids(c,"p");setT(ps[0],realizo)}}
   {const an=[[scanA,"TE-END-F-017","Reporte de medición de espesores"],[pt,"TE-END-F-006","Reporte de inspección por líquidos penetrantes"],[scanC,"TE-END-F-070C","Reporte de inspección por ultrasonido Scan C"],[mt,"TE-END-F-40","Reporte de inspección por partículas magnéticas"],[paut,"TE-END-F-070B","Reporte de inspección por ultrasonido Phased Array"],[true,"TE-END-F-065","Anexo Fotográfico"]].filter(x=>x[0]);
@@ -4331,7 +4339,7 @@ async function generarInforme(r){r={...r,items:ligarHoras(r.items||[])};REP_PT=r
       const ef=[...n.children].find(c=>c.localName==="effectExtent");if(ef)["l","t","r","b"].forEach(k=>ef.setAttribute(k,"0"));
       let pPr=[...p.children].find(c=>c.localName==="pPr");if(pPr){[...pPr.children].filter(c=>c.localName==="spacing").forEach(c=>c.remove());const sp=doc.createElementNS(WNS,"w:spacing");sp.setAttributeNS(WNS,"w:before","0");sp.setAttributeNS(WNS,"w:after","0");sp.setAttributeNS(WNS,"w:line","240");sp.setAttributeNS(WNS,"w:lineRule","auto");pPr.insertBefore(sp,[...pPr.children].find(c=>c.localName==="jc")||null)}}}
   await pon("rId8",async e=>ubc?await fotoRep(ubc,"campo",e):await vacia(e,"image/jpeg"));
-  if(zs?.reparacion?.tipo)await pon("rId9",e=>esquemaRep({...zs.reparacion,zsNo:zs.zsNo||[],diametro:r.diametro},{pk:r.pk,linea:r.linea,consecutivo:r.consecutivo,tipoReparacion:r.tipoReparacion},e));
+  if(zs?.reparacion?.tipo)await pon("rId9",e=>esquemaRep({...zs.reparacion,zsNo:zs.zsNo||[],diametro:r.diametro,vista:"Zona sana"},{pk:r.pk,linea:r.linea,consecutivo:r.consecutivo,tipoReparacion:r.tipoReparacion},e));
   if(bis?.reparacion?.tipo)await pon("rId10",e=>esquemaRep({...bis.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
   if(repCam){const xe=A.find(x=>x.reparacion===repCam&&exOn(x));await pon("rId11",e=>esquemaRep({...repCam,diametro:r.diametro,...(xe?{exSold:xe.exSold}:{})},{tipoReparacion:r.tipoReparacion},e))}
   else if(tn?.reparacion?.tipo&&!zs)await pon("rId9",e=>esquemaRep({...tn.reparacion,diametro:r.diametro},{tipoReparacion:r.tipoReparacion},e));
