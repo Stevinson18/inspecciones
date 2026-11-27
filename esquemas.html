@@ -40,6 +40,7 @@ main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;padding
 .btn.small{padding:5px 10px;min-height:32px;font-size:.85rem}
 .btn.ghost{background:none}
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+[hidden]{display:none!important}
 .drawing{background:#fff;border:1px solid var(--line);border-radius:6px;overflow:auto;padding:6px}
 .drawing svg{display:block;width:100%;height:auto;min-width:520px}
 .sec{border-top:1px solid var(--line);margin-top:12px;padding-top:12px}
@@ -78,6 +79,23 @@ a{color:var(--ink)}
       <label class="f"><span class="label">Unidad</span><select class="field" id="iLTU"><option>m</option><option>cm</option><option>mm</option><option>pulg</option></select></label>
     </div>
     <div class="grid3" id="repParams"></div>
+    <div id="wSC" hidden>
+      <p class="note">Camisa ya instalada (por terceros) con Scan C en franjas junto a cada soldadura circunferencial de filete.</p>
+      <div class="grid2">
+        <label class="f"><span class="label">Camisa</span><input class="field" id="scCam" value="Camisa directa" autocomplete="off"></label>
+        <label class="f"><span class="label">Longitud camisa (mm, opcional)</span><input class="field mono" id="scL" inputmode="decimal" placeholder="300" autocomplete="off"></label>
+      </div>
+      <div class="grid2">
+        <label class="f"><span class="label">Ancho franja Scan C (mm)</span><input class="field mono" id="scA" inputmode="decimal" value="50" autocomplete="off"></label>
+        <label class="f"><span class="label">Franja</span><select class="field" id="scLado"><option value="fuera">Sobre la tubería, junto a la soldadura</option><option value="ambos">A ambos lados (tubería y camisa)</option></select></label>
+      </div>
+      <div class="grid3">
+        <label class="f"><span class="label">Soldadura izq.</span><input class="field" id="scN1" value="C1" autocomplete="off"></label>
+        <label class="f"><span class="label">Soldadura der.</span><input class="field" id="scN2" value="C2" autocomplete="off"></label>
+        <label class="f"><span class="label">Flujo</span><select class="field" id="scF"><option value="der">→</option><option value="izq">←</option></select></label>
+      </div>
+      <label class="f"><span class="label">Nota bajo el título</span><input class="field" id="scOri" value="Instalada por terceros durante atención de emergencia" autocomplete="off"></label>
+    </div>
     <label class="f" id="wRepNota"><span class="label">Detalle (opcional)</span><input class="field" id="iRepNota" placeholder="Ej: cascotas de 12 pulg, soldadura de filete" autocomplete="off"></label>
     <label class="check"><input type="checkbox" id="iTit" checked> Con título y resumen en la imagen</label>
   </section>
@@ -783,18 +801,67 @@ const lee=()=>{try{return JSON.parse(localStorage.getItem(LS)||"null")}catch(e){
 function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2400)}
 let modo="rep";
 
+// ---- Scan C junto a soldaduras de camisa existente ----
+const SCANC="Scan C junto a soldaduras (camisa existente)";
+function drawScanC(conTit){
+  const v=id=>$(id).value.trim(), nm=v=>{const n=parseFloat(String(v).replace(",","."));return isFinite(n)&&n>0?n:null};
+  const D=nm(v("iDiam")), L=nm(v("scL")), A=nm(v("scA"))||50, amb=v("scLado")==="ambos", n1=v("scN1")||"C1", n2=v("scN2")||"C2", cam=v("scCam")||"Camisa", ori=v("scOri"), izq=v("scF")==="izq";
+  const W=760, top=conTit?(ori?78:62):20, cy=top+92, ph=58, x0=36, x1=W-36, sw=300, ca=(W-sw)/2, cb=ca+sw, sh=ph+18, wt=15;
+  const zw=Math.max(16,Math.min(90,L?A/L*sw:34)), H=cy+sh/2+18+46+(L?24:0)+8+58;
+  const S=[], f=n=>Number(n).toFixed(1), F="Arial, Helvetica, sans-serif";
+  const T=(x,y,t,o={})=>S.push(`<text x="${f(x)}" y="${f(y)}" text-anchor="${o.a||"middle"}" style="fill:${o.c||"#1d2621"};font-family:${F};font-size:${o.s||12}px;font-weight:${o.w||500}">${esc(t)}</text>`);
+  const Ln=(a,b,c,d,col,w,da)=>S.push(`<line x1="${f(a)}" y1="${f(b)}" x2="${f(c)}" y2="${f(d)}" style="stroke:${col};stroke-width:${w||1};stroke-dasharray:${da||"none"}"/>`);
+  S.push(`<rect width="${W}" height="${H}" fill="#fff"/><defs><linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f878b"/><stop offset=".2" stop-color="#d3d7d9"/><stop offset=".55" stop-color="#8f979b"/><stop offset="1" stop-color="#4f565a"/></linearGradient><linearGradient id="gS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#959ca0"/><stop offset=".18" stop-color="#e9ecee"/><stop offset=".55" stop-color="#a7aeb2"/><stop offset="1" stop-color="#646c70"/></linearGradient><pattern id="hC" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#34a853"/><line x1="0" y1="0" x2="0" y2="7" stroke="#1e7a3a" stroke-width="2"/></pattern></defs>`);
+  if(conTit){T(x0,30,"Scan C adyacente a soldaduras de camisa existente",{a:"start",s:17,w:700,c:"#14324a"});
+    T(x0,50,`${D?"Ø "+D+"\" · ":""}${cam} con soldaduras de filete ${n1} y ${n2}`,{a:"start",s:12,c:"#454d48"});
+    if(ori)T(x0,67,ori,{a:"start",s:11,c:"#454d48"})}
+  // tubería con corte en S
+  const t=cy-ph/2,q=14;
+  S.push(`<path d="M${x0},${t} L${x1},${t} C${x1+q},${t+ph/3} ${x1-q},${t+2*ph/3} ${x1},${t+ph} L${x0},${t+ph} C${x0-q},${t+2*ph/3} ${x0+q},${t+ph/3} ${x0},${t} Z" style="fill:url(#gP);stroke:#3f464a;stroke-width:1.5"/>`);
+  S.push(`<path d="M${x0},${t+ph/2} Q${x0-10},${t+ph*.75} ${x0},${t+ph} Q${x0+20},${t+ph*.75} ${x0},${t+ph/2} Z" fill="#30363a"/><path d="M${x1},${t} Q${x1+10},${t+ph*.25} ${x1},${t+ph/2} Q${x1-20},${t+ph*.25} ${x1},${t} Z" fill="#30363a"/>`);
+  // camisa
+  const st=cy-sh/2;S.push(`<path d="M${ca},${st} H${cb} A4,${sh/2} 0 0 1 ${cb},${st+sh} H${ca} A4,${sh/2} 0 0 1 ${ca},${st} Z" style="fill:url(#gS);stroke:#3f464a;stroke-width:1.4"/>`);
+  T((ca+cb)/2,cy+4,cam,{s:13,w:700,c:"#1d2621"});
+  // soldaduras de filete (triángulos arriba y abajo)
+  const fil=(x,dir)=>{[[t,st],[t+ph,st+sh]].forEach(([yp,ys])=>S.push(`<path d="M${f(x-dir*wt)},${yp} L${x},${yp} L${x},${ys} Z" style="fill:#3b4248;stroke:#22282c;stroke-width:.8"/>`))};
+  fil(ca,1);fil(cb,-1);
+  // franjas Scan C
+  const zona=(x,w,h)=>S.push(`<rect x="${f(x)}" y="${f(cy-h/2)}" width="${f(w)}" height="${f(h)}" style="fill:url(#hC);fill-opacity:.85;stroke:#145c2a;stroke-width:1.6"/>`);
+  zona(ca-wt-zw,zw,ph+6);zona(cb+wt,zw,ph+6);
+  if(amb){zona(ca+1,zw,sh+6);zona(cb-1-zw,zw,sh+6)}
+  // rótulos de soldaduras
+  [[ca,n1],[cb,n2]].forEach(([x,n])=>{Ln(x,st-6,x,st-26,"#22282c",1.2);T(x,st-31,"Soldadura "+n,{s:12,w:700})});
+  const yz=cy+sh/2+18;
+  const lbl=(xa,xb)=>{Ln(xa,yz,xb,yz,"#145c2a",1);Ln(xa,yz-4,xa,yz+4,"#145c2a",1);Ln(xb,yz-4,xb,yz+4,"#145c2a",1);T((xa+xb)/2,yz+14,A+" mm",{s:11,c:"#145c2a",w:700})};
+  lbl(ca-wt-zw,ca-wt);lbl(cb+wt,cb+wt+zw);if(amb){lbl(ca,ca+zw);lbl(cb-zw,cb)}
+  T(amb?ca-wt/2:ca-wt-zw/2,yz+30,"Scan C "+n1,{s:12,w:700,c:"#145c2a"});T(amb?cb+wt/2:cb+wt+zw/2,yz+30,"Scan C "+n2,{s:12,w:700,c:"#145c2a"});
+  let yb=yz+46;
+  if(L){Ln(ca,yb,cb,yb,"#454d48",1);Ln(ca,yb-5,ca,yb+5,"#454d48",1);Ln(cb,yb-5,cb,yb+5,"#454d48",1);T((ca+cb)/2,yb+15,"Camisa "+L+" mm",{s:11,c:"#454d48"});yb+=24}
+  // flujo
+  const fx=x0+40,fy=yb+8;T(fx+50,fy-6,"Sentido de flujo",{s:12,w:700,c:"#2f7d4f"});
+  if(izq){Ln(fx+14,fy+6,fx+100,fy+6,"#2f7d4f",2.5);S.push(`<path d="M${fx+14},${fy} L${fx},${fy+6} L${fx+14},${fy+12} Z" fill="#2f7d4f"/>`)}else{Ln(fx,fy+6,fx+86,fy+6,"#2f7d4f",2.5);S.push(`<path d="M${fx+86},${fy} L${fx+100},${fy+6} L${fx+86},${fy+12} Z" fill="#2f7d4f"/>`)}
+  // leyenda
+  const lx=x1-250;S.push(`<rect x="${lx}" y="${fy-4}" width="18" height="12" style="fill:url(#hC);stroke:#145c2a"/>`);T(lx+24,fy+6,"Área inspeccionada con Scan C",{a:"start",s:11});
+  S.push(`<path d="M${lx},${fy+30} L${lx+16},${fy+30} L${lx+16},${fy+16} Z" fill="#3b4248"/>`);T(lx+24,fy+28,"Soldadura de filete (camisa – tubería)",{a:"start",s:11});
+  T(x0,H-10,"Esquema ilustrativo, sin escala",{a:"start",s:9,c:"#6b736e"});
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${S.join("")}</svg>`}
+
 // ---- reparación ----
 const REP_OPC=Object.keys(REPS).filter(k=>k!=="Otra");
-$("iRep").innerHTML=REP_OPC.map(k=>`<option>${esc(k)}</option>`).join("");
+$("iRep").innerHTML=REP_OPC.map(k=>`<option>${esc(k)}</option>`).join("")+`<option>${esc(SCANC)}</option>`;
 $("iTipoRep").innerHTML=`<option value="">—</option>`+TIPOS_REP.map(t=>`<option>${esc(t)}</option>`).join("");
-function svgRep(paraImg){const rep=readRep();if(!rep)return"";rep.vista=$("iVista").value;
+
+function svgRep(paraImg){if($("iRep").value===SCANC)return drawScanC(!paraImg||$("iTit").checked);const rep=readRep();if(!rep)return"";rep.vista=$("iVista").value;
   const meta={tipoReparacion:$("iTipoRep").value,zs:null};
   if(paraImg&&!$("iTit").checked){REPMODE=true;try{return drawRepair(rep,meta,PAL_PNG,false)}finally{REPMODE=false}}
   return drawRepair(rep,meta,PAL_PNG,false)}
-function updateDrawing(){if(modo!=="rep")return;$("drawing").innerHTML=svgRep(false);
+function updateDrawing(){if(modo!=="rep")return;const sc=$("iRep").value===SCANC;["wLT","repParams","wRepNota"].forEach(id=>$(id).hidden=sc);$("iVista").closest("label").hidden=sc;$("wSC").hidden=!sc;
+  if(sc){$("drawing").innerHTML=svgRep(false);$("wTipoA").hidden=true;const o={};["scCam","scL","scA","scLado","scN1","scN2","scF","scOri"].forEach(k=>o[k]=$(k).value);guarda({...(lee()||{}),rep:{...(lee()?.rep||{}),tipo:SCANC,diametro:$("iDiam").value,tit:$("iTit").checked},sc:o});return}
+  $("drawing").innerHTML=svgRep(false);
   $("wTipoA").hidden=!/^Camisa/.test($("iRep").value);
   guarda({...(lee()||{}),rep:{...readRep(),vistaSel:$("iVista").value,tipoRep:$("iTipoRep").value,tit:$("iTit").checked}})}
-$("iRep").addEventListener("change",()=>buildParams(null));
+$("iRep").addEventListener("change",()=>{if($("iRep").value===SCANC)updateDrawing();else buildParams(null)});
+["scCam","scL","scA","scLado","scN1","scN2","scF","scOri"].forEach(id=>["input","change"].forEach(ev=>$(id).addEventListener(ev,updateDrawing)));
 $("repParams").addEventListener("input",e=>{
   if(e.target.id==="rp_directas"||e.target.id==="rp_cascotas"||e.target.id==="rp_capas"){const c=readLens();renderLens(c.unidad,c.largos)}
   if(e.target.id==="rp_venteos"||e.target.id==="rp_drenajes")renderPos(readPos());
@@ -915,6 +982,8 @@ if(navigator.canShare&&navigator.canShare({files:[new File([new Blob(["x"],{type
 
 // ---- arranque ----
 (()=>{const s=lee();
+  if(s?.sc)Object.entries(s.sc).forEach(([k,v])=>{if($(k))$(k).value=v});
+  if(s?.rep?.tipo===SCANC){$("iRep").value=SCANC;$("iDiam").value=s.rep.diametro||"10";$("iTit").checked=s.rep.tit!==false;$("iRep").value="Camisa directa";buildParams(null);$("iRep").value=SCANC;updateDrawing()}else
   if(s?.rep?.tipo&&REP_OPC.includes(s.rep.tipo)){$("iRep").value=s.rep.tipo;$("iDiam").value=s.rep.diametro||"10";$("iRepNota").value=s.rep.nota||"";$("iLT").value=s.rep.longTotal||"";$("iLTU").value=s.rep.longUnidad||"m";
     $("iVista").value=s.rep.vistaSel||"";$("iTipoRep").value=s.rep.tipoRep||"";$("iTit").checked=s.rep.tit!==false;buildParams(s.rep)}else{$("iRep").value="Camisa sobre anillos";buildParams(null)}
   if(s?.ind){inds=s.ind.inds||inds;refs=s.ind.refs||[];$("nDiam").value=s.ind.diam||"10";$("nRef").value=s.ind.ref||"C1";$("nElem").value=s.ind.elem||"";$("nFlujo").value=s.ind.flujo||"der";$("nTabla").checked=s.ind.tabla!==false}
