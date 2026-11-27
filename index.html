@@ -781,13 +781,13 @@ function drawRepair(rep,meta,P,compact){
     if(exD){sleeve(cb-span*0.09,cy-hE/2,x1-8-(cb-span*0.09),hE,{op:.55});if(!compact)T((cb+x1-8)/2+span*0.04,cy+hF/2+60,nomD,{s:11,c:P.muted})}
     const yaInst=tipo==="Camisa directa"&&rep.inst===true;
     if(yaInst){// camisa ya instalada (p. ej. por terceros): zonas sanas sobre la tubería, junto a las soldaduras de filete
-      const wt=compact?5:12;sleeve(ca,cy-hE/2,cb-ca,hE);if(!compact)T((ca+cb)/2,cy+5,"Camisa existente",{s:12,w:700});
+      const wt=compact?5:12;sleeve(ca,cy-hE/2,cb-ca,hE);if(!compact)T((ca+cb)/2,cy+5,"Camisa instalada",{s:12,w:700});
       [[ca,1],[cb,-1]].forEach(([x,d])=>[[cy-ph/2,cy-hE/2],[cy+ph/2,cy+hE/2]].forEach(([yp,ys])=>S.push(`<path d="M${f1(x-d*wt)},${f1(yp)} L${f1(x)},${f1(yp)} L${f1(x)},${f1(ys)} Z" style="fill:${P.weld};stroke:#22282c;stroke-width:.8"/>`)));
       [[ca,"C1"],[cb,"C2"]].forEach(([x,c],n)=>{const l=`AS C${n+1}`,off=(rep.zsNo||[]).includes(l),h=ph+6,zx=n?x+wt:x-wt-zw;
         R(zx,cy-h/2,zw,h,{f:off?"#e4e7e9":P.zs,s:off?"#b5bcc0":P.zsEdge,sw:1.2});L(zx+zw/2,cy-h/2+3,zx+zw/2,cy+h/2-3,{s:P.zsLine,sw:1.6,d:"5 4"});
         if(!compact){L(x,cy-hE/2-4,x,cy-hE/2-20,{s:P.fg,sw:1.1});T(x,cy-hE/2-25,"Soldadura "+c,{s:11,w:700});const yb=cy+hF/2;T(zx+zw/2,yb+17,l,{s:12,w:700,c:off?"#8d969b":P.zsEdge});T(zx+zw/2,yb+31,"junto a la soldadura",{s:10,c:P.muted});if(zv(l))T(zx+zw/2,yb+45,`e mín ${zv(l)}"`,{s:11,w:700,c:P.ink})}});
       flow((ca+cb)/2,cy+hF/2+34,P.zs);RA=ca;RB=cb;
-      titulo="Zonas sanas junto a las soldaduras de la camisa existente";DL="";
+      titulo="Zonas sanas junto a las soldaduras de la camisa instalada";DL="";
       resumen="AS C1 y AS C2 sobre la tubería, adyacentes a las soldaduras de filete";
     } else {
     // camisa a instalar: solo el contorno (todavía no existe)
@@ -2071,7 +2071,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v130";
+const LOCAL=!!window.__LOCAL;const APPV="v131";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
