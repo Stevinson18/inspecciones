@@ -2073,7 +2073,7 @@ function fotoSlots(it,gr){const cur=(it.fotos||{})[gr.k]||[];
     return{...(f||{}),cap:c,id:f?.id||null}})}
   const n=Math.max(gr.caps.length,cur.length);
   return[...Array(n)].map((_,j)=>({...(cur[j]||{}),cap:cur[j]?.cap??gr.caps[j]??"",id:cur[j]?.id||null}))}
-const LOCAL=!!window.__LOCAL;const APPV="v133";
+const LOCAL=!!window.__LOCAL;const APPV="v134";
 setTimeout(()=>{const t=document.getElementById("today");if(t&&LOCAL)t.insertAdjacentHTML("afterend",`<div class="sub" style="font-size:.72rem;opacity:.7">App ${APPV}</div>`)},0);
 setTimeout(()=>{if(document.getElementById("autoria"))return;const d=document.createElement("div");d.id="autoria";d.style.cssText="text-align:center;font-size:.72rem;opacity:.65;padding:18px 12px 28px";d.textContent=`Control de Inspecciones · © 2026 Pablo Stevinson Díaz Ríos. Todos los derechos reservados. Versión ${APPV}.`;document.body.appendChild(d)},0);
 if(!LOCAL)setTimeout(()=>{const b=document.getElementById("avisoApp");if(b)b.hidden=false},0);
@@ -2997,7 +2997,8 @@ $("iFecha").addEventListener("focus",()=>{fechaPrev=$("iFecha").value});
 $("itemsBox").addEventListener("change",e=>{if(e.target.dataset.f==="inspFecha"){syncCards();refreshAllFotos()}});
 $("iFecha").addEventListener("change",()=>{syncCards();refreshAllFotos()});
 $("iFecha").addEventListener("change",()=>{const nv=$("iFecha").value;document.querySelectorAll('#itemsBox [data-f="inspFecha"]').forEach(x=>{if(!x.value||x.value===fechaPrev)x.value=nv});fechaPrev=nv;syncCards()});
-$("itemsBox").addEventListener("input",e=>{if(e.target.dataset.zsmm!=null){const h=e.target.closest(".grid2")?.querySelector("[data-zscost]"),hr=mmAHora(e.target.value,$("iDiam").value);if(h){h.value=hr;const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i)}return}if(e.target.dataset.zsl!=null||e.target.dataset.zscost!=null||e.target.dataset.zsd!=null){const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i);return}if(e.target.dataset.zs==null)return;const c=e.target.closest(".itcard");if(!c)return;zsSync(c,+c.dataset.i);if(+c.dataset.i===active&&!$("drawWrap").hidden)updateDrawing()});
+$("itemsBox").addEventListener("input",e=>{if((e.target.dataset.zsl!=null||e.target.dataset.zsmm!=null)&&e.target.value.includes(".")){const t=e.target,p=t.selectionStart;t.value=t.value.replace(/\./g,",");try{t.setSelectionRange(p,p)}catch{}} // teclado numérico con punto → coma
+if(e.target.dataset.zsmm!=null){const h=e.target.closest(".grid2")?.querySelector("[data-zscost]"),hr=mmAHora(e.target.value,$("iDiam").value);if(h){h.value=hr;const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i)}return}if(e.target.dataset.zsl!=null||e.target.dataset.zscost!=null||e.target.dataset.zsd!=null){const c=e.target.closest(".itcard");if(c)zsSync(c,+c.dataset.i);return}if(e.target.dataset.zs==null)return;const c=e.target.closest(".itcard");if(!c)return;zsSync(c,+c.dataset.i);if(+c.dataset.i===active&&!$("drawWrap").hidden)updateDrawing()});
 $("iCons").addEventListener("input",()=>{if(!$("drawWrap").hidden)updateDrawing()});
 // el cálculo de 0 horas depende del diámetro, el espesor y el tipo de camisa del punto
 ["iDiam","iEsp","iTipoRep"].forEach(id=>$(id).addEventListener("change",()=>{syncCards();formItems.forEach((_,i)=>refreshH0(i))}));
